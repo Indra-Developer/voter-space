@@ -54,8 +54,8 @@
 .voter-global-search .voter-field input:hover { border-color: var(--primary-strong); background: color-mix(in srgb, var(--primary) 11%, var(--surface)); }
 .voter-global-search .voter-field input:focus { border-color: var(--primary-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent), inset 0 1px 2px color-mix(in srgb, var(--text) 12%, transparent), 0 3px 0 color-mix(in srgb, var(--primary) 42%, var(--surface)); outline: none; }
 .voter-global-search p { margin: 0; color: var(--muted); font-size: 0.68rem; line-height: 1.45; }
-.voter-filter-button-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.5rem; margin-top: 0.8rem; }
-.voter-filter-menu { position: relative; flex: 1 1 7.2rem; min-width: 7.2rem; }
+.voter-filter-button-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 0.5rem; margin-top: 0.8rem; }
+.voter-filter-menu { position: relative; min-width: 0; }
 .voter-filter-menu-button { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.08rem 0.28rem; width: 100%; min-height: 2.25rem; padding: 0.28rem 0.45rem 0.34rem; border: 1px solid color-mix(in srgb, var(--primary) 58%, var(--border)); border-bottom: 3px solid color-mix(in srgb, var(--primary-strong) 72%, var(--primary)); border-radius: 0.55rem; background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 13%, var(--surface)), color-mix(in srgb, var(--primary) 4%, var(--surface))); box-shadow: 0 2px 0 color-mix(in srgb, var(--primary-strong) 28%, transparent), 0 4px 8px color-mix(in srgb, var(--primary) 13%, transparent); color: var(--text); cursor: pointer; text-align: left; transform: translateY(0); transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease; }
 .voter-filter-menu-button > span { grid-column: 1 / -1; overflow: hidden; color: var(--primary-strong); font-size: 0.55rem; font-weight: 800; letter-spacing: 0.01em; text-overflow: ellipsis; white-space: nowrap; }
 .voter-filter-menu-button > strong { overflow: hidden; color: var(--text); font-size: 0.66rem; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
@@ -69,7 +69,7 @@
 .voter-filter-menu-popover > button:hover, .voter-filter-menu-popover > button.is-selected { background: var(--nav-active); color: var(--primary-strong); font-weight: 800; }
 .voter-filter-menu-popover > button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .voter-filter-menu-popover > button > svg { flex: 0 0 auto; color: var(--primary); }
-.voter-date-filter-menu { flex-basis: 9.2rem; }
+.voter-date-filter-menu { min-width: 0; }
 .voter-date-filter-popover { width: min(18rem, calc(100vw - 2rem)); max-height: none; }
 .voter-date-filter-popover .voter-field input { min-height: 2.15rem; }
 .voter-delete-ward-card { display: grid; gap: 0.8rem; padding: 0.9rem; border: 1px solid color-mix(in srgb, #c74735 38%, var(--border)); border-radius: 0.9rem; background: color-mix(in srgb, #c74735 7%, var(--surface)); box-shadow: 0 8px 22px color-mix(in srgb, #8f2e20 12%, transparent); }
@@ -250,8 +250,6 @@
   .voter-filter-card { padding: 0.6rem; }
   .voter-filter-title { margin-bottom: 0.55rem; }
   .voter-filter-button-row { gap: 0.35rem; margin-top: 0.6rem; }
-  .voter-filter-menu { flex-basis: calc(50% - 0.18rem); min-width: 0; }
-  .voter-date-filter-menu { flex-basis: 100%; }
   .voter-filter-menu-button { min-height: 2.05rem; padding: 0.24rem 0.35rem 0.3rem; border-radius: 0.48rem; }
   .voter-filter-menu-button > span { font-size: 0.5rem; }
   .voter-filter-menu-button > strong { font-size: 0.61rem; }
@@ -265,7 +263,11 @@
   .voter-record-card-fields dd, .voter-record-card-area strong { font-size: 0.6rem; }
   .voter-profile-card-open { margin-top: 0.38rem; font-size: 0.56rem; }
   .voter-profile-card-edit { min-height: 1.55rem; margin: 0.25rem 0.35rem 0.35rem; padding: 0.2rem 0.38rem; font-size: 0.56rem; }
-  .door-wise-grid { grid-template-columns: 1fr; }
+  .door-wise-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+  .door-wise-card header { align-items: flex-start; flex-direction: column; gap: 0.25rem; padding: 0.55rem; }
+  .door-wise-card header h3 { font-size: 0.78rem; }
+  .door-voter-row { align-items: flex-start; flex-direction: column; gap: 0.35rem; padding: 0.55rem; }
+  .door-voter-row > div:last-child { width: 100%; justify-content: flex-end; }
 }
 
 @media (max-width: 380px) {
