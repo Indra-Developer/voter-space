@@ -48,10 +48,30 @@
   box-shadow: 0 8px 22px color-mix(in srgb, var(--text) 11%, transparent), 0 1px 4px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
-.voter-filter-card { padding: 0.85rem; }
+.voter-filter-card { padding: 0.75rem; }
 .voter-global-search { display: grid; gap: 0.3rem; }
-.voter-global-search .voter-field input { min-height: 2.65rem; }
+.voter-global-search .voter-field input { min-height: 2.55rem; border: 2px solid var(--primary); background: color-mix(in srgb, var(--primary) 7%, var(--surface)); box-shadow: inset 0 1px 2px color-mix(in srgb, var(--text) 12%, transparent), 0 3px 0 color-mix(in srgb, var(--primary) 30%, var(--surface)), 0 5px 12px color-mix(in srgb, var(--primary) 12%, transparent); font-size: 0.76rem; }
+.voter-global-search .voter-field input:hover { border-color: var(--primary-strong); background: color-mix(in srgb, var(--primary) 11%, var(--surface)); }
+.voter-global-search .voter-field input:focus { border-color: var(--primary-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent), inset 0 1px 2px color-mix(in srgb, var(--text) 12%, transparent), 0 3px 0 color-mix(in srgb, var(--primary) 42%, var(--surface)); outline: none; }
 .voter-global-search p { margin: 0; color: var(--muted); font-size: 0.68rem; line-height: 1.45; }
+.voter-filter-button-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.5rem; margin-top: 0.8rem; }
+.voter-filter-menu { position: relative; flex: 1 1 7.2rem; min-width: 7.2rem; }
+.voter-filter-menu-button { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.08rem 0.28rem; width: 100%; min-height: 2.25rem; padding: 0.28rem 0.45rem 0.34rem; border: 1px solid color-mix(in srgb, var(--primary) 58%, var(--border)); border-bottom: 3px solid color-mix(in srgb, var(--primary-strong) 72%, var(--primary)); border-radius: 0.55rem; background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 13%, var(--surface)), color-mix(in srgb, var(--primary) 4%, var(--surface))); box-shadow: 0 2px 0 color-mix(in srgb, var(--primary-strong) 28%, transparent), 0 4px 8px color-mix(in srgb, var(--primary) 13%, transparent); color: var(--text); cursor: pointer; text-align: left; transform: translateY(0); transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease; }
+.voter-filter-menu-button > span { grid-column: 1 / -1; overflow: hidden; color: var(--primary-strong); font-size: 0.55rem; font-weight: 800; letter-spacing: 0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.voter-filter-menu-button > strong { overflow: hidden; color: var(--text); font-size: 0.66rem; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.voter-filter-menu-button > svg { grid-column: 2; grid-row: 2; color: var(--primary-strong); }
+.voter-filter-menu-button:hover, .voter-filter-menu-button[aria-expanded='true'] { border-color: var(--primary-strong); background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 22%, var(--surface)), color-mix(in srgb, var(--primary) 8%, var(--surface))); box-shadow: 0 3px 0 color-mix(in srgb, var(--primary-strong) 38%, transparent), 0 6px 12px color-mix(in srgb, var(--primary) 19%, transparent); transform: translateY(-1px); }
+.voter-filter-menu-button:active { box-shadow: 0 1px 0 color-mix(in srgb, var(--primary-strong) 38%, transparent), 0 2px 5px color-mix(in srgb, var(--primary) 13%, transparent); transform: translateY(1px); }
+.voter-filter-menu-button.has-value { border-color: var(--primary-strong); background: linear-gradient(180deg, var(--primary), color-mix(in srgb, var(--primary-strong) 78%, var(--primary))); color: var(--primary-contrast); }
+.voter-filter-menu-button.has-value > span, .voter-filter-menu-button.has-value > strong, .voter-filter-menu-button.has-value > svg { color: var(--primary-contrast); }
+.voter-filter-menu-popover { position: absolute; top: calc(100% + 0.35rem); left: 0; z-index: 30; display: grid; width: max-content; min-width: 100%; max-width: min(22rem, calc(100vw - 2rem)); max-height: 16rem; gap: 0.2rem; overflow-y: auto; padding: 0.4rem; border: 1px solid color-mix(in srgb, var(--primary) 32%, var(--border)); border-radius: 0.7rem; background: var(--surface); box-shadow: 0 12px 28px color-mix(in srgb, var(--text) 20%, transparent); }
+.voter-filter-menu-popover > button { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; width: 100%; min-height: 2rem; padding: 0.4rem 0.5rem; border: 0; border-radius: 0.45rem; background: transparent; color: var(--text); cursor: pointer; font-size: 0.7rem; text-align: left; }
+.voter-filter-menu-popover > button:hover, .voter-filter-menu-popover > button.is-selected { background: var(--nav-active); color: var(--primary-strong); font-weight: 800; }
+.voter-filter-menu-popover > button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voter-filter-menu-popover > button > svg { flex: 0 0 auto; color: var(--primary); }
+.voter-date-filter-menu { flex-basis: 9.2rem; }
+.voter-date-filter-popover { width: min(18rem, calc(100vw - 2rem)); max-height: none; }
+.voter-date-filter-popover .voter-field input { min-height: 2.15rem; }
 .voter-delete-ward-card { display: grid; gap: 0.8rem; padding: 0.9rem; border: 1px solid color-mix(in srgb, #c74735 38%, var(--border)); border-radius: 0.9rem; background: color-mix(in srgb, #c74735 7%, var(--surface)); box-shadow: 0 8px 22px color-mix(in srgb, #8f2e20 12%, transparent); }
 .voter-delete-ward-card > div:first-child { display: grid; gap: 0.25rem; }
 .voter-delete-ward-card strong { color: color-mix(in srgb, #b6382a 78%, var(--text)); font-size: 0.82rem; }
@@ -128,7 +148,7 @@
 .voter-export-hint { margin: -0.4rem 0 0; }
 
 .voter-table-card { overflow-x: auto; }
-.voter-mobile-records { display: none; }
+.voter-desktop-records { display: none; }
 .voter-table { width: 100%; min-width: 58rem; border-collapse: collapse; }
 .voter-table th,
 .voter-table td { padding: 0.7rem 0.75rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; font-size: 0.74rem; }
@@ -144,6 +164,7 @@
 .voter-icon-action { width: 1.85rem; min-height: 1.85rem; padding: 0; color: var(--primary); }
 
 .voter-card-grid { display: grid; gap: 0.65rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.voter-record-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; }
 .voter-profile-card { min-width: 0; overflow: hidden; }
 .voter-profile-card-main { display: block; width: 100%; padding: 0.72rem; border: 0; background: linear-gradient(160deg, color-mix(in srgb, var(--nav-active) 55%, var(--surface)), var(--surface) 58%); color: var(--text); text-align: left; cursor: pointer; }
 .voter-profile-card-main:hover { background: var(--nav-active); }
@@ -158,6 +179,17 @@
 .voter-profile-card-open { display: block; margin-top: 0.62rem; color: var(--primary); font-size: 0.61rem; font-weight: 800; }
 .voter-profile-card-edit { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; align-self: flex-end; min-height: 1.8rem; margin: 0 0.55rem 0.55rem; padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: 0.45rem; background: var(--surface); color: var(--primary); cursor: pointer; font-size: 0.62rem; font-weight: 750; }
 .voter-profile-card-edit:hover { border-color: var(--primary); background: var(--nav-active); }
+.voter-record-card { display: flex; flex-direction: column; border-color: color-mix(in srgb, var(--primary) 28%, var(--border)); box-shadow: 0 10px 24px color-mix(in srgb, var(--text) 13%, transparent), 0 1px 5px color-mix(in srgb, var(--primary) 12%, transparent); }
+.voter-record-card-main { flex: 1; min-height: 10.2rem; padding: 0.85rem; background: linear-gradient(145deg, color-mix(in srgb, var(--nav-active) 64%, var(--surface)), var(--surface) 64%); }
+.voter-record-card-main:hover { background: linear-gradient(145deg, var(--nav-active), var(--surface) 68%); }
+.voter-record-card h3 { min-height: 2.35rem; margin-top: 0.6rem; font-size: 0.88rem; }
+.voter-house-count { display: inline-flex; align-items: center; padding: 0.18rem 0.35rem; border-radius: 999px; background: color-mix(in srgb, var(--primary) 14%, var(--surface)); color: var(--primary-strong); font-size: 0.58rem; white-space: nowrap; }
+.voter-record-card-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin: 0.65rem 0 0; }
+.voter-record-card-fields div, .voter-record-card-area { min-width: 0; padding: 0.42rem 0.48rem; border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border)); border-radius: 0.5rem; background: color-mix(in srgb, var(--surface-muted) 72%, var(--surface)); }
+.voter-record-card-fields dt, .voter-record-card-area span { display: block; overflow: hidden; color: var(--muted); font-size: 0.56rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.voter-record-card-fields dd, .voter-record-card-area strong { display: block; margin: 0.15rem 0 0; overflow: hidden; color: var(--text); font-size: 0.68rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.voter-record-card-area { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.45rem; }
+.voter-record-card-area strong { margin-top: 0; color: var(--primary-strong); }
 
 .voter-status { display: inline-flex; align-items: center; min-height: 1.45rem; padding: 0.15rem 0.4rem; border-radius: 999px; background: var(--surface-muted); color: var(--muted); font-size: 0.64rem; font-weight: 750; white-space: nowrap; }
 .voter-status-reviewed { background: #daf3e4; color: #17683e; }
@@ -165,7 +197,7 @@
 :root[data-theme='dark'] .voter-status-reviewed { background: #1f4933; color: #a8e7c1; }
 :root[data-theme='dark'] .voter-status-needsReview { background: #4f3022; color: #ffd0b0; }
 
-.door-wise-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
+.door-wise-grid { display: grid; gap: 0.8rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .door-wise-card { overflow: hidden; }
 .door-wise-card header { padding: 0.75rem; border-bottom: 1px solid var(--border); background: var(--surface-muted); }
 .door-wise-card header span { color: var(--muted); font-size: 0.66rem; font-weight: 700; }
@@ -208,9 +240,36 @@
   .voter-dialog-backdrop { place-items: center; }
 }
 
+@media (max-width: 1023px) {
+  .voter-record-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 639px) {
   .voter-desktop-records { display: none; }
   .voter-mobile-records { display: grid; }
+  .voter-filter-card { padding: 0.6rem; }
+  .voter-filter-title { margin-bottom: 0.55rem; }
+  .voter-filter-button-row { gap: 0.35rem; margin-top: 0.6rem; }
+  .voter-filter-menu { flex-basis: calc(50% - 0.18rem); min-width: 0; }
+  .voter-date-filter-menu { flex-basis: 100%; }
+  .voter-filter-menu-button { min-height: 2.05rem; padding: 0.24rem 0.35rem 0.3rem; border-radius: 0.48rem; }
+  .voter-filter-menu-button > span { font-size: 0.5rem; }
+  .voter-filter-menu-button > strong { font-size: 0.61rem; }
+  .voter-record-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+  .voter-record-card-main { min-height: 8.45rem; padding: 0.48rem; }
+  .voter-record-card h3 { min-height: 1.9rem; margin-top: 0.35rem; font-size: 0.72rem; }
+  .voter-record-card-fields { gap: 0.25rem; margin-top: 0.4rem; }
+  .voter-record-card-fields div, .voter-record-card-area { padding: 0.28rem 0.32rem; }
+  .voter-record-card-area { align-items: flex-start; flex-direction: column; gap: 0.1rem; margin-top: 0.3rem; }
+  .voter-record-card-fields dt, .voter-record-card-area span { font-size: 0.5rem; }
+  .voter-record-card-fields dd, .voter-record-card-area strong { font-size: 0.6rem; }
+  .voter-profile-card-open { margin-top: 0.38rem; font-size: 0.56rem; }
+  .voter-profile-card-edit { min-height: 1.55rem; margin: 0.25rem 0.35rem 0.35rem; padding: 0.2rem 0.38rem; font-size: 0.56rem; }
+  .door-wise-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 380px) {
+  .voter-record-card-grid { grid-template-columns: 1fr; }
 }
 
 @media (min-width: 1024px) {
