@@ -1,0 +1,237 @@
+.voter-register-page {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.voter-register-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0;
+}
+
+.voter-register-header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
+
+.voter-secondary-button,
+.voter-primary-button,
+.voter-export-buttons button,
+.voter-row-button,
+.voter-icon-action,
+.voter-text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2.1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.voter-secondary-button { padding: 0.4rem 0.65rem; color: var(--primary); }
+.voter-primary-button { padding: 0.45rem 0.75rem; border-color: var(--primary); background: var(--primary); color: var(--primary-contrast); }
+.voter-primary-button:disabled { cursor: wait; opacity: 0.7; }
+.voter-text-button { min-height: auto; padding: 0.2rem; border: 0; background: transparent; color: var(--primary); }
+
+.voter-filter-card,
+.voter-table-card,
+.door-wise-card,
+.voter-profile-card {
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+  border-radius: 0.9rem;
+  background: var(--surface);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--text) 11%, transparent), 0 1px 4px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.voter-filter-card { padding: 0.85rem; }
+.voter-global-search { display: grid; gap: 0.3rem; }
+.voter-global-search .voter-field input { min-height: 2.65rem; }
+.voter-global-search p { margin: 0; color: var(--muted); font-size: 0.68rem; line-height: 1.45; }
+.voter-delete-ward-card { display: grid; gap: 0.8rem; padding: 0.9rem; border: 1px solid color-mix(in srgb, #c74735 38%, var(--border)); border-radius: 0.9rem; background: color-mix(in srgb, #c74735 7%, var(--surface)); box-shadow: 0 8px 22px color-mix(in srgb, #8f2e20 12%, transparent); }
+.voter-delete-ward-card > div:first-child { display: grid; gap: 0.25rem; }
+.voter-delete-ward-card strong { color: color-mix(in srgb, #b6382a 78%, var(--text)); font-size: 0.82rem; }
+.voter-delete-ward-card p { margin: 0; color: var(--muted); font-size: 0.68rem; line-height: 1.45; }
+.voter-delete-ward-controls { display: grid; align-items: end; gap: 0.65rem; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; }
+.voter-delete-ward-trigger { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; min-height: 2.1rem; padding: 0.35rem 0.6rem; border: 1px solid color-mix(in srgb, #c74735 48%, var(--border)); border-radius: 0.55rem; background: color-mix(in srgb, #c74735 7%, var(--surface)); color: #b6382a; cursor: pointer; font-size: 0.7rem; font-weight: 800; }
+.voter-delete-ward-trigger:hover { background: color-mix(in srgb, #c74735 14%, var(--surface)); }
+.voter-delete-ward-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, #10201c 42%, transparent); }
+.voter-delete-ward-dialog { width: min(100%, 32rem); max-height: min(90vh, 34rem); overflow: auto; }
+.voter-delete-ward-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.voter-dialog-close { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--surface); color: var(--muted); cursor: pointer; }
+.voter-dialog-close:hover { color: var(--text); border-color: var(--primary); }
+.voter-dialog-close:disabled { cursor: wait; opacity: 0.5; }
+.voter-delete-ward-dialog-footer { display: flex; justify-content: flex-end; gap: 0.55rem; padding-top: 0.2rem; }
+.voter-danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 2.25rem; padding: 0.42rem 0.7rem; border: 1px solid #c74735; border-radius: 0.55rem; background: #c74735; color: #fff; cursor: pointer; font-size: 0.72rem; font-weight: 800; white-space: nowrap; }
+.voter-danger-button:hover { background: #a92f21; border-color: #a92f21; }
+.voter-danger-button:disabled { cursor: not-allowed; opacity: 0.48; }
+.voter-delete-success { color: var(--primary-strong) !important; font-weight: 750; }
+.voter-delete-error { color: #b6382a !important; font-weight: 750; }
+.voter-filter-title,
+.voter-results-toolbar,
+.voter-toolbar-actions,
+.door-wise-card header,
+.door-voter-row,
+.voter-dialog header,
+.voter-dialog footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.voter-filter-title { margin-bottom: 0.75rem; }
+.voter-filter-title > div { display: flex; align-items: center; gap: 0.45rem; color: var(--text); font-size: 0.84rem; }
+.voter-filter-title svg { color: var(--primary); }
+.voter-filter-grid { display: grid; gap: 0.65rem; }
+.voter-filter-grid-primary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.voter-filter-grid-extra { margin-top: 0.75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.voter-more-filters { margin-top: 0.75rem; border-top: 1px solid var(--border); }
+.voter-more-filters summary { padding-top: 0.75rem; color: var(--primary); cursor: pointer; font-size: 0.76rem; font-weight: 750; }
+
+.voter-field { display: grid; gap: 0.25rem; min-width: 0; }
+.voter-field span,
+.voter-check-field span { color: var(--muted); font-size: 0.68rem; font-weight: 700; }
+.voter-field input,
+.voter-field select {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  outline: none;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.76rem;
+}
+.voter-field input:focus,
+.voter-field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent); }
+.voter-field input:disabled,
+.voter-field select:disabled { opacity: 0.78; cursor: default; background: var(--surface-muted); }
+
+.voter-results-toolbar { flex-wrap: wrap; margin-top: 0.1rem; }
+.voter-results-toolbar > div:first-child { display: grid; gap: 0.1rem; }
+.voter-results-toolbar strong { font-size: 0.84rem; }
+.voter-results-toolbar span,
+.voter-export-hint { color: var(--muted); font-size: 0.7rem; }
+.voter-toolbar-actions { flex-wrap: wrap; }
+.voter-view-toggle,
+.voter-export-buttons { display: flex; align-items: center; gap: 0.35rem; }
+.voter-view-toggle { padding: 0.2rem; border: 1px solid var(--border); border-radius: 0.65rem; background: var(--surface); }
+.voter-view-toggle button { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 1.85rem; padding: 0.25rem 0.45rem; border: 0; border-radius: 0.45rem; background: transparent; color: var(--muted); cursor: pointer; font-size: 0.68rem; font-weight: 700; }
+.voter-view-toggle button.is-active { background: var(--nav-active); color: var(--primary-strong); }
+.voter-export-buttons button { padding: 0.35rem 0.5rem; color: var(--primary); }
+.voter-export-hint { margin: -0.4rem 0 0; }
+
+.voter-table-card { overflow-x: auto; }
+.voter-mobile-records { display: none; }
+.voter-table { width: 100%; min-width: 58rem; border-collapse: collapse; }
+.voter-table th,
+.voter-table td { padding: 0.7rem 0.75rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; font-size: 0.74rem; }
+.voter-table th { color: var(--muted); background: var(--surface-muted); font-size: 0.66rem; font-weight: 750; }
+.voter-table tbody tr:last-child td { border-bottom: 0; }
+.voter-table td strong { display: block; font-size: 0.77rem; }
+.voter-table td span { display: block; margin-top: 0.15rem; color: var(--muted); font-size: 0.67rem; }
+.voter-profile-link { display: grid; gap: 0.1rem; padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.voter-profile-link:hover strong { color: var(--primary); text-decoration: underline; text-underline-offset: 0.15rem; }
+.voter-row-actions { display: flex; justify-content: flex-end; gap: 0.35rem; white-space: nowrap; }
+.voter-row-button { min-height: 1.85rem; padding: 0.28rem 0.45rem; color: var(--primary); }
+.voter-row-button-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-contrast); }
+.voter-icon-action { width: 1.85rem; min-height: 1.85rem; padding: 0; color: var(--primary); }
+
+.voter-card-grid { display: grid; gap: 0.65rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.voter-profile-card { min-width: 0; overflow: hidden; }
+.voter-profile-card-main { display: block; width: 100%; padding: 0.72rem; border: 0; background: linear-gradient(160deg, color-mix(in srgb, var(--nav-active) 55%, var(--surface)), var(--surface) 58%); color: var(--text); text-align: left; cursor: pointer; }
+.voter-profile-card-main:hover { background: var(--nav-active); }
+.voter-profile-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.35rem; color: var(--muted); font-size: 0.58rem; font-weight: 750; line-height: 1.35; }
+.voter-profile-card-top span:last-child { text-align: right; }
+.voter-profile-card h3 { display: -webkit-box; min-height: 2.2rem; margin: 0.5rem 0 0.2rem; overflow: hidden; font-size: 0.8rem; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.voter-profile-card-main > p { margin: 0; overflow: hidden; color: var(--primary-strong); font-size: 0.64rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.voter-profile-card dl { display: grid; gap: 0.4rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0.7rem 0 0; }
+.voter-profile-card dl div { min-width: 0; padding: 0.35rem; border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border)); border-radius: 0.45rem; background: color-mix(in srgb, var(--surface-muted) 65%, var(--surface)); }
+.voter-profile-card dt { overflow: hidden; color: var(--muted); font-size: 0.55rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.voter-profile-card dd { margin: 0.12rem 0 0; overflow: hidden; color: var(--text); font-size: 0.64rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.voter-profile-card-open { display: block; margin-top: 0.62rem; color: var(--primary); font-size: 0.61rem; font-weight: 800; }
+.voter-profile-card-edit { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; align-self: flex-end; min-height: 1.8rem; margin: 0 0.55rem 0.55rem; padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: 0.45rem; background: var(--surface); color: var(--primary); cursor: pointer; font-size: 0.62rem; font-weight: 750; }
+.voter-profile-card-edit:hover { border-color: var(--primary); background: var(--nav-active); }
+
+.voter-status { display: inline-flex; align-items: center; min-height: 1.45rem; padding: 0.15rem 0.4rem; border-radius: 999px; background: var(--surface-muted); color: var(--muted); font-size: 0.64rem; font-weight: 750; white-space: nowrap; }
+.voter-status-reviewed { background: #daf3e4; color: #17683e; }
+.voter-status-needsReview { background: #fff0e7; color: #b6531c; }
+:root[data-theme='dark'] .voter-status-reviewed { background: #1f4933; color: #a8e7c1; }
+:root[data-theme='dark'] .voter-status-needsReview { background: #4f3022; color: #ffd0b0; }
+
+.door-wise-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
+.door-wise-card { overflow: hidden; }
+.door-wise-card header { padding: 0.75rem; border-bottom: 1px solid var(--border); background: var(--surface-muted); }
+.door-wise-card header span { color: var(--muted); font-size: 0.66rem; font-weight: 700; }
+.door-wise-card h3 { margin: 0.1rem 0 0; font-size: 1rem; }
+.door-wise-card header > strong { color: var(--primary); font-size: 0.7rem; }
+.door-voter-list { padding: 0 0.75rem; }
+.door-voter-row { padding: 0.65rem 0; border-bottom: 1px solid var(--border); }
+.door-voter-row:last-child { border-bottom: 0; }
+.door-voter-row > div:first-child { min-width: 0; }
+.door-voter-row strong { display: block; overflow: hidden; font-size: 0.76rem; text-overflow: ellipsis; white-space: nowrap; }
+.door-voter-row span { display: block; margin-top: 0.12rem; color: var(--muted); font-size: 0.64rem; }
+.door-voter-row > div:last-child { display: flex; align-items: center; justify-content: flex-end; gap: 0.3rem; }
+
+.voter-dialog-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: end center; padding: 0.75rem; background: rgba(7, 16, 27, 0.55); }
+.voter-dialog { width: min(100%, 46rem); max-height: min(90svh, 52rem); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 1rem; background: var(--surface); box-shadow: var(--shadow); }
+.voter-dialog header { padding: 0.9rem 1rem; border-bottom: 1px solid var(--border); }
+.voter-dialog header p { margin: 0; color: var(--primary); font-size: 0.65rem; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; }
+.voter-dialog h2 { margin: 0.12rem 0 0; font-size: 1rem; }
+.voter-dialog-close { display: inline-grid; width: 2rem; height: 2rem; place-items: center; border: 1px solid var(--border); border-radius: 0.55rem; background: var(--surface); color: var(--muted); cursor: pointer; }
+.voter-dialog-body { overflow-y: auto; padding: 1rem; }
+.voter-original-card { margin-bottom: 1rem; padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.8rem; background: var(--surface-muted); }
+.voter-original-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.6rem; }
+.voter-original-card-heading strong { font-size: 0.76rem; }
+.voter-original-card-heading span { color: var(--muted); font-size: 0.65rem; }
+.voter-original-card img { display: block; width: 100%; height: auto; border: 1px solid color-mix(in srgb, var(--text) 55%, var(--border)); background: #fff; }
+.voter-card-placeholder { display: grid; min-height: 8rem; place-items: center; border: 1px dashed var(--border); background: var(--surface); color: var(--muted); font-size: 0.72rem; }
+.voter-editor-grid { display: grid; gap: 0.7rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.voter-check-field { display: flex; align-items: center; gap: 0.5rem; min-height: 2.25rem; align-self: end; padding: 0.45rem 0.55rem; border: 1px solid var(--border); border-radius: 0.55rem; background: var(--surface-muted); }
+.voter-readonly-data { display: grid; gap: 0.5rem; margin: 1rem 0 0; padding: 0.75rem; border-radius: 0.7rem; background: var(--surface-muted); }
+.voter-readonly-data div { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: 0.5rem; }
+.voter-readonly-data dt { color: var(--muted); font-size: 0.68rem; font-weight: 700; }
+.voter-readonly-data dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--text); font-size: 0.72rem; }
+.voter-dialog footer { padding: 0.75rem 1rem; border-top: 1px solid var(--border); justify-content: flex-end; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+@media (min-width: 640px) {
+  .voter-filter-grid-primary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .voter-filter-grid-extra { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .voter-dialog-backdrop { place-items: center; }
+}
+
+@media (max-width: 639px) {
+  .voter-desktop-records { display: none; }
+  .voter-mobile-records { display: grid; }
+}
+
+@media (min-width: 1024px) {
+  .voter-filter-grid-extra { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+@media (max-width: 430px) {
+  .voter-register-intro { align-items: flex-start; flex-direction: column; }
+  .voter-register-header-actions { width: 100%; justify-content: stretch; }
+  .voter-register-header-actions > button { flex: 1; }
+  .voter-filter-grid-primary,
+  .voter-filter-grid-extra,
+  .voter-editor-grid { grid-template-columns: 1fr; }
+  .voter-toolbar-actions { width: 100%; align-items: stretch; flex-direction: column; }
+  .voter-view-toggle,
+  .voter-export-buttons { width: 100%; }
+  .voter-view-toggle button,
+  .voter-export-buttons button { flex: 1; }
+  .voter-readonly-data div { grid-template-columns: 1fr; gap: 0.15rem; }
+  .voter-delete-ward-controls { grid-template-columns: 1fr; }
+  .voter-danger-button { width: 100%; }
+  .voter-delete-ward-dialog-footer { flex-direction: column-reverse; }
+  .voter-delete-ward-dialog-footer button { width: 100%; }
+}

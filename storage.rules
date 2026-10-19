@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUser() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isManager() {
+      return signedIn() && currentUser().status == 'active' &&
+        (currentUser().role == 'superAdmin' || currentUser().role == 'admin');
+    }
+
+    function canUploadPdf() {
+      return signedIn() && currentUser().status == 'active' &&
+        (currentUser().role == 'superAdmin' ||
+        (currentUser().role == 'admin' && currentUser().permissions.upload == true));
+    }
+
+    function ownsPdfImport(ownerUid, sourcePdfId) {
+      return firestore.exists(/databases/(default)/documents/sourcePdfs/$(sourcePdfId)) &&
+        firestore.get(/databases/(default)/documents/sourcePdfs/$(sourcePdfId)).data.ownerUid == ownerUid;
+    }
+
+    function safeImage() {
+      return request.resource.size < 5 * 1024 * 1024 && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    function isOwnProfileImage(ownerUid, allPaths) {
+      return currentUser().profilePhotoPath == 'user-media/' + ownerUid + '/' + allPaths ||
+        currentUser().bannerPath == 'user-media/' + ownerUid + '/' + allPaths;
+    }
+
+    match /user-media/{ownerUid}/{allPaths=**} {
+      allow read: if signedIn() && (ownerUid == request.auth.uid || isManager() || isOwnProfileImage(ownerUid, allPaths));
+      allow create, update: if isManager() && ownerUid == request.auth.uid && safeImage();
+      allow delete: if isManager() && ownerUid == request.auth.uid;
+    }
+
+    // Each browser can upload only to its own import folder. The callable
+    // function checks the selected ward and booth before creating that folder.
+    match /source-pdfs/{ownerUid}/{sourcePdfId}/{fileName} {
+      allow create, update: if canUploadPdf() && ownerUid == request.auth.uid &&
+        ownsPdfImport(ownerUid, sourcePdfId) && request.resource.contentType == 'application/pdf';
+      allow read, delete: if false;
+    }
+
+    // OCR files and voter-card crops are created only by the trusted server.
+    match /ocr-output/{allPaths=**} { allow read, write: if false; }
+    match /voter-cards/{allPaths=**} { allow read, write: if false; }
+  }
+}

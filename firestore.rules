@@ -1,0 +1,67 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && currentUser().role == 'superAdmin' && currentUser().status == 'active';
+    }
+
+    function isAdmin() {
+      return signedIn() && currentUser().role == 'admin' && currentUser().status == 'active';
+    }
+
+    match /users/{userId} {
+      allow get: if signedIn() && (
+        userId == request.auth.uid ||
+        isSuperAdmin() ||
+        (isAdmin() && resource.data.role == 'subMember' && resource.data.parentAdminId == request.auth.uid)
+      );
+
+      // Admin queries must include: parentAdminId == current uid AND role == subMember.
+      allow list: if isSuperAdmin() ||
+        (isAdmin() && resource.data.role == 'subMember' && resource.data.parentAdminId == request.auth.uid);
+
+      // Auth account creation and profile changes are handled only by Cloud Functions.
+      allow create, update, delete: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow get, list: if isSuperAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /wards/{wardId} {
+      allow get, list: if signedIn();
+      allow create, update, delete: if false;
+    }
+
+    match /booths/{boothId} {
+      allow get, list: if signedIn();
+      allow create, update, delete: if false;
+    }
+
+    // Voter data is returned only through the protected Cloud Functions.
+    // This keeps Sub-members restricted even if someone edits the browser request.
+    match /voters/{voterId} {
+      allow read, write: if false;
+    }
+
+    // PDF import records and OCR rows use callable functions only. This prevents
+    // a browser request from bypassing ward, booth, approval, or duplicate checks.
+    match /sourcePdfs/{sourcePdfId} {
+      allow read, write: if false;
+
+      match /rows/{rowId} {
+        allow read, write: if false;
+      }
+    }
+  }
+}
