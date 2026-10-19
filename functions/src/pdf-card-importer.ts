@@ -1,10 +1,11 @@
-import { createCanvas, DOMMatrix, ImageData, Path2D } from '@napi-rs/canvas'
+import { createCanvas, DOMMatrix, ImageData, Path2D, loadImage } from '@napi-rs/canvas'
 import { ImageAnnotatorClient } from '@google-cloud/vision'
 import { getStorage } from 'firebase-admin/storage'
 
 type CardRect = { x: number; y: number; w: number; h: number }
 type ScopeDefaults = { wardId: string; boothId: string; area: string; division: string }
 type VisionWord = { x: number; y: number; w: number; h: number; text: string; confidence: number }
+type RecognizedCardText = { text: string; confidence: number; annotation?: any }
 
 export type CoverAreaRow = {
   order: number
@@ -128,6 +129,9 @@ export async function extractVoterCardsFromPdf({
       page.cleanup()
 
       const texts = await recognizeCards(cards.map((card) => card.buffer), vision)
+      const parsedRows = cards.map((card, index) => parseVoterCard(texts[index]?.text ?? '', texts[index]?.confidence ?? 0, scope, coverRows, '', pageNumber, card.cardPosition, texts[index]?.annotation))
+      const retryIndexes = parsedRows.flatMap((row, index) => isValidVoterName(row.fullName) && isValidDoorNumberValue(row.doorNumber) ? [] : [index])
+      const retryValues = retryIndexes.length ? await retryCardFields(cards, retryIndexes, vision) : new Map<number, { fullName?: string; doorNumber?: string }>()
       const pageRows = await Promise.all(cards.map(async (card, index) => {
         const imagePath = `voter-cards/${sourcePdfId}/p${String(pageNumber).padStart(4, '0')}-c${String(card.cardPosition).padStart(3, '0')}.png`
         await bucket.file(imagePath).save(card.buffer, {
@@ -138,7 +142,9 @@ export async function extractVoterCardsFromPdf({
             metadata: { sourcePdfId, pageNumber: String(pageNumber), cardPosition: String(card.cardPosition) },
           },
         })
-        return parseVoterCard(texts[index]?.text ?? '', texts[index]?.confidence ?? 0, scope, coverRows, imagePath, pageNumber, card.cardPosition)
+        const parsed = parsedRows[index]
+        const retry = retryValues.get(index)
+        return { ...parsed, fullName: retry?.fullName || parsed.fullName, doorNumber: retry?.doorNumber || parsed.doorNumber, voterCardImagePath: imagePath }
       }))
       rows.push(...pageRows)
       await onProgress?.(pageNumber, pdf.numPages, rows.length)
@@ -404,35 +410,95 @@ function removeOverlappingCards(cards: CardRect[]) {
 }
 
 async function recognizeCards(buffers: Buffer[], vision: ImageAnnotatorClient) {
-  const output: Array<{ text: string; confidence: number }> = []
+  return recognizeImages(buffers, vision, ['te', 'en'])
+}
+
+async function recognizeImages(buffers: Buffer[], vision: ImageAnnotatorClient, languageHints: string[]): Promise<RecognizedCardText[]> {
+  const output: RecognizedCardText[] = []
   for (let start = 0; start < buffers.length; start += 16) {
     const chunk = buffers.slice(start, start + 16)
     const [result] = await vision.batchAnnotateImages({
       requests: chunk.map((buffer) => ({
         image: { content: buffer },
         features: [{ type: 'DOCUMENT_TEXT_DETECTION' as const }],
-        imageContext: { languageHints: ['te', 'en'] },
+        imageContext: { languageHints },
       })),
     })
     for (const response of result.responses ?? []) {
       if (response.error?.message) throw new Error(`Card OCR failed: ${response.error.message}`)
       const annotation = response.fullTextAnnotation
-      output.push({ text: annotation?.text?.trim() ?? '', confidence: annotationConfidence(annotation) })
+      output.push({ text: annotation?.text?.trim() ?? '', confidence: annotationConfidence(annotation), annotation })
     }
   }
   while (output.length < buffers.length) output.push({ text: '', confidence: 0 })
   return output
 }
 
-export function parseVoterCard(text: string, confidence: number, scope: ScopeDefaults, coverRows: CoverAreaRow[], imagePath: string, pageNumber: number, cardPosition: number): ExtractedVoterCard {
+async function retryCardFields(cards: Array<{ buffer: Buffer; cardPosition: number }>, indexes: number[], vision: ImageAnnotatorClient) {
+  const crops = await Promise.all(indexes.map((index) => createFieldCrops(cards[index].buffer)))
+  const names = await recognizeImages(crops.map((crop) => crop.name), vision, ['te', 'en'])
+  const doors = await recognizeImages(crops.map((crop) => crop.door), vision, ['en', 'te'])
+  const output = new Map<number, { fullName?: string; doorNumber?: string }>()
+  indexes.forEach((index, retryIndex) => {
+    const name = parseFieldText(names[retryIndex], 'name')
+    const doorNumber = parseFieldText(doors[retryIndex], 'door')
+    if (name || doorNumber) output.set(index, { fullName: name || undefined, doorNumber: doorNumber || undefined })
+  })
+  return output
+}
+
+async function createFieldCrops(buffer: Buffer) {
+  const image = await loadImage(buffer)
+  const crop = (topRatio: number, bottomRatio: number) => {
+    const x = Math.round(image.width * 0.02)
+    const y = Math.round(image.height * topRatio)
+    const width = Math.round(image.width * 0.78)
+    const height = Math.max(1, Math.round(image.height * (bottomRatio - topRatio)))
+    const outputWidth = 1400
+    const outputHeight = Math.max(180, Math.round(outputWidth * height / width))
+    const canvas = createCanvas(outputWidth, outputHeight)
+    const context = canvas.getContext('2d')
+    context.fillStyle = '#fff'
+    context.fillRect(0, 0, outputWidth, outputHeight)
+    context.drawImage(image, x, y, width, height, 0, 0, outputWidth, outputHeight)
+    const result = canvas.toBuffer('image/png')
+    canvas.width = 1
+    canvas.height = 1
+    return result
+  }
+  const result = { name: crop(0.14, 0.40), door: crop(0.56, 0.83) }
+  const closableImage = image as unknown as { close?: () => void }
+  closableImage.close?.()
+  return result
+}
+
+function parseFieldText(result: RecognizedCardText | undefined, field: 'name' | 'door') {
+  if (!result?.text) return ''
+  const lines = result.text.split(/\r?\n/).map(cleanOcrLine).filter(Boolean)
+  if (field === 'name') {
+    return firstValidValue([
+      annotationFieldValue(result.annotation, 'name'),
+      labelledValue(lines, voterNameLabels, isValidVoterName),
+      findUnlabelledName(lines),
+    ], isValidVoterName)
+  }
+  return normalizeDoor(firstValidValue([
+    annotationFieldValue(result.annotation, 'door'),
+    labelledValue(lines, doorLabels, isValidDoorCandidate),
+  ], isValidDoorCandidate))
+}
+
+export function parseVoterCard(text: string, confidence: number, scope: ScopeDefaults, coverRows: CoverAreaRow[], imagePath: string, pageNumber: number, cardPosition: number, annotation?: any): ExtractedVoterCard {
   const lines = text.split(/\r?\n/).map(cleanOcrLine).filter(Boolean)
   const composite = text.match(/(?:^|\D)(\d{1,3})\s*[-–—]\s*(\d{1,4})\s*[-–—]\s*(\d{1,6})(?:\D|$)/m)
   const division = composite?.[2] ?? scope.division
   const assemblySerial = composite?.[3] ?? ''
   const serialNumber = findSerial(lines, composite?.[0] ?? '')
-  const fullName = labelledValue(lines, [/(?:ఓటరు|ఓటర్|వోటరు|వోటర్)\s*పేరు/i, /voter\s*(?:name)?/i])
+  const annotatedName = annotationFieldValue(annotation, 'name')
+  const annotatedDoor = annotationFieldValue(annotation, 'door')
+  const fullName = firstValidValue([annotatedName, labelledValue(lines, voterNameLabels, isValidVoterName), findUnlabelledName(lines)], isValidVoterName)
   const relationship = findRelationship(lines)
-  const doorNumber = normalizeDoor(labelledValue(lines, [/ఇంటి\s*సంఖ్య/i, /(?:house|door)\s*(?:no\.?|number)?/i]))
+  const doorNumber = normalizeDoor(firstValidValue([annotatedDoor, labelledValue(lines, doorLabels, isValidDoorCandidate)], isValidDoorCandidate))
   const voterId = text.match(/\b([A-Z]{3})\s*[- ]?\s*(\d{7})\b/i)?.slice(1).join('').toLocaleUpperCase() ?? ''
   const age = text.match(/(?:వయస్సు|age)\s*[:.;|]?\s*(\d{1,3})/i)?.[1] ?? ''
   const genderRaw = labelledValue(lines, [/లింగ(?:ము|ం)?/i, /gender/i])
@@ -465,7 +531,91 @@ export function parseVoterCard(text: string, confidence: number, scope: ScopeDef
   }
 }
 
-function labelledValue(lines: string[], labels: RegExp[]) {
+const voterNameLabels = [
+  /(?:ఓటరు|ఓటర్|వోటరు|వోటర్)\s*పేరు/i,
+  /^\s*పేరు\s*[:：]?/i,
+  /\bvoter(?:'s)?\s+name\b/i,
+  /\bname\s+of\s+(?:the\s+)?voter\b/i,
+  /^\s*name\s*[:：]?/i,
+]
+
+const doorLabels = [
+  /ఇంటి\s*(?:సంఖ్య|నంబరు|నం)/i,
+  /\b(?:house|door)\s*(?:no\.?|number)\b/i,
+]
+
+function firstValidValue(values: string[], validate: (value: string) => boolean) {
+  return values.map(cleanFieldValue).find((value) => validate(value)) ?? ''
+}
+
+function findUnlabelledName(lines: string[]) {
+  for (const line of lines) {
+    const value = cleanFieldValue(line)
+    if (looksLikeLabel(value) || isIdentityNoise(value) || /[:：]/.test(value)) continue
+    if (isValidVoterName(value)) return value
+  }
+  return ''
+}
+
+function isValidVoterName(value: string) {
+  const cleaned = cleanFieldValue(value).replace(/\s+/g, ' ').trim()
+  if (!cleaned || cleaned.length < 2 || looksLikeLabel(cleaned) || isIdentityNoise(cleaned)) return false
+  if (/\b(?:photo|available|voter|card|identity|number|house|door|age|gender)\b/i.test(cleaned)) return false
+  if (!/[\u0C00-\u0C7F]|[A-Za-z]/.test(cleaned) || /\d{3,}/.test(cleaned)) return false
+  return true
+}
+
+function isValidDoorCandidate(value: string) {
+  const cleaned = cleanFieldValue(value).replace(/\s+/g, '')
+  return Boolean(cleaned && /\d/.test(cleaned) && !isIdentityNoise(cleaned))
+}
+
+function isValidDoorNumberValue(value: string) {
+  const cleaned = normalizeDoor(value)
+  return Boolean(cleaned && /\d/.test(cleaned) && !/^[A-Z]{3}\d{7}$/i.test(cleaned))
+}
+
+function isIdentityNoise(value: string) {
+  const cleaned = value.replace(/[\s:;|.,·-]/g, '').toLocaleLowerCase()
+  return /(?:voterid|votercard|epic|idcard|cardno|cardnumber|ఓటరుఐడి|ఓటరుకార్డు|ఐడికార్డు|కార్డునం|గుర్తింపుకార్డు)/i.test(cleaned)
+    || /\b[A-Z]{3}\s*[- ]?\d{7}\b/i.test(value)
+}
+
+function annotationFieldValue(annotation: any, field: 'name' | 'door') {
+  if (!annotation) return ''
+  const rows = annotationRows(annotationWords(annotation))
+  for (const row of rows) {
+    const compact = row.text.replace(/\s/g, '')
+    const labelPattern = field === 'name'
+      ? /(?:ఓటరుపేరు|ఓటర్పేరు|వోటరుపేరు|వోటర్పేరు)|^పేరు|votername|nameofthevoter|^name/i
+      : /ఇంటిసంఖ్య|ఇంటినంబరు|ఇంటినం|houseno|housenumber|doorno|doornumber/i
+    if (!labelPattern.test(compact)) continue
+    const labelIndex = [...row.words].reverse().findIndex((word) => field === 'name' ? /పేరు|name/i.test(word.text) : /సంఖ్య|నంబ|నం|house|door|no|number/i.test(word.text))
+    if (labelIndex < 0) continue
+    const actualIndex = row.words.length - labelIndex - 1
+    const labelRight = row.words[actualIndex].x + row.words[actualIndex].w
+    const value = joinWords(row.words.filter((word, index) => index > actualIndex && word.x >= labelRight - 2))
+    if (field === 'name' && isValidVoterName(value)) return value
+    if (field === 'door' && isValidDoorCandidate(value)) return value
+  }
+  return ''
+}
+
+function annotationRows(words: VisionWord[]) {
+  const rows: Array<{ y: number; words: VisionWord[]; text: string }> = []
+  for (const word of words.filter((item) => item.text.trim()).sort((first, second) => first.y - second.y || first.x - second.x)) {
+    const center = word.y + word.h / 2
+    const row = rows.find((item) => Math.abs(item.y - center) <= Math.max(8, word.h * 0.65))
+    if (row) {
+      row.words.push(word)
+      row.y = (row.y + center) / 2
+      row.text = joinWords(row.words)
+    } else rows.push({ y: center, words: [word], text: word.text })
+  }
+  return rows.map((row) => ({ ...row, words: row.words.sort((first, second) => first.x - second.x), text: joinWords(row.words) }))
+}
+
+function labelledValue(lines: string[], labels: RegExp[], validate: (value: string) => boolean = () => true) {
   for (let index = 0; index < lines.length; index += 1) {
     for (const label of labels) {
       const match = lines[index].match(label)
@@ -474,7 +624,7 @@ function labelledValue(lines: string[], labels: RegExp[]) {
         const candidate = cleanFieldValue(offset === 0 ? lines[index].slice(match.index + match[0].length) : lines[index + offset] ?? '')
         if (!candidate || isOcrPlaceholder(candidate)) continue
         if (offset > 0 && looksLikeLabel(candidate)) break
-        if (!looksLikeLabel(candidate)) return candidate
+        if (!looksLikeLabel(candidate) && validate(candidate)) return candidate
       }
     }
   }
@@ -514,16 +664,23 @@ function cleanFieldValue(value: string) {
 }
 
 function looksLikeLabel(value: string) {
-  return /^(?:ఓటరు|ఓటర్|వోటరు|వోటర్|భర్త|తండ్రి|తల్లి|వయస్సు|లింగ|ఇంటి|వార్డు|పేరు|సంఖ్య|వోటర్|voter|name|husband|father|mother|age|gender|house|door|ward|serial|sl\.?\s*no)/i.test(value)
+  return /^(?:ఓటరు|ఓటర్|వోటరు|వోటర్|భర్త|తండ్రి|తల్లి|వయస్సు|లింగ|ఇంటి|వార్డు|పేరు|సంఖ్య|వోటర్|ఐడి|ఐడీ|కార్డు|కార్డ్|నం|నంబర్|voter|name|husband|father|mother|age|gender|house|door|ward|serial|sl\.?\s*no|id|epic|card|number|photo|available)/i.test(value)
 }
 
 function isOcrPlaceholder(value: string) {
   const normalized = value.replace(/[\s:;|.,·-]/g, '').toLocaleLowerCase()
-  return ['ఓటరు', 'ఓటర్', 'వోటరు', 'వోటర్', 'పేరు', 'voter', 'name', 'votername'].includes(normalized)
+  return ['ఓటరు', 'ఓటర్', 'వోటరు', 'వోటర్', 'పేరు', 'voter', 'name', 'votername', 'ఐడి', 'కార్డు', 'కార్డునం'].includes(normalized)
 }
 
 function normalizeDoor(value: string) {
-  return value.replace(/^సంఖ్య\s*[:.;|-]?\s*/i, '').replace(/\s+/g, '').replace(/[.,;|]+$/, '').toLocaleUpperCase().slice(0, 40)
+  const cleaned = cleanFieldValue(value)
+    .replace(/^(?:సంఖ్య|నంబరు|నం|no\.?|number)\s*[:.;|-]?\s*/i, '')
+    .replace(/\s+/g, '')
+    .replace(/[.,;|]+$/, '')
+    .toLocaleUpperCase()
+  if (!cleaned || isIdentityNoise(cleaned) || /^[A-Z]{3}\d{7}$/i.test(cleaned)) return ''
+  const match = cleaned.match(/\d[A-Z0-9]*(?:[-/]\s*[A-Z0-9]+)*/i)
+  return (match?.[0] ?? '').replace(/\s+/g, '').slice(0, 40)
 }
 
 function normalizeGender(value: string) {
