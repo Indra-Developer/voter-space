@@ -37,9 +37,7 @@
 .auth-heading { align-items: center; }
 .auth-brand { min-width: 0; gap: .65rem; }
 .auth-brand-logo { display: block; width: 2.8rem; height: 2.8rem; flex: 0 0 auto; border: 1px solid var(--border); border-radius: .75rem; background: #fff; object-fit: cover; object-position: center top; }
-.auth-brand > div { display: grid; gap: .08rem; }
 .auth-brand strong { color: var(--text); font-size: .88rem; }
-.auth-brand > div > span { color: var(--muted); font-size: .67rem; }
 .auth-heading select { min-height: 2.35rem; padding-inline: .6rem; font-weight: 750; }
 .auth-intro { margin: clamp(2.2rem, 6vw, 4rem) 0 1.4rem; }
 .auth-intro p { margin: 0 0 .45rem; font-size: .68rem; }
@@ -67,6 +65,22 @@
 .login-submit { width: 100%; min-height: 2.9rem; margin-top: .2rem; border-radius: .75rem; font-size: .82rem; box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 22%, transparent); }
 .auth-login-footer { display: flex; align-items: center; justify-content: center; gap: .35rem; margin-top: 1.25rem; color: var(--muted); font-size: .68rem; }
 .auth-login-footer svg { color: var(--primary); }
+.auth-support-links { display: flex; justify-content: center; gap: .45rem; margin-top: .9rem; }
+.auth-support-links button { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid var(--border); border-radius: .6rem; background: var(--surface); color: var(--primary-strong); padding: .45rem .65rem; cursor: pointer; font-size: .7rem; font-weight: 750; }
+.auth-support-links button:hover { border-color: var(--primary); background: var(--nav-active); }
+.auth-info-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgba(3, 27, 70, .54); }
+.auth-info-dialog { width: min(100%, 28rem); border: 1px solid var(--border); border-radius: 1rem; background: var(--surface); box-shadow: 0 24px 70px rgba(0,0,0,.24); padding: 1.15rem; }
+.auth-info-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.auth-info-heading span { color: var(--primary); font-size: .67rem; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.auth-info-heading h2 { margin: .25rem 0 0; color: var(--text); font-size: 1.15rem; }
+.auth-info-close { display: inline-grid; width: 2rem; height: 2rem; place-items: center; border: 1px solid var(--border); border-radius: .55rem; background: var(--surface); color: var(--muted); cursor: pointer; }
+.auth-info-dialog > p { margin: 1rem 0 0; color: var(--muted); font-size: .8rem; line-height: 1.55; }
+.auth-contact-actions { display: grid; gap: .55rem; margin-top: 1rem; }
+.auth-contact-actions a { display: flex; align-items: center; gap: .65rem; border: 1px solid var(--border); border-radius: .7rem; background: var(--surface-muted); color: var(--primary); padding: .7rem; text-decoration: none; }
+.auth-contact-actions a:hover { border-color: var(--primary); background: var(--nav-active); }
+.auth-contact-actions a > span { display: grid; gap: .1rem; }
+.auth-contact-actions strong { color: var(--text); font-size: .76rem; }
+.auth-contact-actions small { color: var(--muted); font-size: .72rem; }
 
 @media (max-width: 760px) {
   .auth-shell { grid-template-columns: 1fr; }

@@ -1,4 +1,4 @@
-import { Eye, EyeOff, KeyRound, Mail, ShieldCheck, UserCog, UsersRound } from 'lucide-react'
+import { Eye, EyeOff, Info, KeyRound, Mail, MessageCircle, Phone, ShieldCheck, UserCog, UsersRound, X } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import logoAsset from '../../assets/voter-space-logo.jpg'
 import { firebaseConfigured } from '../../lib/firebase'
@@ -23,6 +23,16 @@ const loginCopy = {
     roleHint: 'మీ యాక్సెస్ స్థాయిని ఎంచుకోండి',
     secure: 'సురక్షితమైన పాత్ర ఆధారిత యాక్సెస్',
     workspace: 'మీ ఓటర్ డేటా వర్క్‌స్పేస్',
+    aboutUs: 'మా గురించి',
+    contactUs: 'మమ్మల్ని సంప్రదించండి',
+    aboutTitle: 'వోటర్ స్పేస్ గురించి',
+    aboutText: 'వోటర్ స్పేస్ వార్డు మరియు బూత్ వారీగా ఓటర్ సమాచారాన్ని ఒకే చోట నిర్వహించడానికి రూపొందించిన సురక్షితమైన వర్క్‌స్పేస్. PDFల నుండి ఓటర్ రికార్డులను భద్రపరచి, వెతకడం, సరిచూడడం మరియు అవసరమైన సమాచారాన్ని ఎగుమతి చేయడం సులభం చేస్తుంది. సూపర్ అడ్మిన్, అడ్మిన్ మరియు సబ్-మెంబర్‌లకు వారి బాధ్యతకు తగిన యాక్సెస్ మాత్రమే లభిస్తుంది.',
+    contactTitle: 'వోటర్ స్పేస్‌ను సంప్రదించండి',
+    contactText: 'సహాయం కావాలంటే ఫోన్, వాట్సాప్ లేదా ఇమెయిల్ ద్వారా మమ్మల్ని సంప్రదించండి.',
+    call: 'కాల్ చేయండి',
+    whatsapp: 'వాట్సాప్ చేయండి',
+    emailUs: 'ఇమెయిల్ పంపండి',
+    close: 'మూసివేయండి',
     firebaseMissing: 'Firebase సెట్టింగులు ఇంకా జోడించలేదు. .env.local లో VITE_FIREBASE వివరాలు ఇవ్వండి.',
     roles: {
       superAdmin: { title: 'సూపర్ అడ్మిన్', description: 'అన్ని వార్డులు, ఖాతాలు మరియు అనుమతులు' },
@@ -40,6 +50,16 @@ const loginCopy = {
     roleHint: 'Select your access level',
     secure: 'Secure role-based access',
     workspace: 'Your voter data workspace',
+    aboutUs: 'About us',
+    contactUs: 'Contact us',
+    aboutTitle: 'About Voter Space',
+    aboutText: 'Voter Space is a secure workspace for managing voter information by ward and booth in one place. It helps teams store voter records from PDFs, search and review information, and export the data when needed. Super Admins, Admins, and Sub-members get access according to their responsibilities.',
+    contactTitle: 'Contact Voter Space',
+    contactText: 'If you need help, contact us by phone, WhatsApp, or email.',
+    call: 'Call us',
+    whatsapp: 'WhatsApp us',
+    emailUs: 'Email us',
+    close: 'Close',
     firebaseMissing: 'Firebase settings are not ready. Add VITE_FIREBASE values to .env.local.',
     roles: {
       superAdmin: { title: 'Super Admin', description: 'All wards, accounts, and permissions' },
@@ -61,6 +81,7 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [infoPanel, setInfoPanel] = useState<'about' | 'contact' | null>(null)
   const [error, setError] = useState(message)
   const t = loginCopy[language]
 
@@ -89,7 +110,7 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
 
         <section className="auth-panel">
           <header className="auth-heading">
-            <div className="auth-brand"><img alt="" className="auth-brand-logo" src={logoAsset} /><div><strong>వోటర్ స్పేస్</strong><span>Voter Space</span></div></div>
+            <div className="auth-brand"><img alt="" className="auth-brand-logo" src={logoAsset} /><strong>వోటర్ స్పేస్</strong></div>
           <select aria-label="Language" value={language} onChange={(event) => onLanguageChange(event.target.value as AppLanguage)}>
             <option value="te">తెలుగు</option>
             <option value="en">English</option>
@@ -142,8 +163,31 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
           </button>
         </form>
           <div className="auth-login-footer"><ShieldCheck size={15} /><span>{t.secure}</span></div>
+          <div className="auth-support-links">
+            <button onClick={() => setInfoPanel('about')} type="button"><Info size={15} />{t.aboutUs}</button>
+            <button onClick={() => setInfoPanel('contact')} type="button"><Phone size={15} />{t.contactUs}</button>
+          </div>
         </section>
       </div>
+
+      {infoPanel ? (
+        <div aria-label={infoPanel === 'about' ? t.aboutTitle : t.contactTitle} className="auth-info-backdrop" onClick={() => setInfoPanel(null)} role="presentation">
+          <section aria-modal="true" className="auth-info-dialog" onClick={(event) => event.stopPropagation()} role="dialog">
+            <div className="auth-info-heading">
+              <div><span>{infoPanel === 'about' ? t.aboutUs : t.contactUs}</span><h2>{infoPanel === 'about' ? t.aboutTitle : t.contactTitle}</h2></div>
+              <button aria-label={t.close} className="auth-info-close" onClick={() => setInfoPanel(null)} type="button"><X size={19} /></button>
+            </div>
+            <p>{infoPanel === 'about' ? t.aboutText : t.contactText}</p>
+            {infoPanel === 'contact' ? (
+              <div className="auth-contact-actions">
+                <a href="tel:+919963638746"><Phone size={17} /><span><strong>{t.call}</strong><small>9963638746</small></span></a>
+                <a href="https://wa.me/919963638746" rel="noreferrer" target="_blank"><MessageCircle size={17} /><span><strong>{t.whatsapp}</strong><small>9963638746</small></span></a>
+                <a href="mailto:info@voterspace.in"><Mail size={17} /><span><strong>{t.emailUs}</strong><small>info@voterspace.in</small></span></a>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
     </main>
   )
 }
