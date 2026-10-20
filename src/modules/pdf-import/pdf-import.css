@@ -124,7 +124,7 @@
 .pdf-source-card footer { justify-content: flex-end; margin-top: 0.4rem; }
 
 @media (min-width: 640px) {
-  .pdf-metadata-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pdf-metadata-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .pdf-review-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 

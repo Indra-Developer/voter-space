@@ -36,9 +36,20 @@
 .pdf-library-actions { align-items: center; }
 .pdf-library-filter-card { padding: .75rem; }
 .pdf-library-filter-card .voter-global-search .voter-field input { min-height: 2.55rem; }
+.pdf-library-native-filter,
+.pdf-library-native-date-filter { display: grid; min-width: 0; gap: .16rem; }
+.pdf-library-native-filter > span,
+.pdf-library-native-date-filter > span { overflow: hidden; color: var(--primary-strong); font-size: .68rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.pdf-library-native-filter select,
+.pdf-library-native-date-filter input { width: 100%; min-height: 2.25rem; padding: .28rem .45rem; border: 1px solid color-mix(in srgb, var(--primary) 58%, var(--border)); border-bottom: 3px solid color-mix(in srgb, var(--primary-strong) 72%, var(--primary)); border-radius: .55rem; outline: 0; appearance: auto; background: var(--surface); color: var(--text); cursor: pointer; font: inherit; font-size: .78rem; font-weight: 750; }
+.pdf-library-native-filter select:focus,
+.pdf-library-native-date-filter input:focus { border-color: var(--primary-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent); }
+.pdf-library-native-filter.has-value select,
+.pdf-library-native-date-filter.has-value input { border-color: var(--primary-strong); background: color-mix(in srgb, var(--primary) 10%, var(--surface)); }
+.pdf-library-native-date-filter > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
 .pdf-export-menu { display: inline-flex; min-width: 7.4rem; }
 .pdf-export-select { min-height: 2rem; width: 100%; padding: .34rem .5rem; border: 1px solid var(--border); border-radius: .55rem; background: var(--surface); color: var(--primary); cursor: pointer; font-size: .7rem; font-weight: 750; }
 .pdf-export-select:disabled { cursor: wait; opacity: .7; }
 
 @media (min-width: 760px) { .pdf-library-filter-grid { grid-template-columns: 2fr repeat(4,minmax(0,1fr)); } .pdf-library-row { grid-template-columns: minmax(14rem,1.2fr) minmax(14rem,1fr) auto; align-items: center; } .pdf-library-actions { justify-content: flex-end; } }
-@media (max-width: 430px) { .pdf-library-intro { align-items: flex-start; flex-direction: column; } .pdf-library-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pdf-library-filter-grid > label { grid-column: 1 / -1; } .pdf-library-filter-grid span { font-size: .76rem; } .pdf-library-filter-grid input { min-height: 2.7rem; font-size: .86rem; } .pdf-library-report { align-items: stretch; flex-direction: column; } .pdf-library-report > div:last-child { width: 100%; } .pdf-library-report button { flex: 1; } .pdf-library-actions { justify-content: stretch; } .pdf-library-actions > .pdf-export-menu, .pdf-library-actions > button { flex: 1; } .pdf-export-menu { flex: 1; } .pdf-export-select { width: 100%; } }
+@media (max-width: 430px) { .pdf-library-intro { align-items: flex-start; flex-direction: column; } .pdf-library-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pdf-library-filter-grid > label { grid-column: 1 / -1; } .pdf-library-filter-grid span { font-size: .76rem; } .pdf-library-filter-grid input { min-height: 2.7rem; font-size: .86rem; } .pdf-library-native-filter > span, .pdf-library-native-date-filter > span { font-size: .64rem; } .pdf-library-native-filter select, .pdf-library-native-date-filter input { min-height: 2.05rem; padding: .24rem .35rem; border-radius: .48rem; font-size: .72rem; } .pdf-library-report { align-items: stretch; flex-direction: column; } .pdf-library-report > div:last-child { width: 100%; } .pdf-library-report button { flex: 1; } .pdf-library-actions { justify-content: stretch; } .pdf-library-actions > .pdf-export-menu, .pdf-library-actions > button { flex: 1; } .pdf-export-menu { flex: 1; } .pdf-export-select { width: 100%; } }

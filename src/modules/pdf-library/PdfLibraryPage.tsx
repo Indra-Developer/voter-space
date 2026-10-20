@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Download, FileText, LoaderCircle, RefreshCcw, Search, X } from 'lucide-react'
+import { ChevronDown, Download, FileText, LoaderCircle, RefreshCcw, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { AppSession } from '../auth/types'
 import { readableFirebaseError } from '../auth/firebase-auth'
@@ -12,7 +12,6 @@ import type { VoterRecord } from '../voter-register/types'
 import { requestSourcePdfDownload, startBrowserDownload } from './pdf-library-service'
 
 type LibraryFilters = { query: string; ward: string; booth: string; area: string; division: string; sourcePdf: string; status: string; uploadedBy: string; uploadedFrom: string; uploadedTo: string }
-type OpenLibraryFilter = 'ward' | 'booth' | 'area' | 'division' | 'sourcePdf' | 'status' | 'uploadedBy' | 'date'
 type ExportFormat = 'excel' | 'pdf' | 'csv'
 const emptyFilters: LibraryFilters = { query: '', ward: '', booth: '', area: '', division: '', sourcePdf: '', status: '', uploadedBy: '', uploadedFrom: '', uploadedTo: '' }
 
@@ -24,7 +23,6 @@ const copy = {
 export function PdfLibraryPage({ language, session }: { language: AppLanguage; session: AppSession }) {
   const [records, setRecords] = useState<PdfImport[]>()
   const [filters, setFilters] = useState<LibraryFilters>(emptyFilters)
-  const [openFilter, setOpenFilter] = useState<OpenLibraryFilter>()
   const [error, setError] = useState<string>()
   const [refreshing, setRefreshing] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string>()
@@ -33,16 +31,6 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
   const [downloadError, setDownloadError] = useState<string>()
   const t = copy[language]
   const canDownload = session.profile.role === 'superAdmin' || session.profile.permissions.download
-
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target
-      if (!(target instanceof Element)) return
-      if (!target.closest('.pdf-library-filter-menu')) setOpenFilter(undefined)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [])
 
   const reload = async () => {
     setRefreshing(true); setError(undefined)
@@ -80,19 +68,19 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
 
   return <section className="pdf-library-page"><header className="page-intro pdf-library-intro"><div><p>{t.label}</p><h2>{t.title}</h2><span>{t.description}</span></div><button className="voter-secondary-button" onClick={() => void reload()} type="button"><RefreshCcw className={refreshing ? 'animate-spin' : undefined} size={15} />{t.refresh}</button></header>
     <section className="voter-filter-card pdf-library-filter-card">
-      <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={() => { setFilters(emptyFilters); setOpenFilter(undefined); setShowMoreFilters(false) }} type="button">{t.clear}</button></div>
+      <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={() => { setFilters(emptyFilters); setShowMoreFilters(false) }} type="button">{t.clear}</button></div>
       <div className="voter-global-search"><label className="voter-field"><span>{t.search}</span><input placeholder={t.searchPlaceholder} value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} /></label></div>
       <div className="voter-filter-button-row" aria-label={t.filters}>
-        <LibraryFilterButton closeLabel={t.close} label={t.ward} options={options.wards} value={filters.ward} any={t.all} open={openFilter === 'ward'} onToggle={() => setOpenFilter(openFilter === 'ward' ? undefined : 'ward')} onChange={(ward) => { setFilters((current) => ({ ...current, ward })); setOpenFilter(undefined) }} />
-        <LibraryFilterButton closeLabel={t.close} label={t.booth} options={options.booths} value={filters.booth} any={t.all} open={openFilter === 'booth'} onToggle={() => setOpenFilter(openFilter === 'booth' ? undefined : 'booth')} onChange={(booth) => { setFilters((current) => ({ ...current, booth })); setOpenFilter(undefined) }} />
-        <LibraryFilterButton closeLabel={t.close} label={t.area} options={options.areas} value={filters.area} any={t.all} open={openFilter === 'area'} onToggle={() => setOpenFilter(openFilter === 'area' ? undefined : 'area')} onChange={(area) => { setFilters((current) => ({ ...current, area })); setOpenFilter(undefined) }} />
-        <button aria-expanded={showMoreFilters} className={`voter-filter-menu-button voter-more-filters-button${filters.division || filters.sourcePdf || filters.status || filters.uploadedBy || filters.uploadedFrom || filters.uploadedTo ? ' has-value' : ''}`} onClick={() => { setShowMoreFilters((current) => !current); setOpenFilter(undefined) }} type="button"><span>{t.filters}</span><strong>{showMoreFilters ? t.hideFilters : t.moreFilters}</strong><ChevronDown size={14} /></button>
+        <LibraryNativeFilter label={t.ward} options={options.wards} value={filters.ward} any={t.all} onChange={(ward) => setFilters((current) => ({ ...current, ward }))} />
+        <LibraryNativeFilter label={t.booth} options={options.booths} value={filters.booth} any={t.all} onChange={(booth) => setFilters((current) => ({ ...current, booth }))} />
+        <LibraryNativeFilter label={t.area} options={options.areas} value={filters.area} any={t.all} onChange={(area) => setFilters((current) => ({ ...current, area }))} />
+        <button aria-expanded={showMoreFilters} className={`voter-filter-menu-button voter-more-filters-button${filters.division || filters.sourcePdf || filters.status || filters.uploadedBy || filters.uploadedFrom || filters.uploadedTo ? ' has-value' : ''}`} onClick={() => setShowMoreFilters((current) => !current)} type="button"><span>{t.filters}</span><strong>{showMoreFilters ? t.hideFilters : t.moreFilters}</strong><ChevronDown size={14} /></button>
         {showMoreFilters ? <>
-          <LibraryFilterButton closeLabel={t.close} label={t.division} options={options.divisions} value={filters.division} any={t.all} open={openFilter === 'division'} onToggle={() => setOpenFilter(openFilter === 'division' ? undefined : 'division')} onChange={(division) => { setFilters((current) => ({ ...current, division })); setOpenFilter(undefined) }} />
-          <LibraryFilterButton closeLabel={t.close} label={t.source} options={options.sourcePdfs} value={filters.sourcePdf} any={t.all} open={openFilter === 'sourcePdf'} onToggle={() => setOpenFilter(openFilter === 'sourcePdf' ? undefined : 'sourcePdf')} onChange={(sourcePdf) => { setFilters((current) => ({ ...current, sourcePdf })); setOpenFilter(undefined) }} />
-          <LibraryFilterButton closeLabel={t.close} label={t.status} options={options.statuses} value={filters.status} any={t.all} open={openFilter === 'status'} onToggle={() => setOpenFilter(openFilter === 'status' ? undefined : 'status')} onChange={(status) => { setFilters((current) => ({ ...current, status })); setOpenFilter(undefined) }} />
-          <LibraryFilterButton closeLabel={t.close} label={t.uploadedBy} options={options.uploaders} value={filters.uploadedBy} any={t.all} open={openFilter === 'uploadedBy'} onToggle={() => setOpenFilter(openFilter === 'uploadedBy' ? undefined : 'uploadedBy')} onChange={(uploadedBy) => { setFilters((current) => ({ ...current, uploadedBy })); setOpenFilter(undefined) }} />
-          <LibraryDateFilterButton closeLabel={t.close} from={filters.uploadedFrom} label={`${t.uploadedFrom} / ${t.uploadedTo}`} open={openFilter === 'date'} to={filters.uploadedTo} onFromChange={(uploadedFrom) => setFilters((current) => ({ ...current, uploadedFrom }))} onToChange={(uploadedTo) => setFilters((current) => ({ ...current, uploadedTo }))} onToggle={() => setOpenFilter(openFilter === 'date' ? undefined : 'date')} t={t} />
+          <LibraryNativeFilter label={t.division} options={options.divisions} value={filters.division} any={t.all} onChange={(division) => setFilters((current) => ({ ...current, division }))} />
+          <LibraryNativeFilter label={t.source} options={options.sourcePdfs} value={filters.sourcePdf} any={t.all} onChange={(sourcePdf) => setFilters((current) => ({ ...current, sourcePdf }))} />
+          <LibraryNativeFilter label={t.status} options={options.statuses} value={filters.status} any={t.all} onChange={(status) => setFilters((current) => ({ ...current, status }))} />
+          <LibraryNativeFilter label={t.uploadedBy} options={options.uploaders} value={filters.uploadedBy} any={t.all} onChange={(uploadedBy) => setFilters((current) => ({ ...current, uploadedBy }))} />
+          <LibraryNativeDateFilter from={filters.uploadedFrom} to={filters.uploadedTo} onFromChange={(uploadedFrom) => setFilters((current) => ({ ...current, uploadedFrom }))} onToChange={(uploadedTo) => setFilters((current) => ({ ...current, uploadedTo }))} t={t} />
         </> : null}
       </div>
     </section>
@@ -103,19 +91,12 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
   </section>
 }
 
-function LibraryFilterButton({ label, options, value, any, open, onToggle, onChange, closeLabel }: { label: string; options: string[]; value: string; any: string; open: boolean; onToggle: () => void; onChange: (value: string) => void; closeLabel: string }) {
-  return <div className="voter-filter-menu pdf-library-filter-menu">
-    <button aria-expanded={open} className={`voter-filter-menu-button${value ? ' has-value' : ''}`} onClick={onToggle} type="button"><span>{label}</span><strong>{value || any}</strong><ChevronDown size={14} /></button>
-    {open ? <div aria-modal="true" className="voter-filter-menu-popover" onMouseDown={(event) => { if (event.target === event.currentTarget) onToggle() }} role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={closeLabel} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options" role="menu"><button className={!value ? 'is-selected' : ''} onClick={() => onChange('')} role="menuitem" type="button"><span>{any}</span>{!value ? <Check size={14} /> : null}</button>{options.map((option) => <button className={value === option ? 'is-selected' : ''} key={option} onClick={() => onChange(option)} role="menuitem" type="button"><span>{option}</span>{value === option ? <Check size={14} /> : null}</button>)}</div></div> : null}
-  </div>
+function LibraryNativeFilter({ label, options, value, any, onChange }: { label: string; options: string[]; value: string; any: string; onChange: (value: string) => void }) {
+  return <label className={`pdf-library-native-filter${value ? ' has-value' : ''}`}><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}><option value="">{any}</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
 }
 
-function LibraryDateFilterButton({ closeLabel, from, label, open, to, onFromChange, onToChange, onToggle, t }: { closeLabel: string; from: string; label: string; open: boolean; to: string; onFromChange: (value: string) => void; onToChange: (value: string) => void; onToggle: () => void; t: { all: string; close: string; uploadedFrom: string; uploadedTo: string } }) {
-  const value = from && to ? `${from} – ${to}` : from || to || t.all
-  return <div className="voter-filter-menu pdf-library-filter-menu">
-    <button aria-expanded={open} className={`voter-filter-menu-button${from || to ? ' has-value' : ''}`} onClick={onToggle} type="button"><span>{label}</span><strong>{value}</strong><ChevronDown size={14} /></button>
-    {open ? <div aria-modal="true" className="voter-filter-menu-popover voter-date-filter-popover" onMouseDown={(event) => { if (event.target === event.currentTarget) onToggle() }} role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={closeLabel} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options"><label className="voter-field"><span>{t.uploadedFrom}</span><input type="date" value={from} onChange={(event) => onFromChange(event.target.value)} /></label><label className="voter-field"><span>{t.uploadedTo}</span><input type="date" value={to} onChange={(event) => onToChange(event.target.value)} /></label></div></div> : null}
-  </div>
+function LibraryNativeDateFilter({ from, to, onFromChange, onToChange, t }: { from: string; to: string; onFromChange: (value: string) => void; onToChange: (value: string) => void; t: { uploadedFrom: string; uploadedTo: string } }) {
+  return <div className={`pdf-library-native-date-filter${from || to ? ' has-value' : ''}`}><span>{`${t.uploadedFrom} / ${t.uploadedTo}`}</span><div><input aria-label={t.uploadedFrom} type="date" value={from} onChange={(event) => onFromChange(event.target.value)} /><input aria-label={t.uploadedTo} type="date" value={to} onChange={(event) => onToChange(event.target.value)} /></div></div>
 }
 
 function ExportMenu({ exportingKey, id, onSelect, t }: { exportingKey?: string; id: string; onSelect: (format: ExportFormat) => void; t: { export: string; exporting: string; excel: string; pdf: string; csv: string } }) {

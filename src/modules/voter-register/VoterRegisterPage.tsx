@@ -1,4 +1,4 @@
-import { ArrowUp, Check, ChevronDown, Download, Edit3, FileSpreadsheet, FileText, LoaderCircle, RefreshCcw, Search, Table2, Trash2, UsersRound, X } from 'lucide-react'
+import { ArrowUp, ChevronDown, Download, Edit3, FileSpreadsheet, FileText, LoaderCircle, RefreshCcw, Search, Table2, Trash2, UsersRound, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { AppSession } from '../auth/types'
@@ -11,8 +11,6 @@ import { emptyVoterFilters, type VoterFilterOptions, type VoterFilters, type Vot
 import { matchesVoterSearch } from './voter-search'
 
 type ViewMode = 'individual' | 'door'
-type OpenFilter = 'ward' | 'booth' | 'area' | 'division' | 'source' | 'uploadedBy' | 'date'
-
 const screenCopy = {
   en: {
     label: 'Voter data', title: 'Voter Register', description: 'Find voters, check records, and export only the records you are allowed to access.',
@@ -43,7 +41,6 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   const [records, setRecords] = useState<VoterRecord[]>()
   const [options, setOptions] = useState<VoterFilterOptions>({ wards: [], booths: [], areas: [], divisions: [], sourcePdfs: [], uploaders: [] })
   const [filters, setFilters] = useState<VoterFilters>(emptyVoterFilters)
-  const [openFilter, setOpenFilter] = useState<OpenFilter>()
   const [showMoreFilters, setShowMoreFilters] = useState(false)
   const [loadError, setLoadError] = useState<string>()
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -124,17 +121,6 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      if (!openFilter) return
-      const target = event.target
-      if (target instanceof Element && target.closest('.voter-filter-menu')) return
-      setOpenFilter(undefined)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [openFilter])
-
   const filteredRecords = useMemo(() => (records ?? []).filter((record) => matchesFilters(record, filters)), [records, filters])
   const doorGroups = useMemo(() => groupByDoor(filteredRecords), [filteredRecords])
 
@@ -194,18 +180,18 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     <header className="page-intro voter-register-intro"><div className="voter-register-header-actions">{canDeleteWard ? <button aria-label={t.deleteWardOpen} className="voter-delete-ward-trigger" onClick={() => { setShowDeleteWard(true); setDeleteMessage(undefined); setDeleteError(undefined) }} type="button"><Trash2 size={14} />{t.deleteWardOpen}</button> : null}<button className="voter-secondary-button" onClick={() => void reload()} type="button"><RefreshCcw className={isRefreshing ? 'animate-spin' : undefined} size={15} />{t.refresh}</button></div></header>
 
     <section className="voter-filter-card" aria-label={t.filters}>
-      <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={() => { setFilters(emptyVoterFilters); setOpenFilter(undefined); setShowMoreFilters(false) }} type="button">{t.clear}</button></div>
+      <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={() => { setFilters(emptyVoterFilters); setShowMoreFilters(false) }} type="button">{t.clear}</button></div>
       <div className="voter-global-search"><FilterInput label={t.search} placeholder={t.searchPlaceholder} value={filters.search} onChange={(value) => updateFilter('search', value)} /></div>
       <div className="voter-filter-button-row" aria-label={t.moreFilters}>
-        <FilterMenuButton closeLabel={t.close} label={t.ward} value={filters.wardId} options={options.wards} anyLabel={t.any} open={openFilter === 'ward'} onToggle={() => setOpenFilter(openFilter === 'ward' ? undefined : 'ward')} onChange={(value) => { updateFilter('wardId', value); setOpenFilter(undefined) }} />
-        <FilterMenuButton closeLabel={t.close} label={t.booth} value={filters.boothId} options={options.booths} anyLabel={t.any} open={openFilter === 'booth'} onToggle={() => setOpenFilter(openFilter === 'booth' ? undefined : 'booth')} onChange={(value) => { updateFilter('boothId', value); setOpenFilter(undefined) }} />
-        <FilterMenuButton closeLabel={t.close} label={t.area} value={filters.area} options={options.areas} anyLabel={t.any} open={openFilter === 'area'} onToggle={() => setOpenFilter(openFilter === 'area' ? undefined : 'area')} onChange={(value) => { updateFilter('area', value); setOpenFilter(undefined) }} />
-        <button aria-expanded={showMoreFilters} className={`voter-filter-menu-button voter-more-filters-button${filters.division || filters.sourcePdf || filters.uploadedBy || filters.uploadedFrom || filters.uploadedTo ? ' has-value' : ''}`} onClick={() => { setShowMoreFilters((current) => !current); setOpenFilter(undefined) }} type="button"><span>{t.filters}</span><strong>{showMoreFilters ? t.hideFilters : t.moreFilters}</strong><ChevronDown size={14} /></button>
+        <NativeFilterSelect label={t.ward} value={filters.wardId} options={options.wards} anyLabel={t.any} onChange={(value) => updateFilter('wardId', value)} />
+        <NativeFilterSelect label={t.booth} value={filters.boothId} options={options.booths} anyLabel={t.any} onChange={(value) => updateFilter('boothId', value)} />
+        <NativeFilterSelect label={t.area} value={filters.area} options={options.areas} anyLabel={t.any} onChange={(value) => updateFilter('area', value)} />
+        <button aria-expanded={showMoreFilters} className={`voter-filter-menu-button voter-more-filters-button${filters.division || filters.sourcePdf || filters.uploadedBy || filters.uploadedFrom || filters.uploadedTo ? ' has-value' : ''}`} onClick={() => setShowMoreFilters((current) => !current)} type="button"><span>{t.filters}</span><strong>{showMoreFilters ? t.hideFilters : t.moreFilters}</strong><ChevronDown size={14} /></button>
         {showMoreFilters ? <>
-          <FilterMenuButton closeLabel={t.close} label={t.division} value={filters.division} options={options.divisions} anyLabel={t.any} open={openFilter === 'division'} onToggle={() => setOpenFilter(openFilter === 'division' ? undefined : 'division')} onChange={(value) => { updateFilter('division', value); setOpenFilter(undefined) }} />
-          <FilterMenuButton closeLabel={t.close} label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} open={openFilter === 'source'} onToggle={() => setOpenFilter(openFilter === 'source' ? undefined : 'source')} onChange={(value) => { updateFilter('sourcePdf', value); setOpenFilter(undefined) }} />
-          <FilterMenuButton closeLabel={t.close} label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} open={openFilter === 'uploadedBy'} onToggle={() => setOpenFilter(openFilter === 'uploadedBy' ? undefined : 'uploadedBy')} onChange={(value) => { updateFilter('uploadedBy', value); setOpenFilter(undefined) }} />
-          <DateFilterButton label={t.chooseDate} from={filters.uploadedFrom} to={filters.uploadedTo} open={openFilter === 'date'} onToggle={() => setOpenFilter(openFilter === 'date' ? undefined : 'date')} onFromChange={(value) => updateFilter('uploadedFrom', value)} onToChange={(value) => updateFilter('uploadedTo', value)} t={t} />
+          <NativeFilterSelect label={t.division} value={filters.division} options={options.divisions} anyLabel={t.any} onChange={(value) => updateFilter('division', value)} />
+          <NativeFilterSelect label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} onChange={(value) => updateFilter('sourcePdf', value)} />
+          <NativeFilterSelect label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} onChange={(value) => updateFilter('uploadedBy', value)} />
+          <NativeDateFilter from={filters.uploadedFrom} to={filters.uploadedTo} onFromChange={(value) => updateFilter('uploadedFrom', value)} onToChange={(value) => updateFilter('uploadedTo', value)} t={t} />
         </> : null}
       </div>
     </section>
@@ -338,19 +324,12 @@ function FilterInput({ label, type = 'search', placeholder, value, onChange }: {
   return <label className="voter-field"><span>{label}</span><input placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} /></label>
 }
 
-function FilterMenuButton({ label, value, options, anyLabel, closeLabel = 'Close', open, onToggle, onChange }: { label: string; value: string; options: string[]; anyLabel: string; closeLabel?: string; open: boolean; onToggle: () => void; onChange: (value: string) => void }) {
-  return <div className="voter-filter-menu">
-    <button aria-expanded={open} className={`voter-filter-menu-button${value ? ' has-value' : ''}`} onClick={onToggle} type="button"><span>{label}</span><strong>{value || anyLabel}</strong><ChevronDown size={14} /></button>
-    {open ? <div aria-modal="true" className="voter-filter-menu-popover" onMouseDown={(event) => { if (event.target === event.currentTarget) onToggle() }} role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={closeLabel} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options" role="menu"><button className={!value ? 'is-selected' : ''} onClick={() => onChange('')} role="menuitem" type="button"><span>{anyLabel}</span>{!value ? <Check size={14} /> : null}</button>{options.map((option) => <button className={value === option ? 'is-selected' : ''} key={option} onClick={() => onChange(option)} role="menuitem" type="button"><span>{option}</span>{value === option ? <Check size={14} /> : null}</button>)}</div></div> : null}
-  </div>
+function NativeFilterSelect({ label, value, options, anyLabel, onChange }: { label: string; value: string; options: string[]; anyLabel: string; onChange: (value: string) => void }) {
+  return <label className={`voter-native-filter${value ? ' has-value' : ''}`}><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}><option value="">{anyLabel}</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
 }
 
-function DateFilterButton({ label, from, to, open, onToggle, onFromChange, onToChange, t }: { label: string; from: string; to: string; open: boolean; onToggle: () => void; onFromChange: (value: string) => void; onToChange: (value: string) => void; t: ScreenText }) {
-  const value = from && to ? `${from} – ${to}` : from || to || t.any
-  return <div className="voter-filter-menu voter-date-filter-menu">
-    <button aria-expanded={open} className={`voter-filter-menu-button${from || to ? ' has-value' : ''}`} onClick={onToggle} type="button"><span>{label}</span><strong>{value}</strong><ChevronDown size={14} /></button>
-    {open ? <div className="voter-filter-menu-popover voter-date-filter-popover" onMouseDown={(event) => { if (event.target === event.currentTarget) onToggle() }} role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={t.close} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options"><FilterInput label={t.uploadedFrom} type="date" value={from} onChange={onFromChange} /><FilterInput label={t.uploadedTo} type="date" value={to} onChange={onToChange} /></div></div> : null}
-  </div>
+function NativeDateFilter({ from, to, onFromChange, onToChange, t }: { from: string; to: string; onFromChange: (value: string) => void; onToChange: (value: string) => void; t: ScreenText }) {
+  return <div className={`voter-native-date-filter${from || to ? ' has-value' : ''}`}><span>{t.chooseDate}</span><div><input aria-label={t.uploadedFrom} type="date" value={from} onChange={(event) => onFromChange(event.target.value)} /><input aria-label={t.uploadedTo} type="date" value={to} onChange={(event) => onToChange(event.target.value)} /></div></div>
 }
 
 function FilterSelect({ label, value, options, anyLabel, onChange }: { label: string; value: string; options: string[]; anyLabel: string; onChange: (value: string) => void }) {
