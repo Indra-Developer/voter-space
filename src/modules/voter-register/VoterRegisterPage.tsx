@@ -6,31 +6,32 @@ import { readableFirebaseError } from '../auth/firebase-auth'
 import type { AppLanguage } from '../app-shell/types'
 import { PageState } from '../app-shell/PageState'
 import { downloadCsv, downloadExcel, downloadPdf } from './export-voters'
-import { deleteVotersByWard, loadVoterCardImage, loadVoterFilterOptions, loadVoters, saveVoter } from './voter-service'
+import { deleteVoter, deleteVotersByWard, loadAllVoters, loadVoterCardImage, loadVoterFilterOptions, loadVoters, saveVoter } from './voter-service'
 import { emptyVoterFilters, type VoterFilterOptions, type VoterFilters, type VoterRecord } from './types'
 import { matchesVoterSearch } from './voter-search'
 
 type ViewMode = 'individual' | 'door'
+type ExportFormat = 'excel' | 'pdf' | 'csv'
 const screenCopy = {
   en: {
     label: 'Voter data', title: 'Voter Register', description: 'Find voters, check records, and export only the records you are allowed to access.',
     search: 'Search all voter fields', searchPlaceholder: 'Name, voter ID, door number, serial, ward, booth, area, division, PDF…', searchHint: 'You can search using Telugu, English spelling, voter ID, door number, serial number, ward, booth, area, division, mobile number, or PDF name.', refresh: 'Refresh', records: 'records', individual: 'Individual records', doorWise: 'Door-wise view',
     filters: 'Filters', clear: 'Clear all', moreFilters: 'More filters', hideFilters: 'Hide filters', name: 'Name', door: 'House number', voterId: 'Voter ID', alternateId: 'Alternate ID', mobile: 'Mobile number', serial: 'Serial number', ward: 'Ward', booth: 'Booth', area: 'Area', division: 'Division', source: 'Source PDF', uploadedFrom: 'Uploaded from', uploadedTo: 'Uploaded to', uploadedBy: 'Uploaded by', members: 'members', chooseDate: 'Choose upload dates', deleteWardOpen: 'Delete ward', deleteWardTitle: 'Delete complete ward data', deleteWardHint: 'This permanently removes the ward voters, voter card images, source PDFs, and import rows from Firestore and Storage.', selectWard: 'Select ward', typeWard: 'Type the ward number to confirm', deleteWard: 'Delete ward data', deletingWard: 'Deleting ward data…', deleteWardSuccess: 'Ward data deleted successfully.', deleteWardError: 'Ward data could not be deleted.', cancel: 'Cancel',
     any: 'All',
-    exportExcel: 'Excel', exportPdf: 'PDF', exportCsv: 'CSV', exportHint: 'Exports include the filtered records only.',
+    exportExcel: 'Excel', exportPdf: 'PDF', exportCsv: 'CSV', exporting: 'Preparing export…', exportError: 'The export could not be completed.', exportHint: 'Exports include every database record matching the selected filters.',
     noRecords: 'No voter records match these filters.', noData: 'No voter records have been imported yet.',
     loading: 'Loading voter records…', loadingMore: 'Loading more voters…', allLoaded: 'All available voters are loaded.', error: 'Voter records could not be loaded.', retry: 'Try again', goTop: 'Go to top',
-    view: 'View', edit: 'Edit', close: 'Close', save: 'Save changes', saving: 'Saving…', details: 'Voter details', sourcePdf: 'Source PDF', uploaded: 'Uploaded', saveError: 'The record could not be saved. Please try again.', editAccess: 'You can edit records in your allowed scope.', readOnly: 'You have view-only access to these records.', originalCard: 'Original voter card', cardLoading: 'Loading the original card…', cardUnavailable: 'This older voter record has no saved card image. Open PDF Upload and choose Process again for its PDF.', relativeName: 'Relative name', relationship: 'Relationship', age: 'Age', gender: 'Gender', assemblySerial: 'Assembly serial', pdfPosition: 'PDF position',
+    view: 'View', edit: 'Edit', deleteVoter: 'Delete voter', deletingVoter: 'Deleting voter…', deleteVoterConfirm: 'Delete this voter record, its saved card image, and linked import data? This cannot be undone.', deleteVoterError: 'The voter record could not be deleted.', deleteVoterSuccess: 'Voter record deleted successfully.', close: 'Close', save: 'Save changes', saving: 'Saving…', details: 'Voter details', sourcePdf: 'Source PDF', uploaded: 'Uploaded', saveError: 'The record could not be saved. Please try again.', editAccess: 'You can edit records in your allowed scope.', readOnly: 'You have view-only access to these records.', originalCard: 'Original voter card', cardLoading: 'Loading the original card…', cardUnavailable: 'This older voter record has no saved card image. Open PDF Upload and choose Process again for its PDF.', relativeName: 'Relative name', relationship: 'Relationship', age: 'Age', gender: 'Gender', assemblySerial: 'Assembly serial', pdfPosition: 'PDF position',
   },
   te: {
     label: 'ఓటర్ డేటా', title: 'ఓటర్ రిజిస్టర్', description: 'ఓటర్లను వెతకండి, రికార్డులను చూడండి, మీకు అనుమతి ఉన్న డేటాను మాత్రమే ఎగుమతి చేయండి.',
     search: 'అన్ని ఓటర్ వివరాల్లో వెతకండి', searchPlaceholder: 'పేరు, ఓటర్ ఐడి, ఇంటి నంబర్, సీరియల్, వార్డు, బూత్, ప్రాంతం, డివిజన్, PDF…', searchHint: 'తెలుగు, ఇంగ్లీష్ స్పెల్లింగ్, ఓటర్ ఐడి, ఇంటి నంబర్, సీరియల్, వార్డు, బూత్, ప్రాంతం, డివిజన్, మొబైల్ లేదా PDF పేరుతో వెతకండి.', refresh: 'రిఫ్రెష్', records: 'రికార్డులు', individual: 'ఒక్కో రికార్డు', doorWise: 'ఇంటి నంబర్ వారీగా',
     filters: 'ఫిల్టర్లు', clear: 'అన్నీ తొలగించండి', moreFilters: 'మరిన్ని ఫిల్టర్లు', hideFilters: 'ఫిల్టర్లు దాచండి', name: 'పేరు', door: 'ఇంటి నంబర్', voterId: 'ఓటర్ ఐడి', alternateId: 'ప్రత్యామ్నాయ ఐడి', mobile: 'మొబైల్ నంబర్', serial: 'సీరియల్ నంబర్', ward: 'వార్డు', booth: 'బూత్', area: 'ప్రాంతం', division: 'డివిజన్', source: 'సోర్స్ PDF', uploadedFrom: 'అప్‌లోడ్ మొదలు', uploadedTo: 'అప్‌లోడ్ చివరి తేదీ', uploadedBy: 'అప్‌లోడ్ చేసినవారు', members: 'సభ్యులు', chooseDate: 'అప్‌లోడ్ తేదీలను ఎంచుకోండి', deleteWardOpen: 'వార్డు తొలగింపు', deleteWardTitle: 'వార్డు మొత్తం డేటాను తొలగించండి', deleteWardHint: 'ఈ చర్య వార్డు ఓటర్లు, ఓటర్ కార్డు చిత్రాలు, సోర్స్ PDFలు మరియు Firestore, Storageలోని దిగుమతి వరుసలను శాశ్వతంగా తొలగిస్తుంది.', selectWard: 'వార్డును ఎంచుకోండి', typeWard: 'నిర్ధారించడానికి వార్డు నంబర్ టైప్ చేయండి', deleteWard: 'వార్డు డేటా తొలగించండి', deletingWard: 'వార్డు డేటా తొలగిస్తోంది…', deleteWardSuccess: 'వార్డు డేటా విజయవంతంగా తొలగించబడింది.', deleteWardError: 'వార్డు డేటా తొలగించలేకపోయాము.', cancel: 'రద్దు',
     any: 'అన్నీ',
-    exportExcel: 'ఎక్సెల్', exportPdf: 'PDF', exportCsv: 'CSV', exportHint: 'ఎంచుకున్న ఫిల్టర్లలో ఉన్న రికార్డులు మాత్రమే ఎగుమతి అవుతాయి.',
+    exportExcel: 'ఎక్సెల్', exportPdf: 'PDF', exportCsv: 'CSV', exporting: 'ఎగుమతి సిద్ధమవుతోంది…', exportError: 'ఎగుమతిని పూర్తి చేయలేకపోయాము.', exportHint: 'ఎంచుకున్న ఫిల్టర్లకు సరిపోయే డేటాబేస్ రికార్డులన్నీ ఎగుమతి అవుతాయి.',
     noRecords: 'ఈ ఫిల్టర్లకు సరిపోయే ఓటర్ రికార్డులు లేవు.', noData: 'ఇంకా ఓటర్ రికార్డులు దిగుమతి కాలేదు.',
     loading: 'ఓటర్ రికార్డులు లోడ్ అవుతున్నాయి…', loadingMore: 'మరిన్ని ఓటర్లను లోడ్ చేస్తున్నాము…', allLoaded: 'అందుబాటులో ఉన్న ఓటర్లన్నీ లోడ్ అయ్యాయి.', error: 'ఓటర్ రికార్డులు లోడ్ చేయలేకపోయాము.', retry: 'మళ్లీ ప్రయత్నించండి', goTop: 'పైకి వెళ్లండి',
-    view: 'చూడండి', edit: 'సవరించండి', close: 'మూసివేయండి', save: 'మార్పులు సేవ్ చేయండి', saving: 'సేవ్ అవుతోంది…', details: 'ఓటర్ వివరాలు', sourcePdf: 'సోర్స్ PDF', uploaded: 'అప్‌లోడ్', saveError: 'రికార్డు సేవ్ కాలేదు. మళ్లీ ప్రయత్నించండి.', editAccess: 'మీకు అనుమతి ఉన్న పరిధిలో రికార్డులను సవరించవచ్చు.', readOnly: 'ఈ రికార్డులను చూడటానికి మాత్రమే మీకు అనుమతి ఉంది.', originalCard: 'అసలు ఓటర్ కార్డు', cardLoading: 'అసలు కార్డు లోడ్ అవుతోంది…', cardUnavailable: 'ఈ పాత ఓటర్ రికార్డుకు కార్డు చిత్రం లేదు. PDF Uploadలో ఆ PDFకి మళ్లీ ప్రాసెస్ చేయండి నొక్కండి.', relativeName: 'బంధువు పేరు', relationship: 'సంబంధం', age: 'వయస్సు', gender: 'లింగము', assemblySerial: 'అసెంబ్లీ సీరియల్', pdfPosition: 'PDF స్థానం',
+    view: 'చూడండి', edit: 'సవరించండి', deleteVoter: 'ఓటర్ తొలగించండి', deletingVoter: 'ఓటర్ తొలగిస్తోంది…', deleteVoterConfirm: 'ఈ ఓటర్ రికార్డు, సేవ్ చేసిన కార్డు చిత్రం మరియు లింక్ చేసిన దిగుమతి డేటాను తొలగించాలా? ఇది తిరిగి మార్చలేరు.', deleteVoterError: 'ఓటర్ రికార్డును తొలగించలేకపోయాము.', deleteVoterSuccess: 'ఓటర్ రికార్డు విజయవంతంగా తొలగించబడింది.', close: 'మూసివేయండి', save: 'మార్పులు సేవ్ చేయండి', saving: 'సేవ్ అవుతోంది…', details: 'ఓటర్ వివరాలు', sourcePdf: 'సోర్స్ PDF', uploaded: 'అప్‌లోడ్', saveError: 'రికార్డు సేవ్ కాలేదు. మళ్లీ ప్రయత్నించండి.', editAccess: 'మీకు అనుమతి ఉన్న పరిధిలో రికార్డులను సవరించవచ్చు.', readOnly: 'ఈ రికార్డులను చూడటానికి మాత్రమే మీకు అనుమతి ఉంది.', originalCard: 'అసలు ఓటర్ కార్డు', cardLoading: 'అసలు కార్డు లోడ్ అవుతోంది…', cardUnavailable: 'ఈ పాత ఓటర్ రికార్డుకు కార్డు చిత్రం లేదు. PDF Uploadలో ఆ PDFకి మళ్లీ ప్రాసెస్ చేయండి నొక్కండి.', relativeName: 'బంధువు పేరు', relationship: 'సంబంధం', age: 'వయస్సు', gender: 'లింగము', assemblySerial: 'అసెంబ్లీ సీరియల్', pdfPosition: 'PDF స్థానం',
   },
 } as const
 
@@ -57,8 +58,12 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   const [deleteWorking, setDeleteWorking] = useState(false)
   const [deleteMessage, setDeleteMessage] = useState<string>()
   const [deleteError, setDeleteError] = useState<string>()
+  const [voterNotice, setVoterNotice] = useState<string>()
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat>()
+  const [exportError, setExportError] = useState<string>()
   const t = screenCopy[language]
   const canEdit = session.profile.role === 'superAdmin' || (session.profile.role === 'admin' && session.profile.permissions.edit)
+  const canDeleteVoter = session.profile.role === 'superAdmin' || (session.profile.role === 'admin' && session.profile.permissions.edit)
   const canDownload = session.profile.role === 'superAdmin' || session.profile.permissions.download
   const canDeleteWard = session.profile.role === 'superAdmin'
   const view: ViewMode = searchParams.get('view') === 'door' ? 'door' : 'individual'
@@ -150,12 +155,35 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   }
   const openRecord = (record: VoterRecord, shouldEdit = false) => {
     setEditing(shouldEdit && canEdit)
+    setVoterNotice(undefined)
     setRegisterState({ voter: record.id, view })
   }
   const save = async (record: VoterRecord) => {
     await saveVoter(record)
     await reload()
     closeRecord()
+  }
+  const removeVoter = async (record: VoterRecord) => {
+    await deleteVoter(record.id)
+    setRecords((current) => current?.filter((item) => item.id !== record.id))
+    setVoterNotice(t.deleteVoterSuccess)
+    closeRecord()
+    void reload()
+  }
+  const exportRecords = async (format: ExportFormat) => {
+    setExportingFormat(format)
+    setExportError(undefined)
+    try {
+      const matchingRecords = (await loadAllVoters()).filter((record) => matchesFilters(record, filters))
+      if (!matchingRecords.length) throw new Error(t.noRecords)
+      if (format === 'excel') await downloadExcel(matchingRecords)
+      if (format === 'pdf') await downloadPdf(matchingRecords)
+      if (format === 'csv') downloadCsv(matchingRecords)
+    } catch (reason) {
+      setExportError(`${t.exportError} ${readableFirebaseError(reason)}`)
+    } finally {
+      setExportingFormat(undefined)
+    }
   }
   const deleteWard = async () => {
     if (!deleteWardId || deleteConfirmation.trim() !== deleteWardId) return
@@ -205,16 +233,18 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
         <div><strong>{filteredRecords.length} {t.records}</strong><span>{canEdit ? t.editAccess : t.readOnly}</span></div>
         <div className="voter-toolbar-actions">
           <div className="voter-view-toggle" aria-label="Record view"><button className={view === 'individual' ? 'is-active' : ''} onClick={() => setViewMode('individual')} type="button"><Table2 size={15} />{t.individual}</button><button className={view === 'door' ? 'is-active' : ''} onClick={() => setViewMode('door')} type="button"><UsersRound size={15} />{t.doorWise}</button></div>
-          {canDownload ? <div className="voter-export-buttons"><button onClick={() => void downloadExcel(filteredRecords)} type="button"><FileSpreadsheet size={15} />{t.exportExcel}</button><button onClick={() => void downloadPdf(filteredRecords)} type="button"><FileText size={15} />{t.exportPdf}</button><button onClick={() => downloadCsv(filteredRecords)} type="button"><Download size={15} />{t.exportCsv}</button></div> : null}
+          {canDownload ? <div className="voter-export-buttons"><button disabled={Boolean(exportingFormat)} onClick={() => void exportRecords('excel')} type="button">{exportingFormat === 'excel' ? <LoaderCircle className="animate-spin" size={15} /> : <FileSpreadsheet size={15} />}{exportingFormat === 'excel' ? t.exporting : t.exportExcel}</button><button disabled={Boolean(exportingFormat)} onClick={() => void exportRecords('pdf')} type="button">{exportingFormat === 'pdf' ? <LoaderCircle className="animate-spin" size={15} /> : <FileText size={15} />}{exportingFormat === 'pdf' ? t.exporting : t.exportPdf}</button><button disabled={Boolean(exportingFormat)} onClick={() => void exportRecords('csv')} type="button">{exportingFormat === 'csv' ? <LoaderCircle className="animate-spin" size={15} /> : <Download size={15} />}{exportingFormat === 'csv' ? t.exporting : t.exportCsv}</button></div> : null}
         </div>
       </section>
+      {voterNotice ? <p className="voter-delete-success">{voterNotice}</p> : null}
+      {exportError ? <p className="form-alert form-alert-error">{exportError}</p> : null}
       {canDownload ? <p className="voter-export-hint">{t.exportHint}</p> : null}
       {records.length === 0 ? <PageState kind="empty" title={t.noData} description="" /> : filteredRecords.length === 0 ? <PageState kind="empty" title={t.noRecords} description="" /> : view === 'individual' ? <IndividualRecords records={filteredRecords} onOpen={openRecord} onEdit={canEdit ? (record) => openRecord(record, true) : undefined} t={t} /> : <DoorWiseRecords groups={doorGroups} onDoorClose={() => setRegisterState({ door: null })} onDoorOpen={(door) => setRegisterState({ view: 'door', door })} selectedDoor={selectedDoor} onOpen={openRecord} onEdit={canEdit ? (record) => openRecord(record, true) : undefined} t={t} />}
       {records.length > 0 ? <div aria-live="polite" className={`voter-pagination-status${loadMoreError ? ' is-error' : ''}`} ref={loadMoreSentinel}>
         {loadMoreError ? <><span>{loadMoreError}</span><button className="voter-text-button" onClick={() => void loadMore()} type="button">{t.retry}</button></> : isLoadingMore ? <><LoaderCircle className="animate-spin" size={15} />{t.loadingMore}</> : hasMore ? t.loadingMore : t.allLoaded}
       </div> : null}
     </> : null}
-    {activeRecord ? <VoterDialog key={activeRecord.id} canEdit={canEdit} language={language} onClose={closeRecord} onSave={save} record={activeRecord} startEditing={editing} t={t} /> : null}
+    {activeRecord ? <VoterDialog key={activeRecord.id} canDelete={canDeleteVoter} canEdit={canEdit} language={language} onClose={closeRecord} onDelete={removeVoter} onSave={save} record={activeRecord} startEditing={editing} t={t} /> : null}
     {showGoTop ? <button aria-label={t.goTop} className="voter-go-top-button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} type="button"><ArrowUp size={16} /><span>{t.goTop}</span></button> : null}
   </section>
 }
@@ -273,11 +303,13 @@ function DoorWiseRecords({ groups, selectedDoor, onDoorOpen, onDoorClose, onOpen
   </>
 }
 
-function VoterDialog({ canEdit, language, onClose, onSave, record, startEditing, t }: { canEdit: boolean; language: AppLanguage; onClose: () => void; onSave: (record: VoterRecord) => Promise<void>; record: VoterRecord; startEditing: boolean; t: ScreenText }) {
+function VoterDialog({ canDelete, canEdit, language, onClose, onDelete, onSave, record, startEditing, t }: { canDelete: boolean; canEdit: boolean; language: AppLanguage; onClose: () => void; onDelete: (record: VoterRecord) => Promise<void>; onSave: (record: VoterRecord) => Promise<void>; record: VoterRecord; startEditing: boolean; t: ScreenText }) {
   const [editing, setEditing] = useState(startEditing)
   const [draft, setDraft] = useState(record)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(false)
   const [cardImageUrl, setCardImageUrl] = useState<string>()
   const [cardImageError, setCardImageError] = useState(!record.voterCardImagePath)
   const readOnly = !editing
@@ -287,6 +319,12 @@ function VoterDialog({ canEdit, language, onClose, onSave, record, startEditing,
     if (!editing) return
     setSaving(true); setError(false)
     try { await onSave(draft) } catch { setError(true); setSaving(false) }
+  }
+  const remove = async () => {
+    if (!window.confirm(t.deleteVoterConfirm)) return
+    setDeleting(true)
+    setDeleteError(false)
+    try { await onDelete(record) } catch { setDeleteError(true); setDeleting(false) }
   }
 
   useEffect(() => {
@@ -317,7 +355,8 @@ function VoterDialog({ canEdit, language, onClose, onSave, record, startEditing,
       <EditorField disabled={readOnly} label={t.division} value={draft.division} onChange={(value) => update('division', value)} />
     </div>
     <dl className="voter-readonly-data"><div><dt>{t.sourcePdf}</dt><dd>{record.sourcePdfName || '—'}</dd></div><div><dt>{t.uploaded}</dt><dd>{formatDate(record.uploadedAt, language)} · {record.uploadedBy || '—'}</dd></div></dl>
-  </div><footer>{editing ? <><button className="voter-secondary-button" onClick={() => setEditing(false)} type="button">{t.close}</button><button className="voter-primary-button" disabled={saving} type="submit">{saving ? <LoaderCircle className="animate-spin" size={15} /> : <Edit3 size={15} />}{saving ? t.saving : t.save}</button></> : <>{canEdit ? <button className="voter-primary-button" onClick={() => setEditing(true)} type="button"><Edit3 size={15} />{t.edit}</button> : null}<button className="voter-secondary-button" onClick={onClose} type="button">{t.close}</button></>}</footer></form></div>
+    {deleteError ? <p className="form-alert form-alert-error">{t.deleteVoterError}</p> : null}
+  </div><footer>{editing ? <><button className="voter-secondary-button" onClick={() => setEditing(false)} type="button">{t.close}</button><button className="voter-primary-button" disabled={saving} type="submit">{saving ? <LoaderCircle className="animate-spin" size={15} /> : <Edit3 size={15} />}{saving ? t.saving : t.save}</button></> : <>{canDelete ? <button className="voter-danger-button" disabled={deleting} onClick={() => void remove()} type="button"><Trash2 size={14} />{deleting ? t.deletingVoter : t.deleteVoter}</button> : null}{canEdit ? <button className="voter-primary-button" disabled={deleting} onClick={() => setEditing(true)} type="button"><Edit3 size={15} />{t.edit}</button> : null}<button className="voter-secondary-button" disabled={deleting} onClick={onClose} type="button">{t.close}</button></>}</footer></form></div>
 }
 
 function FilterInput({ label, type = 'search', placeholder, value, onChange }: { label: string; type?: 'search' | 'date'; placeholder?: string; value: string; onChange: (value: string) => void }) {

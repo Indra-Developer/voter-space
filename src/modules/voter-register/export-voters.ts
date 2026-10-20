@@ -2,7 +2,7 @@ import type { VoterRecord } from './types'
 
 const columns = ['S.No', 'Door No & Number of Voters', 'Area', 'Name', 'Voter ID', 'Ward Serial', 'Mobile Number']
 
-function rows(records: VoterRecord[]) {
+function rows(records: VoterRecord[], startIndex = 0) {
   const doorCounts = records.reduce((counts, record) => {
     const doorNumber = record.doorNumber || '—'
     counts.set(doorNumber, (counts.get(doorNumber) ?? 0) + 1)
@@ -12,7 +12,7 @@ function rows(records: VoterRecord[]) {
   return records.map((record, index) => {
     const doorNumber = record.doorNumber || '—'
     return [
-      String(index + 1),
+      String(startIndex + index + 1),
       `${doorNumber}\nVoters: ${doorCounts.get(doorNumber) ?? 0}`,
       record.area || record.division || '—',
       record.fullName || '—',
@@ -23,67 +23,62 @@ function rows(records: VoterRecord[]) {
   })
 }
 
-export function downloadCsv(records: VoterRecord[]) {
+export function downloadCsv(records: VoterRecord[], filename = 'voter-register.csv') {
   const escape = (value: string) => `"${value.replaceAll('"', '""')}"`
   const content = [columns, ...rows(records)].map((row) => row.map(escape).join(',')).join('\n')
-  download(new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8' }), 'voter-register.csv')
+  download(new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8' }), safeExportName(filename, 'csv'))
 }
 
-export async function downloadExcel(records: VoterRecord[]) {
+export async function downloadExcel(records: VoterRecord[], filename = 'voter-register.xlsx') {
   const XLSX = await import('xlsx')
   const sheet = XLSX.utils.aoa_to_sheet([columns, ...rows(records)])
   sheet['!cols'] = columns.map((column) => ({ wch: Math.max(13, column.length + 4) }))
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, sheet, 'Voters')
-  XLSX.writeFile(workbook, 'voter-register.xlsx')
+  XLSX.writeFile(workbook, safeExportName(filename, 'xlsx'))
 }
 
-export async function downloadPdf(records: VoterRecord[]) {
-  const { jsPDF } = await import('jspdf')
-  const pdfTable = createPdfTable(records)
-  document.body.appendChild(pdfTable)
+export async function downloadPdf(records: VoterRecord[], filename = 'voter-register.pdf') {
+  const [{ jsPDF }, { default: html2canvas }] = await Promise.all([import('jspdf'), import('html2canvas')])
+  const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4', compress: true })
+  const pages = chunk(records, 18)
 
-  try {
-    await document.fonts.ready
-    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
-    await new Promise<void>((resolve, reject) => {
-      pdf.html(pdfTable, {
-        autoPaging: 'text',
-        callback: (completedPdf) => {
-          completedPdf.save('voter-register.pdf')
-          resolve()
-        },
-        html2canvas: {
-          backgroundColor: '#ffffff',
-          scale: 1,
-          useCORS: true,
-          onclone: (clonedDocument) => {
-            const clonedTable = clonedDocument.querySelector('[data-voter-pdf-export="true"]')
-            if (clonedTable instanceof HTMLElement) clonedTable.style.opacity = '1'
-          },
-        },
-        margin: [24, 24, 24, 24],
-        windowWidth: 1100,
-        x: 24,
-        y: 24,
-        width: 744,
-      }).catch(reject)
-    })
-  } finally {
-    pdfTable.remove()
+  await document.fonts.ready
+  for (const [pageIndex, pageRecords] of pages.entries()) {
+    const pdfTable = createPdfTable(pageRecords, pageIndex * 18, records.length, pageIndex + 1, pages.length)
+    document.body.appendChild(pdfTable)
+    try {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+      const canvas = await html2canvas(pdfTable, { backgroundColor: '#ffffff', scale: 1.5, useCORS: true, logging: false })
+      if (pageIndex > 0) pdf.addPage('a4', 'landscape')
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 22
+      const scale = Math.min((pageWidth - margin * 2) / canvas.width, (pageHeight - margin * 2) / canvas.height)
+      const imageWidth = canvas.width * scale
+      const imageHeight = canvas.height * scale
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', margin, margin, imageWidth, imageHeight, undefined, 'FAST')
+    } finally {
+      pdfTable.remove()
+    }
   }
+  pdf.save(safeExportName(filename, 'pdf'))
 }
 
-function createPdfTable(records: VoterRecord[]) {
+function createPdfTable(records: VoterRecord[], startIndex: number, totalRecords: number, pageNumber: number, pageCount: number) {
   const container = document.createElement('div')
   container.dataset.voterPdfExport = 'true'
-  container.style.cssText = 'position:absolute;left:0;top:0;width:1100px;background:#fff;color:#173b3a;font-family:"Nirmala UI","Noto Sans Telugu",Arial,sans-serif;font-size:12px;line-height:1.35;opacity:0;pointer-events:none;'
+  container.style.cssText = 'position:fixed;left:-20000px;top:0;width:1100px;padding:12px;background:#fff;color:#173b3a;font-family:"Nirmala UI","Noto Sans Telugu","Gautami",Arial,sans-serif;font-size:13px;line-height:1.4;pointer-events:none;'
 
   const title = document.createElement('h1')
   title.textContent = 'Voter Space — Voter Register / ఓటర్ రిజిస్టర్'
   title.style.cssText = 'margin:0 0 8px;font-size:20px;color:#123c7a;'
   container.appendChild(title)
+
+  const summary = document.createElement('p')
+  summary.textContent = `${startIndex + 1}-${startIndex + records.length} / ${totalRecords} · Page ${pageNumber} / ${pageCount}`
+  summary.style.cssText = 'margin:0 0 10px;color:#526c69;font-size:11px;'
+  container.appendChild(summary)
 
   const table = document.createElement('table')
   table.style.cssText = 'width:100%;border-collapse:collapse;table-layout:fixed;'
@@ -100,7 +95,7 @@ function createPdfTable(records: VoterRecord[]) {
   table.appendChild(head)
 
   const body = document.createElement('tbody')
-  rows(records).forEach((row) => {
+  rows(records, startIndex).forEach((row) => {
     const tableRow = document.createElement('tr')
     row.forEach((value) => {
       const cell = document.createElement('td')
@@ -120,6 +115,21 @@ function download(blob: Blob, filename: string) {
   const link = document.createElement('a')
   link.href = url
   link.download = filename
+  document.body.appendChild(link)
   link.click()
-  URL.revokeObjectURL(url)
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function chunk<T>(values: T[], size: number) {
+  if (values.length === 0) return [[]]
+  const result: T[][] = []
+  for (let index = 0; index < values.length; index += size) result.push(values.slice(index, index + size))
+  return result
+}
+
+function safeExportName(filename: string, extension: string) {
+  const withoutExtension = filename.replace(/\.[^.]+$/, '')
+  const safeBase = withoutExtension.replace(/[<>:"/\\|?*\p{Cc}]+/gu, '-').trim().slice(0, 120) || 'voter-register'
+  return `${safeBase}.${extension}`
 }

@@ -279,9 +279,43 @@ export const logPasswordResetRequest = onCall({ region }, async (request) => {
 export const listVoters = onCall({ region }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
   const filters = readVoterFilters(request.data)
-  const input = request.data as { cursor?: unknown; pageSize?: unknown }
+  const input = request.data as { cursor?: unknown; pageSize?: unknown; sourcePdfId?: unknown }
   const pageSize = Math.min(optionalInteger(input?.pageSize) ?? 200, 250)
   const cursorId = plainString(input?.cursor)
+  const sourcePdfId = plainString(input?.sourcePdfId)
+
+  if (sourcePdfId) {
+    const source = await getPdfImport(sourcePdfId)
+    if (!canViewPdfImport(caller.record, source)) {
+      throw new HttpsError('permission-denied', 'This PDF is outside your allowed ward or booth scope.')
+    }
+
+    const rows = db.collection(`sourcePdfs/${sourcePdfId}/rows`)
+    const cursor = cursorId ? await rows.doc(cursorId).get() : undefined
+    const query = rows.orderBy(FieldPath.documentId())
+    const snapshot = await (cursor?.exists ? query.startAfter(cursor).limit(pageSize) : query.limit(pageSize)).get()
+    const refsByPath = new Map<string, FirebaseFirestore.DocumentReference>()
+
+    snapshot.docs.forEach((item) => {
+      const identity = voterIdentity(item.data() as ImportRowRecord)
+      if (!identity) return
+      const ref = db.doc(`voters/v_${stableHash(identity)}`)
+      refsByPath.set(ref.path, ref)
+    })
+
+    const voterRefs = [...refsByPath.values()]
+    const voterSnapshots = voterRefs.length ? await db.getAll(...voterRefs) : []
+    const sourceFilters = { ...filters, sourcePdfId: undefined }
+    const records = voterSnapshots
+      .filter((item) => item.exists)
+      .map((item) => voterFromFirestore(item.id, item.data() ?? {}))
+      .filter((record) => canViewVoter(caller.record, record))
+      .filter((record) => matchesFilters(record, sourceFilters))
+      .sort((first, second) => first.doorNumber.localeCompare(second.doorNumber, 'en', { numeric: true }) || first.serialNumber.localeCompare(second.serialNumber, 'en', { numeric: true }))
+
+    return { records, nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1]?.id : undefined, hasMore: snapshot.size === pageSize }
+  }
+
   const cursor = cursorId ? await db.doc(`voters/${cursorId}`).get() : undefined
   const query = db.collection('voters').orderBy(FieldPath.documentId())
   const snapshot = await (cursor?.exists ? query.startAfter(cursor).limit(pageSize) : query.limit(pageSize)).get()
@@ -349,6 +383,32 @@ export const updateVoterRecord = onCall({ region }, async (request) => {
   return { id: input.id }
 })
 
+export const deleteVoterRecord = onCall({ region, timeoutSeconds: 120 }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  if (caller.record.role === 'subMember' || (caller.record.role === 'admin' && !caller.record.permissions.edit)) {
+    throw new HttpsError('permission-denied', 'You do not have permission to delete voter records.')
+  }
+  const voterRecordId = requiredString((request.data as { voterRecordId?: unknown })?.voterRecordId, 'Voter record id')
+  const voterRef = db.doc(`voters/${voterRecordId}`)
+  const snapshot = await voterRef.get()
+  if (!snapshot.exists) throw new HttpsError('not-found', 'Voter record not found.')
+  const voter = voterFromFirestore(snapshot.id, snapshot.data() ?? {})
+  if (!canViewVoter(caller.record, voter)) throw new HttpsError('permission-denied', 'This record is outside your allowed ward or booth scope.')
+
+  const sourceLinks = await voterRef.collection('sourcePdfs').get()
+  const sourcePdfIds = [...new Set([voter.sourcePdfId, ...sourceLinks.docs.map((item) => item.id)].filter(Boolean))]
+  const importCleanup = await deleteImportRowsForVoter(sourcePdfIds, voter)
+  const deletedImportRows = importCleanup.deletedCount
+  await deleteVoterRecordTree(voterRef)
+  await deleteStoragePaths([voter.voterCardImagePath])
+  try {
+    await writeAudit(caller, 'voter_record_deleted', voterRecordId, voter.fullName, { voterId: voter.voterId, wardId: voter.wardId, boothId: voter.boothId, deletedImportRows })
+  } catch (error) {
+    logger.error('Voter data was deleted, but the audit entry could not be written', { voterRecordId, error })
+  }
+  return { id: voterRecordId, deletedImportRows, deletedStoragePaths: importCleanup.deletedStoragePaths + (voter.voterCardImagePath ? 1 : 0) }
+})
+
 export const createPdfImport = onCall({ region }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
   const input = readPdfImportRequest(request.data)
@@ -379,12 +439,17 @@ export const createPdfImport = onCall({ region }, async (request) => {
 
 export const listPdfImports = onCall({ region }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
-  const snapshot = await db.collection('sourcePdfs').orderBy('createdAt', 'desc').limit(250).get()
+  const input = request.data as { cursor?: unknown; pageSize?: unknown }
+  const pageSize = Math.min(optionalInteger(input?.pageSize) ?? 200, 250)
+  const cursorId = plainString(input?.cursor)
+  const cursor = cursorId ? await db.doc(`sourcePdfs/${cursorId}`).get() : undefined
+  const sourceQuery = db.collection('sourcePdfs').orderBy(FieldPath.documentId())
+  const snapshot = await (cursor?.exists ? sourceQuery.startAfter(cursor).limit(pageSize) : sourceQuery.limit(pageSize)).get()
   const imports = snapshot.docs
     .map((item) => ({ id: item.id, ...(item.data() as SourcePdfRecord) }))
     .filter((source) => canViewPdfImport(caller.record, source))
     .map(sourceForClient)
-  return { imports }
+  return { imports, nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1]?.id : undefined, hasMore: snapshot.size === pageSize }
 })
 
 export const cancelPdfImport = onCall({ region }, async (request) => {
@@ -427,9 +492,26 @@ export const deleteVotersByWard = onCall({ region, timeoutSeconds: 540, memory: 
   const sourceSnapshot = await db.collection('sourcePdfs').where('wardId', '==', wardId).get()
   const voterPaths = voterSnapshot.docs.map((item) => plainString(item.data().voterCardImagePath)).filter(Boolean)
   const sources = sourceSnapshot.docs.map((item) => ({ id: item.id, ...(item.data() as SourcePdfRecord) }))
+  const sourceIdsToDelete = new Set(sources.map((source) => source.id))
+  const changedSourceIds = new Set<string>()
+  let deletedImportRows = 0
+  let deletedHistoricalCardImages = 0
 
-  for (const group of splitInto(voterSnapshot.docs, 50)) {
-    await Promise.all(group.map((voter) => deleteVoterRecordTree(voter.ref)))
+  for (const group of splitInto(voterSnapshot.docs, 10)) {
+    const results = await Promise.all(group.map(async (voterSnapshotItem) => {
+      const voter = voterFromFirestore(voterSnapshotItem.id, voterSnapshotItem.data())
+      const sourceLinks = await voterSnapshotItem.ref.collection('sourcePdfs').get()
+      const sourcePdfIds = [...new Set([voter.sourcePdfId, ...sourceLinks.docs.map((item) => item.id)].filter(Boolean))]
+        .filter((sourcePdfId) => !sourceIdsToDelete.has(sourcePdfId))
+      const cleanup = await deleteImportRowsForVoter(sourcePdfIds, voter, false)
+      await deleteVoterRecordTree(voterSnapshotItem.ref)
+      return cleanup
+    }))
+    results.forEach((result) => {
+      deletedImportRows += result.deletedCount
+      deletedHistoricalCardImages += result.deletedStoragePaths
+      result.changedSourceIds.forEach((sourcePdfId) => changedSourceIds.add(sourcePdfId))
+    })
   }
   for (const group of splitInto(sources, 10)) {
     await Promise.all(group.map((source) => deleteSourcePdfRecord(source.id, source, true)))
@@ -443,12 +525,13 @@ export const deleteVotersByWard = onCall({ region, timeoutSeconds: 540, memory: 
   for (const sourcePdfId of new Set(sourceIdsFromCardPaths)) {
     if (!knownSourceIds.has(sourcePdfId)) await deleteStoragePrefix(`voter-cards/${sourcePdfId}/`)
   }
+  await Promise.all([...changedSourceIds].filter((sourcePdfId) => !sourceIdsToDelete.has(sourcePdfId)).map((sourcePdfId) => refreshSourcePdfRowCounts(sourcePdfId)))
   try {
-    await writeAudit(caller, 'ward_voter_data_deleted', wardId, `Ward ${wardId}`, { voters: voterSnapshot.size, sourcePdfs: sources.length })
+    await writeAudit(caller, 'ward_voter_data_deleted', wardId, `Ward ${wardId}`, { voters: voterSnapshot.size, sourcePdfs: sources.length, deletedImportRows, deletedHistoricalCardImages })
   } catch (error) {
     logger.error('Ward data was deleted, but the audit entry could not be written', { wardId, error })
   }
-  return { wardId, deletedVoters: voterSnapshot.size, deletedSourcePdfs: sources.length }
+  return { wardId, deletedVoters: voterSnapshot.size, deletedSourcePdfs: sources.length, deletedImportRows, deletedHistoricalCardImages }
 })
 
 // Storage rules keep source PDFs private. This callable checks the caller's
@@ -752,6 +835,52 @@ async function deleteSourcePdfRecord(sourcePdfId: string, source: SourcePdfRecor
 async function deleteVoterRecordTree(voterRef: FirebaseFirestore.DocumentReference) {
   await deleteDocumentChildren(voterRef, 'sourcePdfs')
   await voterRef.delete()
+}
+
+async function deleteImportRowsForVoter(sourcePdfIds: string[], voter: VoterRecord, refreshCounts = true) {
+  const rowRefs = new Map<string, FirebaseFirestore.DocumentReference>()
+  const changedSourceIds = new Set<string>()
+  const storagePaths = new Set<string>()
+  for (const sourcePdfId of sourcePdfIds) {
+    const rows = db.collection(`sourcePdfs/${sourcePdfId}/rows`)
+    const queries = [
+      voter.voterId ? rows.where('voterId', '==', voter.voterId).get() : undefined,
+      voter.alternateIdentifier ? rows.where('alternateIdentifier', '==', voter.alternateIdentifier).get() : undefined,
+      voter.voterCardImagePath ? rows.where('voterCardImagePath', '==', voter.voterCardImagePath).get() : undefined,
+    ].filter(Boolean) as Array<Promise<FirebaseFirestore.QuerySnapshot>>
+    const snapshots = await Promise.all(queries)
+    snapshots.forEach((result) => result.docs.forEach((row) => {
+      rowRefs.set(row.ref.path, row.ref)
+      changedSourceIds.add(sourcePdfId)
+      const imagePath = plainString(row.data().voterCardImagePath)
+      if (imagePath) storagePaths.add(imagePath)
+    }))
+  }
+  const refs = [...rowRefs.values()]
+  for (const group of splitInto(refs, 350)) {
+    const batch = db.batch()
+    group.forEach((rowRef) => batch.delete(rowRef))
+    await batch.commit()
+  }
+  await deleteStoragePaths([...storagePaths])
+  if (refreshCounts) await Promise.all([...changedSourceIds].map((sourcePdfId) => refreshSourcePdfRowCounts(sourcePdfId)))
+  return { deletedCount: refs.length, deletedStoragePaths: storagePaths.size, changedSourceIds: [...changedSourceIds] }
+}
+
+async function refreshSourcePdfRowCounts(sourcePdfId: string) {
+  const sourceRef = db.doc(`sourcePdfs/${sourcePdfId}`)
+  const source = await sourceRef.get()
+  if (!source.exists) return
+  const rows = await sourceRef.collection('rows').select('needsReview', 'duplicateState').get()
+  const needsReviewCount = rows.docs.filter((row) => row.data().needsReview === true).length
+  const duplicateCount = rows.docs.filter((row) => ['duplicate', 'updated', 'updatesExisting'].includes(plainString(row.data().duplicateState))).length
+  await sourceRef.update({
+    rowCount: rows.size,
+    readyCount: Math.max(0, rows.size - needsReviewCount),
+    duplicateCount,
+    needsReviewCount,
+    updatedAt: FieldValue.serverTimestamp(),
+  })
 }
 
 async function deleteDocumentChildren(parentRef: FirebaseFirestore.DocumentReference, collectionName: string) {

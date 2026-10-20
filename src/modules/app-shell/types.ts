@@ -10,6 +10,7 @@ export type NavigationKey =
   | 'upload'
   | 'library'
   | 'users'
+  | 'directory'
   | 'audit'
   | 'settings'
 

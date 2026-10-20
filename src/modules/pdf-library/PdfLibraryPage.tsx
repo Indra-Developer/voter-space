@@ -7,8 +7,7 @@ import { PageState } from '../app-shell/PageState'
 import { listPdfImports } from '../pdf-import/pdf-import-service'
 import type { PdfImport } from '../pdf-import/types'
 import { downloadCsv, downloadExcel, downloadPdf } from '../voter-register/export-voters'
-import { loadVoters } from '../voter-register/voter-service'
-import type { VoterRecord } from '../voter-register/types'
+import { loadAllVoters } from '../voter-register/voter-service'
 import { requestSourcePdfDownload, startBrowserDownload } from './pdf-library-service'
 
 type LibraryFilters = { query: string; ward: string; booth: string; area: string; division: string; sourcePdf: string; status: string; uploadedBy: string; uploadedFrom: string; uploadedTo: string }
@@ -40,7 +39,7 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
     const timer = window.setTimeout(() => void reload(), 0)
     return () => window.clearTimeout(timer)
   }, [])
-  const options = useMemo(() => ({ wards: unique(records?.map((item) => item.wardId)), booths: unique(records?.map((item) => item.boothId)), areas: unique(records?.map((item) => item.area)), divisions: unique(records?.map((item) => item.division)), sourcePdfs: unique(records?.map((item) => item.originalFileName)), statuses: unique(records?.map((item) => item.status)), uploaders: unique(records?.map((item) => item.uploadedByName)) }), [records])
+  const options = useMemo(() => ({ wards: unique(records?.map((item) => item.wardId)), booths: unique(records?.map((item) => item.boothId)), areas: unique(records?.flatMap((item) => item.areas?.length ? item.areas : [item.area])), divisions: unique(records?.flatMap((item) => item.divisions?.length ? item.divisions : [item.division])), sourcePdfs: unique(records?.map((item) => item.originalFileName)), statuses: unique(records?.map((item) => item.status)), uploaders: unique(records?.map((item) => item.uploadedByName)) }), [records])
   const visible = useMemo(() => (records ?? []).filter((item) => matches(item, filters)), [records, filters])
   const completed = visible.filter((item) => item.status === 'completed').length
   const needsAction = visible.filter((item) => item.status !== 'completed').length
@@ -54,11 +53,11 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
     const key = `${item.id}:${format}`
     setExportingKey(key); setDownloadError(undefined)
     try {
-      const voters = await loadAllVotersForPdf(item.id)
+      const voters = await loadAllVoters(item.id)
       if (!voters.length) throw new Error(t.noVoters)
-      if (format === 'excel') await downloadExcel(voters)
-      if (format === 'pdf') await downloadPdf(voters)
-      if (format === 'csv') downloadCsv(voters)
+      if (format === 'excel') await downloadExcel(voters, exportFilename(item.originalFileName, 'xlsx'))
+      if (format === 'pdf') await downloadPdf(voters, exportFilename(item.originalFileName, 'pdf'))
+      if (format === 'csv') downloadCsv(voters, exportFilename(item.originalFileName, 'csv'))
     } catch (reason) {
       setDownloadError(`${t.downloadError} ${readableFirebaseError(reason)}`)
     } finally {
@@ -87,7 +86,7 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
     {downloadError ? <p className="form-alert form-alert-error">{downloadError}</p> : null}
     {records === undefined && !error ? <PageState kind="loading" title={t.loading} description="" /> : null}
     {error ? <PageState kind="error" title={t.error} description={error} actionLabel={t.retry} onAction={() => void reload()} /> : null}
-    {records !== undefined && !error ? <><section className="pdf-library-stats"><Stat label={t.total} value={visible.length} /><Stat label={t.complete} value={completed} /><Stat label={t.action} value={needsAction} /></section>{records.length === 0 ? <PageState kind="empty" title={t.noData} description="" /> : visible.length === 0 ? <PageState kind="empty" title={t.noMatch} description="" /> : <div className="pdf-library-list">{visible.map((item) => <article className="pdf-library-row" key={item.id}><div className="pdf-library-file"><FileText size={20} /><div><strong>{item.originalFileName}</strong><span>{t.ward} {item.wardId} · {t.booth} {item.boothId}{item.area ? ` · ${item.area}` : ''}{item.division ? ` · ${item.division}` : ''}</span></div></div><div className="pdf-library-meta"><span className={`pdf-library-status status-${item.status}`}>{item.status}</span><span>{t.rows}: {item.rowCount ?? '—'}</span><span>{t.uploaded}: {formatDate(item.uploadedAt ?? item.createdAt, language)} · {item.uploadedByName}</span></div><div className="pdf-library-actions">{canDownload ? <><ExportMenu exportingKey={exportingKey} id={item.id} onSelect={(format) => void exportPdfVoters(item, format)} t={t} /><button disabled={downloadingId === item.id} onClick={() => void downloadOriginal(item)} type="button">{downloadingId === item.id ? <LoaderCircle className="animate-spin" size={15} /> : <Download size={15} />}{downloadingId === item.id ? t.downloading : t.original}</button></> : null}</div></article>)}</div>}</> : null}
+    {records !== undefined && !error ? <><section className="pdf-library-stats"><Stat label={t.total} value={visible.length} /><Stat label={t.complete} value={completed} /><Stat label={t.action} value={needsAction} /></section>{records.length === 0 ? <PageState kind="empty" title={t.noData} description="" /> : visible.length === 0 ? <PageState kind="empty" title={t.noMatch} description="" /> : <div className="pdf-library-list">{visible.map((item) => <article className="pdf-library-row" key={item.id}><div className="pdf-library-file"><FileText size={20} /><div><strong>{item.originalFileName}</strong><span>{t.ward} {item.wardId} · {t.booth} {item.boothId}{sourceAreas(item).length ? ` · ${sourceAreas(item).join(', ')}` : ''}{sourceDivisions(item).length ? ` · ${sourceDivisions(item).join(', ')}` : ''}</span></div></div><div className="pdf-library-meta"><span className={`pdf-library-status status-${item.status}`}>{item.status}</span><span>{t.rows}: {item.rowCount ?? '—'}</span><span>{t.uploaded}: {formatDate(item.uploadedAt ?? item.createdAt, language)} · {item.uploadedByName}</span></div><div className="pdf-library-actions">{canDownload ? <><ExportMenu exportingKey={exportingKey} id={item.id} onSelect={(format) => void exportPdfVoters(item, format)} t={t} /><button disabled={downloadingId === item.id} onClick={() => void downloadOriginal(item)} type="button">{downloadingId === item.id ? <LoaderCircle className="animate-spin" size={15} /> : <Download size={15} />}{downloadingId === item.id ? t.downloading : t.original}</button></> : null}</div></article>)}</div>}</> : null}
   </section>
 }
 
@@ -109,12 +108,12 @@ function unique(values?: string[]) { return [...new Set((values ?? []).filter(Bo
 function matches(item: PdfImport, filters: LibraryFilters) {
   const query = filters.query.toLocaleLowerCase()
   const uploadedDate = (item.uploadedAt ?? item.createdAt ?? '').slice(0, 10)
-  const searchable = [item.originalFileName, item.wardId, item.boothId, item.area, item.division, item.status, item.uploadedByName].join(' ').toLocaleLowerCase()
+  const searchable = [item.originalFileName, item.wardId, item.boothId, ...sourceAreas(item), ...sourceDivisions(item), item.status, item.uploadedByName].join(' ').toLocaleLowerCase()
   return (!query || searchable.includes(query)) &&
     (!filters.ward || item.wardId === filters.ward) &&
     (!filters.booth || item.boothId === filters.booth) &&
-    (!filters.area || item.area === filters.area) &&
-    (!filters.division || item.division === filters.division) &&
+    (!filters.area || sourceAreas(item).includes(filters.area)) &&
+    (!filters.division || sourceDivisions(item).includes(filters.division)) &&
     (!filters.sourcePdf || item.originalFileName === filters.sourcePdf) &&
     (!filters.status || item.status === filters.status) &&
     (!filters.uploadedBy || item.uploadedByName === filters.uploadedBy) &&
@@ -122,17 +121,7 @@ function matches(item: PdfImport, filters: LibraryFilters) {
     (!filters.uploadedTo || uploadedDate <= filters.uploadedTo)
 }
 
-async function loadAllVotersForPdf(sourcePdfId: string) {
-  const voters: VoterRecord[] = []
-  let cursor: string | undefined
-  let hasMore = true
-  while (hasMore) {
-    const result = await loadVoters(cursor, sourcePdfId)
-    voters.push(...result.records)
-    cursor = result.nextCursor
-    hasMore = result.hasMore && Boolean(cursor)
-  }
-  return voters
-}
-
 function formatDate(value: string | undefined, language: AppLanguage) { return value ? new Intl.DateTimeFormat(language === 'te' ? 'te-IN' : 'en-IN', { dateStyle: 'medium' }).format(new Date(value)) : '—' }
+function sourceAreas(item: PdfImport) { return unique(item.areas?.length ? item.areas : [item.area]) }
+function sourceDivisions(item: PdfImport) { return unique(item.divisions?.length ? item.divisions : [item.division]) }
+function exportFilename(sourceName: string, extension: string) { return `${sourceName.replace(/\.pdf$/i, '')}-voters.${extension}` }

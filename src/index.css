@@ -2,6 +2,7 @@
 @import "./modules/app-shell/app-shell.css";
 @import "./modules/auth/auth.css";
 @import "./modules/user-management/user-management.css";
+@import "./modules/user-directory/user-directory.css";
 @import "./modules/audit-logs/audit-logs.css";
 @import "./modules/voter-register/voter-register.css";
 @import "./modules/pdf-import/pdf-import.css";

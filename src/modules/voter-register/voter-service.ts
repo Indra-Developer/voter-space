@@ -13,6 +13,19 @@ export async function loadVoters(cursor?: string, sourcePdfId?: string) {
   return result.data
 }
 
+export async function loadAllVoters(sourcePdfId?: string) {
+  const records: VoterRecord[] = []
+  let cursor: string | undefined
+  let hasMore = true
+  while (hasMore) {
+    const result = await loadVoters(cursor, sourcePdfId)
+    records.push(...result.records)
+    cursor = result.nextCursor
+    hasMore = result.hasMore && Boolean(cursor)
+  }
+  return [...new Map(records.map((record) => [record.id, record])).values()]
+}
+
 export async function loadVoterFilterOptions() {
   const getVoterFilterOptions = httpsCallable<Record<string, never>, VoterFilterOptions>(requireFunctions(), 'getVoterFilterOptions')
   return (await getVoterFilterOptions({})).data
@@ -26,6 +39,11 @@ export async function deleteVotersByWard(wardId: string) {
 export async function saveVoter(record: VoterRecord) {
   const updateVoterRecord = httpsCallable<VoterRecord, { id: string }>(requireFunctions(), 'updateVoterRecord')
   await updateVoterRecord(record)
+}
+
+export async function deleteVoter(voterRecordId: string) {
+  const deleteVoterRecord = httpsCallable<{ voterRecordId: string }, { id: string; deletedImportRows: number; deletedStoragePaths: number }>(requireFunctions(), 'deleteVoterRecord')
+  return (await deleteVoterRecord({ voterRecordId })).data
 }
 
 export async function loadVoterCardImage(voterRecordId: string) {

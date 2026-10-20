@@ -31,8 +31,23 @@ export function uploadPdfFile({ file, sourcePdfId, storagePath, onProgress }: { 
 }
 
 export async function listPdfImports() {
-  const call = httpsCallable<Record<string, never>, { imports: PdfImport[] }>(requireFunctions(), 'listPdfImports')
-  return (await call({})).data.imports
+  const call = httpsCallable<{ cursor?: string; pageSize: number }, { imports: PdfImport[]; nextCursor?: string; hasMore: boolean }>(requireFunctions(), 'listPdfImports')
+  const imports: PdfImport[] = []
+  let cursor: string | undefined
+  let hasMore = true
+  while (hasMore) {
+    const result = (await call({ cursor, pageSize: 200 })).data
+    imports.push(...result.imports)
+    cursor = result.nextCursor
+    hasMore = result.hasMore && Boolean(cursor)
+  }
+  return imports.sort((first, second) => pdfImportTime(second) - pdfImportTime(first))
+}
+
+function pdfImportTime(item: PdfImport) {
+  const value = item.updatedAt ?? item.uploadedAt ?? item.createdAt
+  const time = value ? new Date(value).getTime() : 0
+  return Number.isNaN(time) ? 0 : time
 }
 
 export async function cancelPdfImport(sourcePdfId: string) {

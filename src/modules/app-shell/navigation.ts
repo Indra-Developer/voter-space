@@ -7,6 +7,7 @@ import {
   Settings,
   Upload,
   Users,
+  UsersRound,
   type LucideIcon,
 } from 'lucide-react'
 import type { NavigationKey } from './types'
@@ -22,6 +23,7 @@ export const navigationItems: NavigationItem[] = [
   { key: 'upload', icon: Upload },
   { key: 'library', icon: Files },
   { key: 'users', icon: Users },
+  { key: 'directory', icon: UsersRound },
   { key: 'audit', icon: Activity },
   { key: 'settings', icon: Settings },
 ]

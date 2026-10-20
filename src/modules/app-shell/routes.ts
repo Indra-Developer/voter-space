@@ -6,6 +6,7 @@ export const navigationPaths: Record<NavigationKey, string> = {
   upload: '/pdf-upload',
   library: '/pdf-library',
   users: '/user-management',
+  directory: '/user-directory',
   audit: '/audit-logs',
   settings: '/settings',
 }

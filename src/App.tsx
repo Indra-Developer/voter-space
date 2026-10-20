@@ -10,6 +10,7 @@ import { ProfilePage } from './modules/auth/ProfilePage'
 import { signOutUser } from './modules/auth/firebase-auth'
 import { useSession } from './modules/auth/use-session'
 import { UserManagementPage } from './modules/user-management/UserManagementPage'
+import { UserDirectoryPage } from './modules/user-directory/UserDirectoryPage'
 import { AuditLogPage } from './modules/audit-logs/AuditLogPage'
 import { DashboardPage } from './modules/dashboard/DashboardPage'
 
@@ -70,6 +71,7 @@ function App() {
 
   const session = sessionState.session
   const isUserManagement = activeNavigation === 'users'
+  const isUserDirectory = activeNavigation === 'directory'
   const isProfile = activeNavigation === 'settings'
   const isAudit = activeNavigation === 'audit'
   const isVoterRegister = activeNavigation === 'register'
@@ -106,7 +108,7 @@ function App() {
       }}
       theme={theme}
     >
-      {isUserManagement ? <UserManagementPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isVoterRegister ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><VoterRegisterPage language={language} session={session} /></Suspense> : isPdfUpload ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><PdfImportPage language={language} session={session} /></Suspense> : isPdfLibrary ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><PdfLibraryPage language={language} session={session} /></Suspense> : isDashboard ? <DashboardPage language={language} onNavigate={navigateTo} session={session} /> : <>
+      {isUserManagement ? <UserManagementPage language={language} session={session} /> : isUserDirectory ? <UserDirectoryPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isVoterRegister ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><VoterRegisterPage language={language} session={session} /></Suspense> : isPdfUpload ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><PdfImportPage language={language} session={session} /></Suspense> : isPdfLibrary ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><PdfLibraryPage language={language} session={session} /></Suspense> : isDashboard ? <DashboardPage language={language} onNavigate={navigateTo} session={session} /> : <>
         <section className="page-intro">
           <p>{t.page.section}</p>
           <h2>{isDashboard ? t.page.dashboardTitle : t.nav[activeNavigation]}</h2>

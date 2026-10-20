@@ -107,6 +107,7 @@
 .voter-danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 2.25rem; padding: 0.42rem 0.7rem; border: 1px solid #c74735; border-radius: 0.55rem; background: #c74735; color: #fff; cursor: pointer; font-size: 0.72rem; font-weight: 800; white-space: nowrap; }
 .voter-danger-button:hover { background: #a92f21; border-color: #a92f21; }
 .voter-danger-button:disabled { cursor: not-allowed; opacity: 0.48; }
+.voter-dialog footer .voter-danger-button { width: auto; }
 .voter-delete-success { color: var(--primary-strong) !important; font-weight: 750; }
 .voter-delete-error { color: #b6382a !important; font-weight: 750; }
 .voter-filter-title,
