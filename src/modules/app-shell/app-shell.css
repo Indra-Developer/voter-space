@@ -160,6 +160,7 @@
 .shell-main {
   min-width: 0;
   padding-bottom: 4.75rem;
+  font-size: 1.02rem;
 }
 
 .shell-header {
@@ -496,7 +497,7 @@
   left: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.2rem;
   padding: 0.4rem max(0.4rem, env(safe-area-inset-right)) calc(0.4rem + env(safe-area-inset-bottom)) max(0.4rem, env(safe-area-inset-left));
   border-top: 1px solid var(--border);
@@ -516,7 +517,7 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 0.63rem;
+  font-size: 0.68rem;
   font-weight: 650;
 }
 

@@ -7,10 +7,12 @@ export async function requestSourcePdfDownload(sourcePdfId: string) {
   return (await call({ sourcePdfId })).data
 }
 
-export function startBrowserDownload(url: string) {
+export function startBrowserDownload(url: string, fileName?: string) {
   const link = document.createElement('a')
   link.href = url
+  if (fileName) link.download = fileName
   link.rel = 'noopener'
+  link.style.display = 'none'
   document.body.appendChild(link)
   link.click()
   link.remove()

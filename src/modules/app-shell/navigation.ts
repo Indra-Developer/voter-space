@@ -26,6 +26,6 @@ export const navigationItems: NavigationItem[] = [
   { key: 'settings', icon: Settings },
 ]
 
-export const mobileNavigationKeys = ['dashboard', 'register', 'library', 'settings'] as const satisfies readonly NavigationKey[]
+export const mobileNavigationKeys = ['dashboard', 'register', 'upload', 'library', 'settings'] as const satisfies readonly NavigationKey[]
 
 export const pdfIcon = FileText

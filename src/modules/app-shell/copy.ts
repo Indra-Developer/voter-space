@@ -4,7 +4,7 @@ type AppCopy = {
   appName: string
   appNameEnglish: string
   nav: Record<NavigationKey, string>
-  mobile: Record<'dashboard' | 'register' | 'library' | 'settings', string>
+  mobile: Record<'dashboard' | 'register' | 'upload' | 'library' | 'settings', string>
   actions: {
     closeMenu: string
     openMenu: string
@@ -51,6 +51,7 @@ export const copy: Record<AppLanguage, AppCopy> = {
     mobile: {
       dashboard: 'హోమ్',
       register: 'రిజిస్టర్',
+      upload: 'అప్‌లోడ్',
       library: 'PDFలు',
       settings: 'ప్రొఫైల్',
     },
@@ -95,7 +96,7 @@ export const copy: Record<AppLanguage, AppCopy> = {
       audit: 'Audit Logs',
       settings: 'Settings',
     },
-    mobile: { dashboard: 'Home', register: 'Register', library: 'PDFs', settings: 'Profile' },
+    mobile: { dashboard: 'Home', register: 'Register', upload: 'Upload', library: 'PDFs', settings: 'Profile' },
     actions: {
       closeMenu: 'Close menu',
       openMenu: 'Open menu',

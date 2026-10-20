@@ -16,7 +16,7 @@ const screenCopy = {
   en: {
     label: 'Voter data', title: 'Voter Register', description: 'Find voters, check records, and export only the records you are allowed to access.',
     search: 'Search all voter fields', searchPlaceholder: 'Name, voter ID, door number, serial, ward, booth, area, division, PDF…', searchHint: 'You can search using Telugu, English spelling, voter ID, door number, serial number, ward, booth, area, division, mobile number, or PDF name.', refresh: 'Refresh', records: 'records', individual: 'Individual records', doorWise: 'Door-wise view',
-    filters: 'Filters', clear: 'Clear all', moreFilters: 'All filters', name: 'Name', door: 'House number', voterId: 'Voter ID', alternateId: 'Alternate ID', mobile: 'Mobile number', serial: 'Serial number', ward: 'Ward', booth: 'Booth', area: 'Area', division: 'Division', source: 'Source PDF', uploadedFrom: 'Uploaded from', uploadedTo: 'Uploaded to', uploadedBy: 'Uploaded by', members: 'members', chooseDate: 'Choose upload dates', deleteWardOpen: 'Delete ward', deleteWardTitle: 'Delete complete ward data', deleteWardHint: 'This permanently removes the ward voters, voter card images, source PDFs, and import rows from Firestore and Storage.', selectWard: 'Select ward', typeWard: 'Type the ward number to confirm', deleteWard: 'Delete ward data', deletingWard: 'Deleting ward data…', deleteWardSuccess: 'Ward data deleted successfully.', deleteWardError: 'Ward data could not be deleted.', cancel: 'Cancel',
+    filters: 'Filters', clear: 'Clear all', moreFilters: 'More filters', hideFilters: 'Hide filters', name: 'Name', door: 'House number', voterId: 'Voter ID', alternateId: 'Alternate ID', mobile: 'Mobile number', serial: 'Serial number', ward: 'Ward', booth: 'Booth', area: 'Area', division: 'Division', source: 'Source PDF', uploadedFrom: 'Uploaded from', uploadedTo: 'Uploaded to', uploadedBy: 'Uploaded by', members: 'members', chooseDate: 'Choose upload dates', deleteWardOpen: 'Delete ward', deleteWardTitle: 'Delete complete ward data', deleteWardHint: 'This permanently removes the ward voters, voter card images, source PDFs, and import rows from Firestore and Storage.', selectWard: 'Select ward', typeWard: 'Type the ward number to confirm', deleteWard: 'Delete ward data', deletingWard: 'Deleting ward data…', deleteWardSuccess: 'Ward data deleted successfully.', deleteWardError: 'Ward data could not be deleted.', cancel: 'Cancel',
     any: 'All',
     exportExcel: 'Excel', exportPdf: 'PDF', exportCsv: 'CSV', exportHint: 'Exports include the filtered records only.',
     noRecords: 'No voter records match these filters.', noData: 'No voter records have been imported yet.',
@@ -26,7 +26,7 @@ const screenCopy = {
   te: {
     label: 'ఓటర్ డేటా', title: 'ఓటర్ రిజిస్టర్', description: 'ఓటర్లను వెతకండి, రికార్డులను చూడండి, మీకు అనుమతి ఉన్న డేటాను మాత్రమే ఎగుమతి చేయండి.',
     search: 'అన్ని ఓటర్ వివరాల్లో వెతకండి', searchPlaceholder: 'పేరు, ఓటర్ ఐడి, ఇంటి నంబర్, సీరియల్, వార్డు, బూత్, ప్రాంతం, డివిజన్, PDF…', searchHint: 'తెలుగు, ఇంగ్లీష్ స్పెల్లింగ్, ఓటర్ ఐడి, ఇంటి నంబర్, సీరియల్, వార్డు, బూత్, ప్రాంతం, డివిజన్, మొబైల్ లేదా PDF పేరుతో వెతకండి.', refresh: 'రిఫ్రెష్', records: 'రికార్డులు', individual: 'ఒక్కో రికార్డు', doorWise: 'ఇంటి నంబర్ వారీగా',
-    filters: 'ఫిల్టర్లు', clear: 'అన్నీ తొలగించండి', moreFilters: 'అన్ని ఫిల్టర్లు', name: 'పేరు', door: 'ఇంటి నంబర్', voterId: 'ఓటర్ ఐడి', alternateId: 'ప్రత్యామ్నాయ ఐడి', mobile: 'మొబైల్ నంబర్', serial: 'సీరియల్ నంబర్', ward: 'వార్డు', booth: 'బూత్', area: 'ప్రాంతం', division: 'డివిజన్', source: 'సోర్స్ PDF', uploadedFrom: 'అప్‌లోడ్ మొదలు', uploadedTo: 'అప్‌లోడ్ చివరి తేదీ', uploadedBy: 'అప్‌లోడ్ చేసినవారు', members: 'సభ్యులు', chooseDate: 'అప్‌లోడ్ తేదీలను ఎంచుకోండి', deleteWardOpen: 'వార్డు తొలగింపు', deleteWardTitle: 'వార్డు మొత్తం డేటాను తొలగించండి', deleteWardHint: 'ఈ చర్య వార్డు ఓటర్లు, ఓటర్ కార్డు చిత్రాలు, సోర్స్ PDFలు మరియు Firestore, Storageలోని దిగుమతి వరుసలను శాశ్వతంగా తొలగిస్తుంది.', selectWard: 'వార్డును ఎంచుకోండి', typeWard: 'నిర్ధారించడానికి వార్డు నంబర్ టైప్ చేయండి', deleteWard: 'వార్డు డేటా తొలగించండి', deletingWard: 'వార్డు డేటా తొలగిస్తోంది…', deleteWardSuccess: 'వార్డు డేటా విజయవంతంగా తొలగించబడింది.', deleteWardError: 'వార్డు డేటా తొలగించలేకపోయాము.', cancel: 'రద్దు',
+    filters: 'ఫిల్టర్లు', clear: 'అన్నీ తొలగించండి', moreFilters: 'మరిన్ని ఫిల్టర్లు', hideFilters: 'ఫిల్టర్లు దాచండి', name: 'పేరు', door: 'ఇంటి నంబర్', voterId: 'ఓటర్ ఐడి', alternateId: 'ప్రత్యామ్నాయ ఐడి', mobile: 'మొబైల్ నంబర్', serial: 'సీరియల్ నంబర్', ward: 'వార్డు', booth: 'బూత్', area: 'ప్రాంతం', division: 'డివిజన్', source: 'సోర్స్ PDF', uploadedFrom: 'అప్‌లోడ్ మొదలు', uploadedTo: 'అప్‌లోడ్ చివరి తేదీ', uploadedBy: 'అప్‌లోడ్ చేసినవారు', members: 'సభ్యులు', chooseDate: 'అప్‌లోడ్ తేదీలను ఎంచుకోండి', deleteWardOpen: 'వార్డు తొలగింపు', deleteWardTitle: 'వార్డు మొత్తం డేటాను తొలగించండి', deleteWardHint: 'ఈ చర్య వార్డు ఓటర్లు, ఓటర్ కార్డు చిత్రాలు, సోర్స్ PDFలు మరియు Firestore, Storageలోని దిగుమతి వరుసలను శాశ్వతంగా తొలగిస్తుంది.', selectWard: 'వార్డును ఎంచుకోండి', typeWard: 'నిర్ధారించడానికి వార్డు నంబర్ టైప్ చేయండి', deleteWard: 'వార్డు డేటా తొలగించండి', deletingWard: 'వార్డు డేటా తొలగిస్తోంది…', deleteWardSuccess: 'వార్డు డేటా విజయవంతంగా తొలగించబడింది.', deleteWardError: 'వార్డు డేటా తొలగించలేకపోయాము.', cancel: 'రద్దు',
     any: 'అన్నీ',
     exportExcel: 'ఎక్సెల్', exportPdf: 'PDF', exportCsv: 'CSV', exportHint: 'ఎంచుకున్న ఫిల్టర్లలో ఉన్న రికార్డులు మాత్రమే ఎగుమతి అవుతాయి.',
     noRecords: 'ఈ ఫిల్టర్లకు సరిపోయే ఓటర్ రికార్డులు లేవు.', noData: 'ఇంకా ఓటర్ రికార్డులు దిగుమతి కాలేదు.',
@@ -42,6 +42,7 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   const [options, setOptions] = useState<VoterFilterOptions>({ wards: [], booths: [], areas: [], divisions: [], sourcePdfs: [], uploaders: [] })
   const [filters, setFilters] = useState<VoterFilters>(emptyVoterFilters)
   const [openFilter, setOpenFilter] = useState<OpenFilter>()
+  const [showMoreFilters, setShowMoreFilters] = useState(false)
   const [loadError, setLoadError] = useState<string>()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [truncated, setTruncated] = useState(false)
@@ -109,19 +110,22 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   }
 
   return <section className="voter-register-page">
-    <header className="page-intro voter-register-intro"><div><p>{t.label}</p><h2>{t.title}</h2><span>{t.description}</span></div><div className="voter-register-header-actions">{canDeleteWard ? <button aria-label={t.deleteWardOpen} className="voter-delete-ward-trigger" onClick={() => { setShowDeleteWard(true); setDeleteMessage(undefined); setDeleteError(undefined) }} type="button"><Trash2 size={14} />{t.deleteWardOpen}</button> : null}<button className="voter-secondary-button" onClick={() => void reload()} type="button"><RefreshCcw className={isRefreshing ? 'animate-spin' : undefined} size={15} />{t.refresh}</button></div></header>
+    <header className="page-intro voter-register-intro"><div className="voter-register-header-actions">{canDeleteWard ? <button aria-label={t.deleteWardOpen} className="voter-delete-ward-trigger" onClick={() => { setShowDeleteWard(true); setDeleteMessage(undefined); setDeleteError(undefined) }} type="button"><Trash2 size={14} />{t.deleteWardOpen}</button> : null}<button className="voter-secondary-button" onClick={() => void reload()} type="button"><RefreshCcw className={isRefreshing ? 'animate-spin' : undefined} size={15} />{t.refresh}</button></div></header>
 
     <section className="voter-filter-card" aria-label={t.filters}>
-      <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={() => { setFilters(emptyVoterFilters); setOpenFilter(undefined) }} type="button">{t.clear}</button></div>
-      <div className="voter-global-search"><FilterInput label={t.search} placeholder={t.searchPlaceholder} value={filters.search} onChange={(value) => updateFilter('search', value)} /><p>{t.searchHint}</p></div>
+      <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={() => { setFilters(emptyVoterFilters); setOpenFilter(undefined); setShowMoreFilters(false) }} type="button">{t.clear}</button></div>
+      <div className="voter-global-search"><FilterInput label={t.search} placeholder={t.searchPlaceholder} value={filters.search} onChange={(value) => updateFilter('search', value)} /></div>
       <div className="voter-filter-button-row" aria-label={t.moreFilters}>
         <FilterMenuButton label={t.ward} value={filters.wardId} options={options.wards} anyLabel={t.any} open={openFilter === 'ward'} onToggle={() => setOpenFilter(openFilter === 'ward' ? undefined : 'ward')} onChange={(value) => { updateFilter('wardId', value); setOpenFilter(undefined) }} />
         <FilterMenuButton label={t.booth} value={filters.boothId} options={options.booths} anyLabel={t.any} open={openFilter === 'booth'} onToggle={() => setOpenFilter(openFilter === 'booth' ? undefined : 'booth')} onChange={(value) => { updateFilter('boothId', value); setOpenFilter(undefined) }} />
         <FilterMenuButton label={t.area} value={filters.area} options={options.areas} anyLabel={t.any} open={openFilter === 'area'} onToggle={() => setOpenFilter(openFilter === 'area' ? undefined : 'area')} onChange={(value) => { updateFilter('area', value); setOpenFilter(undefined) }} />
-        <FilterMenuButton label={t.division} value={filters.division} options={options.divisions} anyLabel={t.any} open={openFilter === 'division'} onToggle={() => setOpenFilter(openFilter === 'division' ? undefined : 'division')} onChange={(value) => { updateFilter('division', value); setOpenFilter(undefined) }} />
-        <FilterMenuButton label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} open={openFilter === 'source'} onToggle={() => setOpenFilter(openFilter === 'source' ? undefined : 'source')} onChange={(value) => { updateFilter('sourcePdf', value); setOpenFilter(undefined) }} />
-        <FilterMenuButton label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} open={openFilter === 'uploadedBy'} onToggle={() => setOpenFilter(openFilter === 'uploadedBy' ? undefined : 'uploadedBy')} onChange={(value) => { updateFilter('uploadedBy', value); setOpenFilter(undefined) }} />
-        <DateFilterButton label={t.chooseDate} from={filters.uploadedFrom} to={filters.uploadedTo} open={openFilter === 'date'} onToggle={() => setOpenFilter(openFilter === 'date' ? undefined : 'date')} onFromChange={(value) => updateFilter('uploadedFrom', value)} onToChange={(value) => updateFilter('uploadedTo', value)} t={t} />
+        <button aria-expanded={showMoreFilters} className={`voter-filter-menu-button voter-more-filters-button${filters.division || filters.sourcePdf || filters.uploadedBy || filters.uploadedFrom || filters.uploadedTo ? ' has-value' : ''}`} onClick={() => { setShowMoreFilters((current) => !current); setOpenFilter(undefined) }} type="button"><span>{t.filters}</span><strong>{showMoreFilters ? t.hideFilters : t.moreFilters}</strong><ChevronDown size={14} /></button>
+        {showMoreFilters ? <>
+          <FilterMenuButton label={t.division} value={filters.division} options={options.divisions} anyLabel={t.any} open={openFilter === 'division'} onToggle={() => setOpenFilter(openFilter === 'division' ? undefined : 'division')} onChange={(value) => { updateFilter('division', value); setOpenFilter(undefined) }} />
+          <FilterMenuButton label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} open={openFilter === 'source'} onToggle={() => setOpenFilter(openFilter === 'source' ? undefined : 'source')} onChange={(value) => { updateFilter('sourcePdf', value); setOpenFilter(undefined) }} />
+          <FilterMenuButton label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} open={openFilter === 'uploadedBy'} onToggle={() => setOpenFilter(openFilter === 'uploadedBy' ? undefined : 'uploadedBy')} onChange={(value) => { updateFilter('uploadedBy', value); setOpenFilter(undefined) }} />
+          <DateFilterButton label={t.chooseDate} from={filters.uploadedFrom} to={filters.uploadedTo} open={openFilter === 'date'} onToggle={() => setOpenFilter(openFilter === 'date' ? undefined : 'date')} onFromChange={(value) => updateFilter('uploadedFrom', value)} onToChange={(value) => updateFilter('uploadedTo', value)} t={t} />
+        </> : null}
       </div>
     </section>
 
@@ -167,7 +171,37 @@ function IndividualRecords({ records, onOpen, onEdit, t }: { records: VoterRecor
 }
 
 function DoorWiseRecords({ groups, onOpen, onEdit, t }: { groups: Array<[string, VoterRecord[]]>; onOpen: (record: VoterRecord) => void; onEdit?: (record: VoterRecord) => void; t: ScreenText }) {
-  return <div className="door-wise-grid">{groups.map(([doorNumber, records]) => <article className="door-wise-card" key={doorNumber}><header><div><span>{t.door}</span><h3>{doorNumber || '—'}</h3></div><strong>{records.length} {t.records}</strong></header><div className="door-voter-list">{records.map((record) => <div className="door-voter-row" key={record.id}><div><strong>{record.fullName}</strong><span>{t.voterId}: {record.voterId} · {t.serial}: {record.serialNumber}</span></div><div><button className="voter-row-button" onClick={() => onOpen(record)} type="button">{t.view}</button>{onEdit ? <button aria-label={`${t.edit} ${record.fullName}`} className="voter-icon-action" onClick={() => onEdit(record)} type="button"><Edit3 size={14} /></button> : null}</div></div>)}</div></article>)}</div>
+  const [openDoor, setOpenDoor] = useState<string>()
+  const activeGroup = groups.find(([doorNumber]) => doorNumber === openDoor)
+
+  return <>
+    <div className="door-wise-grid">{groups.map(([doorNumber, records]) => <article className="door-wise-card" key={doorNumber}>
+      <button aria-haspopup="dialog" className="door-wise-summary" onClick={() => setOpenDoor(doorNumber)} type="button">
+        <span className="door-wise-summary-label">{t.door}</span>
+        <strong className="door-wise-summary-number">{doorNumber || '—'}</strong>
+        <span className="door-wise-summary-count">{records.length} {t.members}</span>
+        <ChevronDown size={16} />
+      </button>
+    </article>)}</div>
+    {activeGroup ? <div className="door-members-backdrop" onMouseDown={() => setOpenDoor(undefined)} role="presentation">
+      <section aria-modal="true" aria-labelledby="door-members-title" className="door-members-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
+        <header className="door-members-dialog-header">
+          <div>
+            <p>{t.door}</p>
+            <h2 id="door-members-title">{activeGroup[0] || '—'}</h2>
+            <span>{activeGroup[1].length} {t.members}</span>
+          </div>
+          <button aria-label={t.close} className="voter-dialog-close" onClick={() => setOpenDoor(undefined)} type="button"><X size={19} /></button>
+        </header>
+        <div className="door-members-dialog-list">
+          {activeGroup[1].map((record) => <div className="door-voter-row" key={record.id}>
+            <div><strong>{record.fullName}</strong><span>{t.voterId}: {record.voterId} · {t.serial}: {record.serialNumber}</span></div>
+            <div><button className="voter-row-button" onClick={() => { setOpenDoor(undefined); onOpen(record) }} type="button">{t.view}</button>{onEdit ? <button aria-label={`${t.edit} ${record.fullName}`} className="voter-icon-action" onClick={() => { setOpenDoor(undefined); onEdit(record) }} type="button"><Edit3 size={14} /></button> : null}</div>
+          </div>)}
+        </div>
+      </section>
+    </div> : null}
+  </>
 }
 
 function VoterDialog({ canEdit, language, onClose, onSave, record, startEditing, t }: { canEdit: boolean; language: AppLanguage; onClose: () => void; onSave: (record: VoterRecord) => Promise<void>; record: VoterRecord; startEditing: boolean; t: ScreenText }) {
