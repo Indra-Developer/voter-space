@@ -6,7 +6,7 @@ import { auth, db, firebaseConfigured, functions, storage } from '../../lib/fire
 import type { AppSession, LoginRole, UserProfile } from './types'
 
 type SessionEvent =
-  | { state: 'signedOut' }
+  | { state: 'signedOut'; message?: string }
   | { state: 'profileMissing' }
   | { state: 'signedIn'; session: AppSession }
   | { state: 'error'; message: string }
@@ -22,10 +22,17 @@ type CreateAccountRequest = {
   permissions: { upload: boolean; edit: boolean; download: boolean; audit: boolean }
   profilePhotoPath?: string
   bannerPath?: string
+  deviceLimit: number
   password: string
 }
 
 type UpdateAccountRequest = Omit<CreateAccountRequest, 'password'> & { uid: string; password?: string }
+
+type DeviceSessionResponse = { sessionToken: string; deviceLimit: number; activeDevices: number }
+const deviceIdStorageKey = 'voter-space-device-id'
+const deviceSessionStoragePrefix = 'voter-space-device-session:'
+const heartbeatIntervalMs = 60 * 1000
+let interactiveLoginAttempt: Promise<void> | undefined
 
 function requireFirebase() {
   if (!firebaseConfigured || !auth || !db || !functions || !storage) {
@@ -56,10 +63,14 @@ export function subscribeToSession(onChange: (event: SessionEvent) => void) {
   }
 
   let unsubscribeProfile: () => void = () => {}
+  let stopHeartbeat: () => void = () => {}
+  let signOutMessage: string | undefined
   const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
     unsubscribeProfile()
+    stopHeartbeat()
     if (!user) {
-      onChange({ state: 'signedOut' })
+      onChange({ state: 'signedOut', message: signOutMessage })
+      signOutMessage = undefined
       return
     }
 
@@ -67,6 +78,7 @@ export function subscribeToSession(onChange: (event: SessionEvent) => void) {
       doc(firestore, 'users', user.uid),
       async (snapshot) => {
         if (!snapshot.exists()) {
+          signOutMessage = 'This login does not have a Voter Space profile yet.'
           void signOut(firebaseAuth)
           onChange({ state: 'profileMissing' })
           return
@@ -74,10 +86,29 @@ export function subscribeToSession(onChange: (event: SessionEvent) => void) {
 
         const profile = profileFromFirestore(snapshot.data())
         if (profile.status !== 'active') {
+          signOutMessage = 'This account is disabled. Please contact the Super Admin.'
           void signOut(firebaseAuth)
           onChange({ state: 'error', message: 'This account is disabled. Please contact the Super Admin.' })
           return
         }
+        try {
+          if (interactiveLoginAttempt) await interactiveLoginAttempt
+          if (firebaseAuth.currentUser?.uid !== user.uid) return
+          await ensureDeviceSession(user.uid, profile)
+        } catch (error) {
+          signOutMessage = deviceSessionMessage(error)
+          clearStoredDeviceSession(user.uid)
+          await signOut(firebaseAuth)
+          onChange({ state: 'signedOut', message: signOutMessage })
+          return
+        }
+        stopHeartbeat()
+        stopHeartbeat = startDeviceHeartbeat(user.uid, profile, async (error) => {
+          signOutMessage = deviceSessionMessage(error)
+          clearStoredDeviceSession(user.uid)
+          await signOut(firebaseAuth)
+          onChange({ state: 'signedOut', message: signOutMessage })
+        })
         const [profilePhotoUrl, bannerUrl] = await Promise.all([
           resolveStorageFileUrl(profile.profilePhotoPath),
           resolveStorageFileUrl(profile.bannerPath),
@@ -89,12 +120,23 @@ export function subscribeToSession(onChange: (event: SessionEvent) => void) {
   })
 
   return () => {
+    stopHeartbeat()
     unsubscribeProfile()
     unsubscribeAuth()
   }
 }
 
-export async function signInForRole(email: string, password: string, expectedRole: LoginRole) {
+export function signInForRole(email: string, password: string, expectedRole: LoginRole, forceDeviceLogin = false) {
+  const attempt = performRoleSignIn(email, password, expectedRole, forceDeviceLogin)
+  interactiveLoginAttempt = attempt
+  void attempt.then(
+    () => { if (interactiveLoginAttempt === attempt) interactiveLoginAttempt = undefined },
+    () => { if (interactiveLoginAttempt === attempt) interactiveLoginAttempt = undefined },
+  )
+  return attempt
+}
+
+async function performRoleSignIn(email: string, password: string, expectedRole: LoginRole, forceDeviceLogin: boolean) {
   const client = requireFirebase()
   const credential = await signInWithEmailAndPassword(client.auth, email.trim(), password)
   const profileSnapshot = await getDoc(doc(client.db, 'users', credential.user.uid))
@@ -114,10 +156,28 @@ export async function signInForRole(email: string, password: string, expectedRol
     await signOut(client.auth)
     throw new Error(`Please use the ${roleName(profile.role)} login.`)
   }
+
+  try {
+    await claimAndStoreDeviceSession(credential.user.uid, profile, forceDeviceLogin)
+  } catch (error) {
+    clearStoredDeviceSession(credential.user.uid)
+    await signOut(client.auth)
+    throw error
+  }
 }
 
 export async function signOutUser() {
-  if (auth) await signOut(auth)
+  if (!auth) return
+  const uid = auth.currentUser?.uid
+  if (uid && functions) {
+    const sessionToken = localStorage.getItem(deviceSessionKey(uid))
+    if (sessionToken) {
+      const release = httpsCallable<{ deviceId: string; sessionToken: string }, { released: boolean }>(functions, 'releaseDeviceSession')
+      await release({ deviceId: getDeviceId(), sessionToken }).catch(() => undefined)
+    }
+    clearStoredDeviceSession(uid)
+  }
+  await signOut(auth)
 }
 
 export async function uploadAccountImage(file: File, kind: 'profile' | 'banner') {
@@ -161,6 +221,95 @@ export async function recordPasswordReset(userId: string) {
   await logPasswordResetRequest({ userId })
 }
 
+async function claimAndStoreDeviceSession(uid: string, profile: UserProfile, force: boolean) {
+  if (profile.role === 'superAdmin') return
+  const client = requireFirebase()
+  const claim = httpsCallable<{ deviceId: string; deviceLabel: string; force: boolean }, DeviceSessionResponse>(client.functions, 'claimDeviceSession')
+  const response = await claim({ deviceId: getDeviceId(), deviceLabel: describeDevice(), force })
+  localStorage.setItem(deviceSessionKey(uid), response.data.sessionToken)
+}
+
+async function ensureDeviceSession(uid: string, profile: UserProfile) {
+  if (profile.role === 'superAdmin') return
+  const client = requireFirebase()
+  const sessionToken = localStorage.getItem(deviceSessionKey(uid))
+  if (!sessionToken) {
+    await claimAndStoreDeviceSession(uid, profile, false)
+    return
+  }
+  const heartbeat = httpsCallable<{ deviceId: string; sessionToken: string }, { active: boolean }>(client.functions, 'heartbeatDeviceSession')
+  try {
+    await heartbeat({ deviceId: getDeviceId(), sessionToken })
+  } catch (error) {
+    if (!isEndedDeviceSession(error)) throw error
+    clearStoredDeviceSession(uid)
+    await claimAndStoreDeviceSession(uid, profile, false)
+  }
+}
+
+function startDeviceHeartbeat(uid: string, profile: UserProfile, onRejected: (error: unknown) => void | Promise<void>) {
+  if (profile.role === 'superAdmin') return () => undefined
+  let running = false
+  const timer = window.setInterval(() => {
+    if (running) return
+    running = true
+    void ensureDeviceSession(uid, profile).catch((error) => {
+      if (isDeviceLimitError(error) || isEndedDeviceSession(error)) return onRejected(error)
+      return undefined
+    }).finally(() => { running = false })
+  }, heartbeatIntervalMs)
+  return () => window.clearInterval(timer)
+}
+
+function getDeviceId() {
+  const saved = localStorage.getItem(deviceIdStorageKey)
+  if (saved && /^[a-zA-Z0-9-]{12,100}$/.test(saved)) return saved
+  const created = crypto.randomUUID()
+  localStorage.setItem(deviceIdStorageKey, created)
+  return created
+}
+
+function describeDevice() {
+  const agent = navigator.userAgent
+  if (/android/i.test(agent)) return 'Android device'
+  if (/iphone|ipad|ipod/i.test(agent)) return 'Apple mobile device'
+  if (/windows/i.test(agent)) return 'Windows device'
+  if (/macintosh/i.test(agent)) return 'Mac device'
+  if (/linux/i.test(agent)) return 'Linux device'
+  return 'Web browser'
+}
+
+function deviceSessionKey(uid: string) {
+  return `${deviceSessionStoragePrefix}${uid}`
+}
+
+function clearStoredDeviceSession(uid: string) {
+  localStorage.removeItem(deviceSessionKey(uid))
+}
+
+function firebaseErrorCode(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error ? String((error as { code?: unknown }).code ?? '') : ''
+}
+
+function firebaseErrorReason(error: unknown) {
+  if (!error || typeof error !== 'object' || !('details' in error)) return ''
+  const details = (error as { details?: unknown }).details
+  return details && typeof details === 'object' && 'reason' in details ? String((details as { reason?: unknown }).reason ?? '') : ''
+}
+
+export function isDeviceLimitError(error: unknown) {
+  return firebaseErrorReason(error) === 'device-limit' || firebaseErrorCode(error) === 'functions/resource-exhausted' || (error instanceof Error && error.message.includes('already logged in on another device'))
+}
+
+function isEndedDeviceSession(error: unknown) {
+  return firebaseErrorReason(error) === 'device-session-ended' || (firebaseErrorCode(error) === 'functions/failed-precondition' && error instanceof Error && error.message.includes('device session'))
+}
+
+function deviceSessionMessage(error: unknown) {
+  if (isDeviceLimitError(error) || isEndedDeviceSession(error)) return 'DEVICE_SESSION_ENDED'
+  return readableFirebaseError(error)
+}
+
 function roleName(role: LoginRole) {
   if (role === 'superAdmin') return 'Super Admin'
   if (role === 'subMember') return 'Sub-member'
@@ -173,6 +322,7 @@ export function readableFirebaseError(error: unknown) {
   if (message.includes('auth/invalid-credential')) return 'Email or password is not correct.'
   if (code === 'auth/email-already-in-use' || message.includes('auth/email-already-in-use')) return 'An account already exists with this email.'
   if (message.includes('auth/too-many-requests')) return 'Too many attempts. Please wait and try again.'
+  if (isDeviceLimitError(error)) return 'This account is already logged in on another device.'
   if (code === 'functions/permission-denied' || message.includes('functions/permission-denied')) return 'You do not have permission for this action.'
   if (code === 'functions/unauthenticated' || message.includes('functions/unauthenticated')) return 'Your login has expired. Please sign in again.'
   if (code === 'functions/invalid-argument' || message.includes('functions/invalid-argument')) return message.replace(/^FirebaseError:\s*/i, '')

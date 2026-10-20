@@ -58,9 +58,9 @@
 .voter-native-filter,
 .voter-native-date-filter { display: grid; min-width: 0; gap: 0.16rem; }
 .voter-native-filter > span,
-.voter-native-date-filter > span { overflow: hidden; color: var(--primary-strong); font-size: 0.68rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.voter-native-date-filter > span { overflow: hidden; color: var(--primary-strong); font-size: 0.78rem; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
 .voter-native-filter select,
-.voter-native-date-filter input { width: 100%; min-height: 2.25rem; padding: 0.28rem 0.45rem; border: 1px solid color-mix(in srgb, var(--primary) 58%, var(--border)); border-bottom: 3px solid color-mix(in srgb, var(--primary-strong) 72%, var(--primary)); border-radius: 0.55rem; outline: 0; appearance: auto; background: var(--surface); color: var(--text); cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 750; }
+.voter-native-date-filter input { width: 100%; min-height: 2.25rem; padding: 0.28rem 0.45rem; border: 1px solid color-mix(in srgb, var(--primary) 58%, var(--border)); border-bottom: 3px solid color-mix(in srgb, var(--primary-strong) 72%, var(--primary)); border-radius: 0.55rem; outline: 0; appearance: auto; background: var(--surface); color: var(--text); cursor: pointer; font: inherit; font-size: 0.72rem; font-weight: 750; }
 .voter-native-filter select:focus,
 .voter-native-date-filter input:focus { border-color: var(--primary-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent); }
 .voter-native-filter.has-value select,
@@ -68,8 +68,8 @@
 .voter-native-date-filter > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3rem; }
 .voter-filter-menu { position: relative; min-width: 0; }
 .voter-filter-menu-button { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.08rem 0.28rem; width: 100%; min-height: 2.25rem; padding: 0.28rem 0.45rem 0.34rem; border: 1px solid color-mix(in srgb, var(--primary) 58%, var(--border)); border-bottom: 3px solid color-mix(in srgb, var(--primary-strong) 72%, var(--primary)); border-radius: 0.55rem; background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 13%, var(--surface)), color-mix(in srgb, var(--primary) 4%, var(--surface))); box-shadow: 0 2px 0 color-mix(in srgb, var(--primary-strong) 28%, transparent), 0 4px 8px color-mix(in srgb, var(--primary) 13%, transparent); color: var(--text); cursor: pointer; text-align: left; transform: translateY(0); transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease; }
-.voter-filter-menu-button > span { grid-column: 1 / -1; overflow: hidden; color: var(--primary-strong); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.01em; text-overflow: ellipsis; white-space: nowrap; }
-.voter-filter-menu-button > strong { overflow: hidden; color: var(--text); font-size: 0.78rem; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.voter-filter-menu-button > span { grid-column: 1 / -1; overflow: hidden; color: var(--primary-strong); font-size: 0.78rem; font-weight: 850; letter-spacing: 0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.voter-filter-menu-button > strong { overflow: hidden; color: var(--text); font-size: 0.72rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .voter-filter-menu-button > svg { grid-column: 2; grid-row: 2; color: var(--primary-strong); }
 .voter-filter-menu-button:hover, .voter-filter-menu-button[aria-expanded='true'] { border-color: var(--primary-strong); background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 22%, var(--surface)), color-mix(in srgb, var(--primary) 8%, var(--surface))); box-shadow: 0 3px 0 color-mix(in srgb, var(--primary-strong) 38%, transparent), 0 6px 12px color-mix(in srgb, var(--primary) 19%, transparent); transform: translateY(-1px); }
 .voter-filter-menu-button:active { box-shadow: 0 1px 0 color-mix(in srgb, var(--primary-strong) 38%, transparent), 0 2px 5px color-mix(in srgb, var(--primary) 13%, transparent); transform: translateY(1px); }
@@ -289,10 +289,10 @@
   .voter-filter-title { margin-bottom: 0.55rem; }
   .voter-filter-button-row { gap: 0.35rem; margin-top: 0.6rem; }
   .voter-filter-menu-button { min-height: 2.05rem; padding: 0.24rem 0.35rem 0.3rem; border-radius: 0.48rem; }
-  .voter-filter-menu-button > span { font-size: 0.62rem; }
-  .voter-filter-menu-button > strong { font-size: 0.72rem; }
-  .voter-native-filter > span, .voter-native-date-filter > span { font-size: 0.64rem; }
-  .voter-native-filter select, .voter-native-date-filter input { min-height: 2.05rem; padding: 0.24rem 0.35rem; border-radius: 0.48rem; font-size: 0.72rem; }
+  .voter-filter-menu-button > span { font-size: 0.76rem; }
+  .voter-filter-menu-button > strong { font-size: 0.68rem; }
+  .voter-native-filter > span, .voter-native-date-filter > span { font-size: 0.76rem; }
+  .voter-native-filter select, .voter-native-date-filter input { min-height: 2.05rem; padding: 0.24rem 0.35rem; border-radius: 0.48rem; font-size: 0.68rem; }
   .voter-record-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
   .voter-record-card-main { min-height: 8.45rem; padding: 0.48rem; }
   .voter-record-card h3 { min-height: 1.9rem; margin-top: 0.35rem; font-size: 0.72rem; }

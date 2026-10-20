@@ -25,6 +25,7 @@ export type UserProfile = {
   parentAdminId?: string
   profilePhotoPath?: string
   bannerPath?: string
+  deviceLimit?: number
   createdBy: string
   createdAt?: unknown
   updatedAt?: unknown
@@ -51,6 +52,7 @@ export type AccountFormValues = {
   permissions: UserPermissions
   profilePhotoPath?: string
   bannerPath?: string
+  deviceLimit: number
 }
 
 export const emptyPermissions: UserPermissions = { upload: false, edit: false, download: true, audit: false }

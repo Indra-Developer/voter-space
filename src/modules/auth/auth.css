@@ -63,6 +63,10 @@
 .field-with-icon { min-height: 2.8rem; border-radius: .7rem; background: var(--surface); }
 .field-with-icon input { min-height: 2.65rem; }
 .login-submit { width: 100%; min-height: 2.9rem; margin-top: .2rem; border-radius: .75rem; font-size: .82rem; box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 22%, transparent); }
+.login-device-takeover { display: grid; gap: .5rem; margin-top: .7rem; padding: .75rem; border: 1px solid color-mix(in srgb, #c97820 45%, var(--border)); border-radius: .75rem; background: color-mix(in srgb, #f3a43b 9%, var(--surface)); }
+.login-device-takeover span { color: var(--muted); font-size: .76rem; line-height: 1.45; }
+.login-device-takeover button { min-height: 2.55rem; padding: .5rem .7rem; border: 1px solid #b86513; border-radius: .6rem; background: #b86513; color: #fff; cursor: pointer; font: inherit; font-size: .8rem; font-weight: 800; }
+.login-device-takeover button:disabled { cursor: wait; opacity: .65; }
 .auth-login-footer { display: flex; align-items: center; justify-content: center; gap: .35rem; margin-top: 1.25rem; color: var(--muted); font-size: .68rem; }
 .auth-login-footer svg { color: var(--primary); }
 .profile-page-banner { display: grid; place-items: center; background-color: var(--surface-muted); }

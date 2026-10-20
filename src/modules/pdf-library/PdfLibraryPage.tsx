@@ -1,5 +1,6 @@
 import { ChevronDown, Download, FileText, LoaderCircle, RefreshCcw, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import type { AppSession } from '../auth/types'
 import { readableFirebaseError } from '../auth/firebase-auth'
 import type { AppLanguage } from '../app-shell/types'
@@ -20,6 +21,7 @@ const copy = {
 } as const
 
 export function PdfLibraryPage({ language, session }: { language: AppLanguage; session: AppSession }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [records, setRecords] = useState<PdfImport[]>()
   const [filters, setFilters] = useState<LibraryFilters>(emptyFilters)
   const [error, setError] = useState<string>()
@@ -40,13 +42,15 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
     return () => window.clearTimeout(timer)
   }, [])
   const options = useMemo(() => ({ wards: unique(records?.map((item) => item.wardId)), booths: unique(records?.map((item) => item.boothId)), areas: unique(records?.flatMap((item) => item.areas?.length ? item.areas : [item.area])), divisions: unique(records?.flatMap((item) => item.divisions?.length ? item.divisions : [item.division])), sourcePdfs: unique(records?.map((item) => item.originalFileName)), statuses: unique(records?.map((item) => item.status)), uploaders: unique(records?.map((item) => item.uploadedByName)) }), [records])
-  const visible = useMemo(() => (records ?? []).filter((item) => matches(item, filters)), [records, filters])
+  const dashboardView = searchParams.get('view') ?? ''
+  const selectedSourceId = searchParams.get('source') ?? ''
+  const visible = useMemo(() => (records ?? []).filter((item) => matches(item, filters) && matchesDashboardSelection(item, dashboardView, selectedSourceId)), [records, filters, dashboardView, selectedSourceId])
   const completed = visible.filter((item) => item.status === 'completed').length
   const needsAction = visible.filter((item) => item.status !== 'completed').length
 
   const downloadOriginal = async (item: PdfImport) => {
     setDownloadingId(item.id); setDownloadError(undefined)
-    try { startBrowserDownload((await requestSourcePdfDownload(item.id)).url, item.originalFileName) } catch (reason) { setDownloadError(`${t.downloadError} ${readableFirebaseError(reason)}`) } finally { setDownloadingId(undefined) }
+    try { startBrowserDownload(await requestSourcePdfDownload(item.id), item.originalFileName) } catch (reason) { setDownloadError(`${t.downloadError} ${readableFirebaseError(reason)}`) } finally { setDownloadingId(undefined) }
   }
 
   const exportPdfVoters = async (item: PdfImport, format: ExportFormat) => {
@@ -67,7 +71,7 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
 
   return <section className="pdf-library-page"><header className="page-intro pdf-library-intro"><div><p>{t.label}</p><h2>{t.title}</h2><span>{t.description}</span></div><button className="voter-secondary-button" onClick={() => void reload()} type="button"><RefreshCcw className={refreshing ? 'animate-spin' : undefined} size={15} />{t.refresh}</button></header>
     <section className="voter-filter-card pdf-library-filter-card">
-      <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={() => { setFilters(emptyFilters); setShowMoreFilters(false) }} type="button">{t.clear}</button></div>
+      <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={() => { setFilters(emptyFilters); setShowMoreFilters(false); setSearchParams({}, { replace: true }) }} type="button">{t.clear}</button></div>
       <div className="voter-global-search"><label className="voter-field"><span>{t.search}</span><input placeholder={t.searchPlaceholder} value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} /></label></div>
       <div className="voter-filter-button-row" aria-label={t.filters}>
         <LibraryNativeFilter label={t.ward} options={options.wards} value={filters.ward} any={t.all} onChange={(ward) => setFilters((current) => ({ ...current, ward }))} />
@@ -119,6 +123,13 @@ function matches(item: PdfImport, filters: LibraryFilters) {
     (!filters.uploadedBy || item.uploadedByName === filters.uploadedBy) &&
     (!filters.uploadedFrom || uploadedDate >= filters.uploadedFrom) &&
     (!filters.uploadedTo || uploadedDate <= filters.uploadedTo)
+}
+
+function matchesDashboardSelection(item: PdfImport, view: string, sourcePdfId: string) {
+  if (sourcePdfId && item.id !== sourcePdfId) return false
+  if (view === 'processing') return ['queued', 'processing', 'approvalQueued', 'applying'].includes(item.status)
+  if (view === 'attention') return ['review', 'awaitingApproval', 'completedWithReview', 'failed'].includes(item.status)
+  return true
 }
 
 function formatDate(value: string | undefined, language: AppLanguage) { return value ? new Intl.DateTimeFormat(language === 'te' ? 'te-IN' : 'en-IN', { dateStyle: 'medium' }).format(new Date(value)) : '—' }

@@ -22,6 +22,7 @@ const pageCopy = {
     profilePhoto: 'ప్రొఫైల్ ఫోటో', banner: 'అడ్మిన్ బ్యానర్', parentAdmin: 'పేరెంట్ అడ్మిన్', wardAccess: 'అనుమతించిన వార్డులు', boothAccess: 'అనుమతించిన బూత్‌లు',
     assignedWard: 'కేటాయించిన వార్డులు', assignedBooth: 'కేటాయించిన బూత్‌లు', permissions: 'అడ్మిన్ అనుమతులు', upload: 'PDF అప్‌లోడ్', editPermission: 'డేటా సవరింపు', download: 'డౌన్‌లోడ్', audit: 'సొంత ఆడిట్ కార్యకలాపాలు',
     password: 'లాగిన్ పాస్‌వర్డ్', confirmPassword: 'పాస్‌వర్డ్ నిర్ధారించండి', passwordHelp: 'కనీసం 8 అక్షరాలు. సృష్టించిన ఖాతా ఇదే పాస్‌వర్డ్‌తో లాగిన్ అవుతుంది.', passwordEditHelp: 'మార్చాల్సిన అవసరం లేకపోతే ఖాళీగా ఉంచండి.', passwordMismatch: 'రెండు పాస్‌వర్డ్‌లు ఒకేలా ఉండాలి.', passwordShort: 'పాస్‌వర్డ్‌లో కనీసం 8 అక్షరాలు ఉండాలి.', save: 'ఖాతా సేవ్ చేయండి', cancel: 'రద్దు', editAccount: 'సవరించండి', disable: 'యాక్సెస్ తొలగించండి', enable: 'యాక్సెస్ ఇవ్వండి',
+    deviceLimit: 'అనుమతించిన డివైస్‌లు', deviceLimitHelp: 'ఈ ఖాతా ఒకేసారి ఎన్ని డివైస్‌లలో లాగిన్ కావచ్చో ఎంచుకోండి.', device: 'డివైస్', devices: 'డివైస్‌లు',
     ownMembers: 'మీ సబ్-మెంబర్లు మాత్రమే కనిపిస్తారు.', noUsers: 'ఇంకా వినియోగదారులు లేరు.', saved: 'ఖాతా సేవ్ అయింది. ఈ ఫారమ్‌లో ఇచ్చిన పాస్‌వర్డ్‌తో యూజర్ లాగిన్ అవ్వవచ్చు.',
     commaHelp: 'డేటాబేస్‌లో ఉన్న వార్డులు మరియు బూత్‌లను ఇక్కడ ఎంచుకోండి.', selectOneOrMore: 'ఒకటి లేదా అంతకంటే ఎక్కువ ఎంచుకోండి', noValues: 'ఇంకా విలువలు అందుబాటులో లేవు', noAdmins: 'ముందుగా ఒక అడ్మిన్ ఖాతాను సృష్టించండి.', imageWarning: 'ఖాతా సృష్టించబడింది. చిత్రం సేవ్ కాలేదు; ఈ ఖాతాను సవరించి మళ్లీ చిత్రాన్ని ఎంచుకోండి.',
   },
@@ -32,6 +33,7 @@ const pageCopy = {
     profilePhoto: 'Profile photo', banner: 'Admin banner', parentAdmin: 'Parent Admin', wardAccess: 'Allowed wards', boothAccess: 'Allowed booths',
     assignedWard: 'Assigned wards', assignedBooth: 'Assigned booths', permissions: 'Admin permissions', upload: 'PDF upload', editPermission: 'Edit data', download: 'Download', audit: 'Own audit activity',
     password: 'Login password', confirmPassword: 'Confirm password', passwordHelp: 'At least 8 characters. The new account will log in with this password.', passwordEditHelp: 'Leave blank if the password should stay unchanged.', passwordMismatch: 'Both passwords must match.', passwordShort: 'Password must contain at least 8 characters.', save: 'Save account', cancel: 'Cancel', editAccount: 'Edit', disable: 'Remove access', enable: 'Enable access',
+    deviceLimit: 'Allowed devices', deviceLimitHelp: 'Choose how many devices can use this account at the same time.', device: 'device', devices: 'devices',
     ownMembers: 'Only your own sub-members are shown.', noUsers: 'There are no users yet.', saved: 'Account saved. The user can log in with the password entered in this form.',
     commaHelp: 'Select the wards and booths available in the database.', selectOneOrMore: 'Select one or more', noValues: 'No values are available yet', noAdmins: 'Create an Admin account first.', imageWarning: 'The account was created, but an image was not saved. Edit this account and select the image again.',
   },
@@ -110,7 +112,7 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
       await updateAccount({
         uid: user.uid, fullName: user.fullName, email: user.email, mobile: user.mobile, role: user.role === 'admin' ? 'admin' : 'subMember',
         status: user.status === 'active' ? 'disabled' : 'active', parentAdminId: user.parentAdminId, scope: user.scope,
-        permissions: user.permissions, profilePhotoPath: user.profilePhotoPath, bannerPath: user.bannerPath,
+        permissions: user.permissions, profilePhotoPath: user.profilePhotoPath, bannerPath: user.bannerPath, deviceLimit: user.deviceLimit ?? 1,
       })
     } catch (error) {
       setNotice(readableFirebaseError(error))
@@ -150,7 +152,7 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
             {user.bannerUrl ? <img alt="" className="user-row-banner" src={user.bannerUrl} /> : null}
             <span className="user-row-avatar">{user.profilePhotoUrl ? <img alt={user.fullName} src={user.profilePhotoUrl} /> : <UserRound size={20} />}</span>
             <div className="user-row-main"><strong>{user.fullName}</strong><span>{user.email} · {user.mobile}</span></div>
-            <div className="user-row-details"><span className={`status-pill status-${user.status}`}>{user.status === 'active' ? t.active : t.disabled}</span><span>{user.role === 'admin' ? t.admin : t.subMember}</span></div>
+            <div className="user-row-details"><span className={`status-pill status-${user.status}`}>{user.status === 'active' ? t.active : t.disabled}</span><span>{user.role === 'admin' ? t.admin : t.subMember}</span><span>{user.deviceLimit ?? 1} {(user.deviceLimit ?? 1) === 1 ? t.device : t.devices}</span></div>
             <div className="user-row-actions">
               <button aria-label={t.editAccount} onClick={() => startEdit(user)} type="button"><Pencil size={16} />{t.editAccount}</button>
               {isSuperAdmin ? <button className={user.status === 'active' ? 'danger-action' : 'success-action'} onClick={() => handleAccess(user)} type="button">{user.status === 'active' ? <XCircle size={16} /> : <CheckCircle2 size={16} />}{user.status === 'active' ? t.disable : t.enable}</button> : null}
@@ -264,6 +266,7 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
         <label><span>{t.mobile}</span><input inputMode="tel" onChange={(event) => setField('mobile', event.target.value)} required value={values.mobile} /></label>
         <label><span>{t.email}</span><input disabled={isEditing && !isSuperAdmin} onChange={(event) => setField('email', event.target.value)} required type="email" value={values.email} /></label>
         {isSuperAdmin ? <label><span>{t.status}</span><select onChange={(event) => setField('status', event.target.value as AccountFormValues['status'])} value={values.status}><option value="active">{t.active}</option><option value="disabled">{t.disabled}</option></select></label> : null}
+        <label><span>{t.deviceLimit}</span><select onChange={(event) => setField('deviceLimit', Number(event.target.value))} value={values.deviceLimit}>{[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} {count === 1 ? t.device : t.devices}</option>)}</select><small>{t.deviceLimitHelp}</small></label>
         <label><span>{t.password}</span><input autoComplete={isEditing ? 'new-password' : 'new-password'} minLength={8} onChange={(event) => setPassword(event.target.value)} required={!isEditing} type="password" value={password} /><small>{isEditing ? t.passwordEditHelp : t.passwordHelp}</small></label>
         <label><span>{t.confirmPassword}</span><input autoComplete="new-password" minLength={8} onChange={(event) => setConfirmPassword(event.target.value)} required={!isEditing} type="password" value={confirmPassword} /></label>
       </div>
@@ -319,8 +322,8 @@ function ScopeMultiSelect({ emptyText, helpText, label, options, selected, onCha
 }
 
 function accountValues(user: DirectoryUser | undefined, isSuperAdmin: boolean, currentUserId: string): AccountFormValues {
-  if (user) return { uid: user.uid, fullName: user.fullName, email: user.email, mobile: user.mobile, role: user.role === 'admin' ? 'admin' : 'subMember', status: user.status, parentAdminId: user.parentAdminId, scope: user.scope, permissions: user.permissions, profilePhotoPath: user.profilePhotoPath, bannerPath: user.bannerPath }
-  return { fullName: '', email: '', mobile: '', role: isSuperAdmin ? 'admin' : 'subMember', status: 'active', parentAdminId: isSuperAdmin ? '' : currentUserId, scope: { wardIds: [], boothIds: [] }, permissions: emptyPermissions }
+  if (user) return { uid: user.uid, fullName: user.fullName, email: user.email, mobile: user.mobile, role: user.role === 'admin' ? 'admin' : 'subMember', status: user.status, parentAdminId: user.parentAdminId, scope: user.scope, permissions: user.permissions, profilePhotoPath: user.profilePhotoPath, bannerPath: user.bannerPath, deviceLimit: user.deviceLimit ?? 1 }
+  return { fullName: '', email: '', mobile: '', role: isSuperAdmin ? 'admin' : 'subMember', status: 'active', parentAdminId: isSuperAdmin ? '' : currentUserId, scope: { wardIds: [], boothIds: [] }, permissions: emptyPermissions, deviceLimit: 1 }
 }
 
 function uniqueOptions(...lists: string[][]) { return [...new Set(lists.flat().filter(Boolean))].sort((a, b) => a.localeCompare(b, 'en', { numeric: true })) }

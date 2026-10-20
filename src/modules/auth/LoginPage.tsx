@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 import logoAsset from '../../assets/voter-space-logo.jpg'
 import { firebaseConfigured } from '../../lib/firebase'
 import type { AppLanguage } from '../app-shell/types'
-import { readableFirebaseError, signInForRole } from './firebase-auth'
+import { isDeviceLimitError, readableFirebaseError, signInForRole } from './firebase-auth'
 import type { LoginRole } from './types'
 
 type LoginPageProps = {
@@ -33,6 +33,9 @@ const loginCopy = {
     whatsapp: 'వాట్సాప్ చేయండి',
     emailUs: 'ఇమెయిల్ పంపండి',
     close: 'మూసివేయండి',
+    alreadyLoggedIn: 'ఈ ఖాతా ఇప్పటికే మరో డివైస్‌లో లాగిన్ అయి ఉంది.',
+    loginHere: 'ఇతర డివైస్‌ను లాగ్ అవుట్ చేసి ఇక్కడ లాగిన్ అవ్వండి',
+    loginHereHint: 'ఇది ఇతర డివైస్‌లలోని ఈ ఖాతా సెషన్‌ను ముగిస్తుంది.',
     firebaseMissing: 'Firebase సెట్టింగులు ఇంకా జోడించలేదు. .env.local లో VITE_FIREBASE వివరాలు ఇవ్వండి.',
     roles: {
       superAdmin: { title: 'సూపర్ అడ్మిన్', description: 'అన్ని వార్డులు, ఖాతాలు మరియు అనుమతులు' },
@@ -60,6 +63,9 @@ const loginCopy = {
     whatsapp: 'WhatsApp us',
     emailUs: 'Email us',
     close: 'Close',
+    alreadyLoggedIn: 'This account is already logged in on another device.',
+    loginHere: 'Log out other device and login here',
+    loginHereHint: 'This will end this account’s session on the other device.',
     firebaseMissing: 'Firebase settings are not ready. Add VITE_FIREBASE values to .env.local.',
     roles: {
       superAdmin: { title: 'Super Admin', description: 'All wards, accounts, and permissions' },
@@ -82,20 +88,32 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [infoPanel, setInfoPanel] = useState<'about' | 'contact' | null>(null)
-  const [error, setError] = useState(message)
+  const [error, setError] = useState<string>()
+  const [hideSessionMessage, setHideSessionMessage] = useState(false)
+  const [deviceBlocked, setDeviceBlocked] = useState(false)
   const t = loginCopy[language]
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const sessionMessage = hideSessionMessage ? undefined : message
+  const visibleError = error ?? (sessionMessage === 'DEVICE_SESSION_ENDED' ? t.alreadyLoggedIn : sessionMessage)
+
+  const login = async (forceDeviceLogin: boolean) => {
     setError(undefined)
+    setHideSessionMessage(true)
+    setDeviceBlocked(false)
     setIsSubmitting(true)
     try {
-      await signInForRole(email, password, selectedRole)
+      await signInForRole(email, password, selectedRole, forceDeviceLogin)
     } catch (signInError) {
-      setError(readableFirebaseError(signInError))
+      const blocked = isDeviceLimitError(signInError)
+      setDeviceBlocked(blocked)
+      setError(blocked ? t.alreadyLoggedIn : readableFirebaseError(signInError))
     } finally {
       setIsSubmitting(false)
     }
+  }
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    void login(false)
   }
 
   return (
@@ -141,7 +159,8 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
         </div>
 
         {!firebaseConfigured ? <p className="form-alert form-alert-error">{t.firebaseMissing}</p> : null}
-        {error ? <p className="form-alert form-alert-error">{error}</p> : null}
+        {visibleError ? <p className="form-alert form-alert-error">{visibleError}</p> : null}
+        {deviceBlocked ? <div className="login-device-takeover"><span>{t.loginHereHint}</span><button disabled={isSubmitting} onClick={() => void login(true)} type="button">{isSubmitting ? '…' : t.loginHere}</button></div> : null}
 
         <form className="login-form" onSubmit={submit}>
           <label>

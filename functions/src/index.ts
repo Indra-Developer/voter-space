@@ -1,10 +1,10 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { getFunctions } from 'firebase-admin/functions'
-import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { FieldPath, FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
-import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onObjectFinalized } from 'firebase-functions/v2/storage'
 import { onTaskDispatched } from 'firebase-functions/v2/tasks'
 import * as logger from 'firebase-functions/logger'
@@ -30,6 +30,7 @@ type UserRecord = {
   parentAdminId?: string
   profilePhotoPath?: string
   bannerPath?: string
+  deviceLimit?: number
 }
 type AccountInput = {
   uid?: string
@@ -44,6 +45,7 @@ type AccountInput = {
   profilePhotoPath?: unknown
   bannerPath?: unknown
   password?: unknown
+  deviceLimit?: unknown
 }
 type VoterRecord = {
   id: string
@@ -157,6 +159,81 @@ const region = 'asia-south1'
 // Storage event functions must run in the same location as their bucket.
 // The Voter Space default bucket is in asia-south1.
 const storageEventRegion = 'asia-south1'
+const deviceSessionTimeoutMs = 15 * 60 * 1000
+
+export const claimDeviceSession = onCall({ region }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  if (caller.record.role === 'superAdmin') return { sessionToken: '', deviceLimit: 0, activeDevices: 0 }
+  const input = request.data && typeof request.data === 'object' ? request.data as { deviceId?: unknown; deviceLabel?: unknown; force?: unknown } : {}
+  const deviceId = readDeviceId(input.deviceId)
+  const deviceLabel = plainString(input.deviceLabel).slice(0, 80) || 'Unknown device'
+  const force = input.force === true
+  const deviceLimit = readDeviceLimit(caller.record.deviceLimit)
+  const controlRef = db.doc(`users/${caller.uid}/private/sessionControl`)
+  const now = Timestamp.now()
+  const sessionToken = randomUUID()
+  let activeDevices = 0
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(controlRef)
+    let sessions = activeDeviceSessions(snapshot.data()?.sessions, now.toMillis())
+    const existing = sessions[deviceId]
+    if (!existing && Object.keys(sessions).length >= deviceLimit && !force) {
+      throw new HttpsError('resource-exhausted', 'This account is already logged in on another device.', { reason: 'device-limit', deviceLimit })
+    }
+    if (force) sessions = {}
+    sessions[deviceId] = {
+      token: sessionToken,
+      label: deviceLabel,
+      createdAt: existing?.createdAt ?? now,
+      lastSeenAt: now,
+    }
+    activeDevices = Object.keys(sessions).length
+    transaction.set(controlRef, { sessions, updatedAt: now }, { merge: true })
+  })
+
+  if (force) await writeAudit(caller, 'device_sessions_replaced', caller.uid, caller.record.fullName, { deviceLabel, deviceLimit })
+  return { sessionToken, deviceLimit, activeDevices }
+})
+
+export const heartbeatDeviceSession = onCall({ region }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  if (caller.record.role === 'superAdmin') return { active: true }
+  const input = request.data && typeof request.data === 'object' ? request.data as { deviceId?: unknown; sessionToken?: unknown } : {}
+  const deviceId = readDeviceId(input.deviceId)
+  const sessionToken = requiredString(input.sessionToken, 'Session token')
+  const controlRef = db.doc(`users/${caller.uid}/private/sessionControl`)
+  const now = Timestamp.now()
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(controlRef)
+    const sessions = activeDeviceSessions(snapshot.data()?.sessions, now.toMillis())
+    const current = sessions[deviceId]
+    if (!current || current.token !== sessionToken) {
+      throw new HttpsError('failed-precondition', 'This device session is no longer active.', { reason: 'device-session-ended' })
+    }
+    sessions[deviceId] = { ...current, lastSeenAt: now }
+    transaction.set(controlRef, { sessions, updatedAt: now }, { merge: true })
+  })
+  return { active: true }
+})
+
+export const releaseDeviceSession = onCall({ region }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  if (caller.record.role === 'superAdmin') return { released: true }
+  const input = request.data && typeof request.data === 'object' ? request.data as { deviceId?: unknown; sessionToken?: unknown } : {}
+  const deviceId = readDeviceId(input.deviceId)
+  const sessionToken = requiredString(input.sessionToken, 'Session token')
+  const controlRef = db.doc(`users/${caller.uid}/private/sessionControl`)
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(controlRef)
+    const sessions = activeDeviceSessions(snapshot.data()?.sessions, Date.now())
+    if (sessions[deviceId]?.token === sessionToken) delete sessions[deviceId]
+    transaction.set(controlRef, { sessions, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+  })
+  return { released: true }
+})
 
 export const createUserAccount = onCall({ region }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
@@ -239,6 +316,11 @@ export const updateUserAccount = onCall({ region }, async (request) => {
   await auth.updateUser(input.uid, authUpdate)
 
   await targetSnapshot.ref.update({ ...cleanUndefined({ ...account }), updatedAt: FieldValue.serverTimestamp() })
+  if (account.status === 'disabled' || readDeviceLimit(target.deviceLimit) !== account.deviceLimit) {
+    await db.doc(`users/${input.uid}/private/sessionControl`).delete().catch((error) => {
+      logger.warn('Device sessions could not be cleared after an account access change.', { uid: input.uid, error })
+    })
+  }
   const changes = accountChanges(target, account)
   if (password) changes.password = true
   await writeAudit(caller, 'account_updated', input.uid, account.fullName, { changes })
@@ -341,6 +423,38 @@ export const getVoterFilterOptions = onCall({ region }, async (request) => {
     divisions: uniqueSorted(visible.map((record) => record.division)),
     sourcePdfs: uniqueSorted(visible.map((record) => record.sourcePdfName || record.sourcePdfId)),
     uploaders: uniqueSorted(visible.map((record) => record.uploadedBy)),
+  }
+})
+
+// Returns exact counts for the caller's complete data scope. The dashboard
+// must not use the first paginated voter page because that makes totals stop
+// at 200 records.
+export const getDashboardSummary = onCall({ region, timeoutSeconds: 120, memory: '512MiB' }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  const [voterSnapshot, sourceSnapshot] = await Promise.all([
+    db.collection('voters').select('wardId', 'boothId', 'area', 'division').get(),
+    db.collection('sourcePdfs').select('wardId', 'boothId', 'status').get(),
+  ])
+  const voters = voterSnapshot.docs
+    .map((item) => voterFromFirestore(item.id, item.data()))
+    .filter((record) => canViewVoter(caller.record, record))
+  const sources = sourceSnapshot.docs
+    .map((item) => ({ id: item.id, ...(item.data() as SourcePdfRecord) }))
+    .filter((source) => canViewPdfImport(caller.record, source))
+
+  const sourceStatusCounts: Record<string, number> = {}
+  sources.forEach((source) => {
+    sourceStatusCounts[source.status] = (sourceStatusCounts[source.status] ?? 0) + 1
+  })
+
+  return {
+    voterCount: voters.length,
+    wardCount: uniqueSorted(voters.map((record) => record.wardId)).length,
+    boothCount: uniqueSorted(voters.map((record) => record.boothId)).length,
+    areaCount: uniqueSorted(voters.map((record) => record.area)).length,
+    divisionCount: uniqueSorted(voters.map((record) => record.division)).length,
+    sourcePdfCount: sources.length,
+    sourceStatusCounts,
   }
 })
 
@@ -557,6 +671,65 @@ export const getSourcePdfDownloadUrl = onCall({ region }, async (request) => {
   })
   await writeAudit(caller, 'pdf_downloaded', sourcePdfId, source.originalFileName, { wardId: source.wardId, boothId: source.boothId })
   return { url, expiresAt: new Date(expiresAt).toISOString() }
+})
+
+// Stream the private PDF through an authenticated endpoint. This avoids V4
+// signed URLs, which fail with a 500 response when the Cloud Functions service
+// account does not have the IAM signBlob permission.
+export const downloadSourcePdf = onRequest({ region, cors: true, timeoutSeconds: 540, memory: '512MiB' }, async (request, response) => {
+  if (request.method !== 'GET') {
+    response.status(405).json({ error: 'Only GET requests are allowed.' })
+    return
+  }
+
+  try {
+    const authorization = request.get('authorization') ?? ''
+    const idToken = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
+    if (!idToken) throw new HttpsError('unauthenticated', 'Please sign in again before downloading this PDF.')
+
+    const decodedToken = await auth.verifyIdToken(idToken)
+    const caller = await requireCaller(decodedToken.uid)
+    const sourcePdfId = requiredString(request.query.sourcePdfId, 'Source PDF id')
+    const source = await getPdfImport(sourcePdfId)
+    if (!canViewPdfImport(caller.record, source) || !canDownloadSourcePdf(caller.record)) {
+      throw new HttpsError('permission-denied', 'You do not have permission to download this PDF.')
+    }
+
+    const file = getStorage().bucket().file(source.storagePath)
+    const [exists] = await file.exists()
+    if (!exists) throw new HttpsError('not-found', 'The original PDF file is no longer available.')
+    const [metadata] = await file.getMetadata()
+    const fallbackName = source.originalFileName.replace(/[^a-zA-Z0-9._()-]+/g, '_') || 'voter-list.pdf'
+
+    try {
+      await writeAudit(caller, 'pdf_downloaded', sourcePdfId, source.originalFileName, { wardId: source.wardId, boothId: source.boothId })
+    } catch (error) {
+      logger.warn('PDF download audit could not be written.', { sourcePdfId, error })
+    }
+
+    response.status(200)
+    response.setHeader('Content-Type', 'application/pdf')
+    response.setHeader('Content-Disposition', `attachment; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(source.originalFileName)}`)
+    response.setHeader('Cache-Control', 'private, no-store, max-age=0')
+    if (metadata.size) response.setHeader('Content-Length', String(metadata.size))
+
+    await new Promise<void>((resolve, reject) => {
+      const stream = file.createReadStream()
+      stream.on('error', reject)
+      response.on('finish', resolve)
+      response.on('close', resolve)
+      stream.pipe(response)
+    })
+  } catch (error) {
+    logger.error('Original PDF download failed.', { error, sourcePdfId: request.query.sourcePdfId })
+    if (response.headersSent) {
+      response.end()
+      return
+    }
+    const status = httpStatusForDownloadError(error)
+    const message = error instanceof Error ? error.message : 'The original PDF could not be downloaded.'
+    response.status(status).json({ error: message })
+  }
 })
 
 // Card crops are private. A user receives the image bytes only after their
@@ -960,6 +1133,7 @@ async function buildAccount(input: AccountInput, role: 'admin' | 'subMember', up
   const permissions = role === 'admin' ? readPermissions(input.permissions) : { upload: false, edit: false, download: true, audit: false }
   const profilePhotoPath = imagePath(input.profilePhotoPath, uploaderUid, existingAccount?.profilePhotoPath)
   const bannerPath = role === 'admin' ? imagePath(input.bannerPath, uploaderUid, existingAccount?.bannerPath) : undefined
+  const deviceLimit = readDeviceLimit(input.deviceLimit ?? existingAccount?.deviceLimit)
 
   if (role === 'admin' && scope.wardIds.length === 0) {
     throw new HttpsError('invalid-argument', 'An Admin needs at least one allowed ward.')
@@ -978,7 +1152,7 @@ async function buildAccount(input: AccountInput, role: 'admin' | 'subMember', up
     throw new HttpsError('permission-denied', 'Ward or booth is outside the Admin access scope.')
   }
 
-  return { fullName, email, mobile, role, status, scope, permissions, parentAdminId, profilePhotoPath, bannerPath }
+  return { fullName, email, mobile, role, status, scope, permissions, parentAdminId, profilePhotoPath, bannerPath, deviceLimit }
 }
 
 function validNewRole(value: unknown): 'admin' | 'subMember' {
@@ -1022,6 +1196,46 @@ function readPermissions(value: unknown): Permissions {
   return { upload: input.upload === true, edit: input.edit === true, download: input.download === true, audit: input.audit === true }
 }
 
+function readDeviceLimit(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 5) return 1
+  return parsed
+}
+
+function readDeviceId(value: unknown) {
+  const deviceId = requiredString(value, 'Device id')
+  if (!/^[a-zA-Z0-9-]{12,100}$/.test(deviceId)) throw new HttpsError('invalid-argument', 'Device id is not valid.')
+  return deviceId
+}
+
+function httpStatusForDownloadError(error: unknown) {
+  if (!(error instanceof HttpsError)) return 500
+  if (error.code === 'unauthenticated') return 401
+  if (error.code === 'permission-denied') return 403
+  if (error.code === 'not-found') return 404
+  if (error.code === 'invalid-argument') return 400
+  return 500
+}
+
+function activeDeviceSessions(value: unknown, nowMs: number) {
+  if (!value || typeof value !== 'object') return {} as Record<string, { token: string; label: string; createdAt: Timestamp; lastSeenAt: Timestamp }>
+  const output: Record<string, { token: string; label: string; createdAt: Timestamp; lastSeenAt: Timestamp }> = {}
+  Object.entries(value as Record<string, unknown>).forEach(([deviceId, rawEntry]) => {
+    if (!/^[a-zA-Z0-9-]{12,100}$/.test(deviceId) || !rawEntry || typeof rawEntry !== 'object') return
+    const entry = rawEntry as { token?: unknown; label?: unknown; createdAt?: unknown; lastSeenAt?: unknown }
+    const token = plainString(entry.token)
+    const lastSeenAt = entry.lastSeenAt instanceof Timestamp ? entry.lastSeenAt : undefined
+    if (!token || !lastSeenAt || nowMs - lastSeenAt.toMillis() > deviceSessionTimeoutMs) return
+    output[deviceId] = {
+      token,
+      label: plainString(entry.label).slice(0, 80) || 'Unknown device',
+      createdAt: entry.createdAt instanceof Timestamp ? entry.createdAt : lastSeenAt,
+      lastSeenAt,
+    }
+  })
+  return output
+}
+
 function imagePath(value: unknown, uploaderUid: string, existingPath?: string) {
   if (value === undefined || value === null || value === '') return undefined
   if (value === existingPath) return existingPath
@@ -1055,6 +1269,7 @@ function accountChanges(previous: UserRecord, next: UserRecord) {
   if (previous.email !== next.email) changes.email = next.email
   if (previous.mobile !== next.mobile) changes.mobile = next.mobile
   if (previous.status !== next.status) changes.status = next.status
+  if (readDeviceLimit(previous.deviceLimit) !== next.deviceLimit) changes.deviceLimit = next.deviceLimit
   if (!sameStringList(previous.scope.wardIds, next.scope.wardIds)) changes.wardIds = next.scope.wardIds
   if (!sameStringList(previous.scope.boothIds, next.scope.boothIds)) changes.boothIds = next.scope.boothIds
   const permissionChanges = (Object.keys(next.permissions) as Array<keyof Permissions>).filter((key) => previous.permissions[key] !== next.permissions[key])

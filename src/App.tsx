@@ -77,9 +77,11 @@ function App() {
   const isVoterRegister = activeNavigation === 'register'
   const isPdfUpload = activeNavigation === 'upload'
   const isPdfLibrary = activeNavigation === 'library'
-  const navigateTo = (key: NavigationKey) => {
-    const target = pathForNavigation(key)
-    if (location.pathname !== target || location.search) navigate(target)
+  const navigateTo = (key: NavigationKey, search = '') => {
+    const path = pathForNavigation(key)
+    const normalizedSearch = search && !search.startsWith('?') ? `?${search}` : search
+    const target = `${path}${normalizedSearch}`
+    if (location.pathname !== path || location.search !== normalizedSearch) navigate(target)
   }
   const goBack = () => {
     if (location.key !== 'default' && window.history.length > 1) {

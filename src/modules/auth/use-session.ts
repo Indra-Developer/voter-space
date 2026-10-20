@@ -24,7 +24,7 @@ export function useSession() {
         setState({ status: 'signedOut', message: 'This login does not have a Voter Space profile yet.' })
         return
       }
-      setState({ status: 'signedOut' })
+      setState({ status: 'signedOut', message: event.message })
     })
   }, [])
 
