@@ -132,6 +132,12 @@ export async function uploadAccountImage(file: File, kind: 'profile' | 'banner')
   return path
 }
 
+export async function updateOwnProfileMedia(payload: { profilePhotoPath?: string; bannerPath?: string }) {
+  const client = requireFirebase()
+  const updateMedia = httpsCallable<typeof payload, { uid: string }>(client.functions, 'updateOwnProfileMedia')
+  return updateMedia(payload)
+}
+
 export async function createAccount(payload: CreateAccountRequest) {
   const client = requireFirebase()
   const createUserAccount = httpsCallable<CreateAccountRequest, { uid: string }>(client.functions, 'createUserAccount')

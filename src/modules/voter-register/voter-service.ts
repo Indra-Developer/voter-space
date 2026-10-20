@@ -7,9 +7,9 @@ function requireFunctions() {
   return functions
 }
 
-export async function loadVoters(cursor?: string) {
-  const listVoters = httpsCallable<{ cursor?: string; pageSize: number }, { records: VoterRecord[]; nextCursor?: string; hasMore: boolean }>(requireFunctions(), 'listVoters')
-  const result = await listVoters({ cursor, pageSize: 200 })
+export async function loadVoters(cursor?: string, sourcePdfId?: string) {
+  const listVoters = httpsCallable<{ cursor?: string; pageSize: number; sourcePdfId?: string }, { records: VoterRecord[]; nextCursor?: string; hasMore: boolean }>(requireFunctions(), 'listVoters')
+  const result = await listVoters({ cursor, pageSize: 200, sourcePdfId })
   return result.data
 }
 

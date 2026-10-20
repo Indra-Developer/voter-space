@@ -1,6 +1,8 @@
-import { Download, Mail, MapPinned, Phone, ShieldCheck, Upload } from 'lucide-react'
+import { Camera, Download, LoaderCircle, Mail, MapPinned, Phone, ShieldCheck, Upload } from 'lucide-react'
+import { useState } from 'react'
 import type { AppLanguage } from '../app-shell/types'
 import type { AppSession } from './types'
+import { readableFirebaseError, updateOwnProfileMedia, uploadAccountImage } from './firebase-auth'
 
 type ProfilePageProps = {
   language: AppLanguage
@@ -9,10 +11,10 @@ type ProfilePageProps = {
 
 const profileCopy = {
   te: {
-    label: 'నా ఖాతా', title: 'ప్రొఫైల్ & యాక్సెస్', email: 'ఇమెయిల్', mobile: 'మొబైల్ నంబర్', access: 'డేటా యాక్సెస్', wards: 'వార్డులు', booths: 'బూత్‌లు', permissions: 'అనుమతులు', upload: 'అప్‌లోడ్', edit: 'సవరింపు', download: 'డౌన్‌లోడ్', enabled: 'అనుమతి ఉంది', noAccess: 'కేటాయించిన యాక్సెస్ లేదు', roles: { superAdmin: 'సూపర్ అడ్మిన్', admin: 'అడ్మిన్', subMember: 'సబ్-మెంబర్' },
+    label: 'నా ఖాతా', title: 'ప్రొఫైల్ & యాక్సెస్', email: 'ఇమెయిల్', mobile: 'మొబైల్ నంబర్', access: 'డేటా యాక్సెస్', wards: 'వార్డులు', booths: 'బూత్‌లు', permissions: 'అనుమతులు', upload: 'అప్‌లోడ్', edit: 'సవరింపు', download: 'డౌన్‌లోడ్', enabled: 'అనుమతి ఉంది', noAccess: 'కేటాయించిన యాక్సెస్ లేదు', mediaTitle: 'ప్రొఫైల్ చిత్రాలు', mediaHint: 'మీ ప్రొఫైల్ ఫోటో మరియు బ్యానర్‌ను మార్చండి.', profilePhoto: 'ప్రొఫైల్ ఫోటో', banner: 'బ్యానర్', chooseImage: 'చిత్రాన్ని ఎంచుకోండి', currentImage: 'ప్రస్తుత చిత్రం', saveMedia: 'చిత్రాలను సేవ్ చేయండి', savingMedia: 'సేవ్ అవుతోంది…', mediaSaved: 'ప్రొఫైల్ చిత్రాలు సేవ్ అయ్యాయి.', mediaError: 'చిత్రాలను సేవ్ చేయలేకపోయాము.', roles: { superAdmin: 'సూపర్ అడ్మిన్', admin: 'అడ్మిన్', subMember: 'సబ్-మెంబర్' },
   },
   en: {
-    label: 'My account', title: 'Profile & access', email: 'Email', mobile: 'Mobile number', access: 'Data access', wards: 'Wards', booths: 'Booths', permissions: 'Permissions', upload: 'Upload', edit: 'Edit', download: 'Download', enabled: 'Allowed', noAccess: 'No assigned access', roles: { superAdmin: 'Super Admin', admin: 'Admin', subMember: 'Sub-member' },
+    label: 'My account', title: 'Profile & access', email: 'Email', mobile: 'Mobile number', access: 'Data access', wards: 'Wards', booths: 'Booths', permissions: 'Permissions', upload: 'Upload', edit: 'Edit', download: 'Download', enabled: 'Allowed', noAccess: 'No assigned access', mediaTitle: 'Profile images', mediaHint: 'Change your profile photo and banner.', profilePhoto: 'Profile photo', banner: 'Banner', chooseImage: 'Choose an image', currentImage: 'Current image', saveMedia: 'Save images', savingMedia: 'Saving…', mediaSaved: 'Profile images saved.', mediaError: 'The images could not be saved.', roles: { superAdmin: 'Super Admin', admin: 'Admin', subMember: 'Sub-member' },
   },
 } as const
 
@@ -21,12 +23,38 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
   const profile = session.profile
   const bannerStyle = session.bannerUrl ? { backgroundImage: `url(${session.bannerUrl})` } : undefined
   const scope = profile.role === 'superAdmin' ? null : profile.scope
+  const [profileFile, setProfileFile] = useState<File>()
+  const [bannerFile, setBannerFile] = useState<File>()
+  const [mediaSaving, setMediaSaving] = useState(false)
+  const [mediaMessage, setMediaMessage] = useState<string>()
+  const [mediaError, setMediaError] = useState<string>()
+
+  const saveMedia = async () => {
+    if (profile.role !== 'superAdmin' || (!profileFile && !bannerFile)) return
+    setMediaSaving(true)
+    setMediaMessage(undefined)
+    setMediaError(undefined)
+    try {
+      const [profilePhotoPath, bannerPath] = await Promise.all([
+        profileFile ? uploadAccountImage(profileFile, 'profile') : Promise.resolve(undefined),
+        bannerFile ? uploadAccountImage(bannerFile, 'banner') : Promise.resolve(undefined),
+      ])
+      await updateOwnProfileMedia({ profilePhotoPath, bannerPath })
+      setProfileFile(undefined)
+      setBannerFile(undefined)
+      setMediaMessage(t.mediaSaved)
+    } catch (reason) {
+      setMediaError(`${t.mediaError} ${readableFirebaseError(reason)}`)
+    } finally {
+      setMediaSaving(false)
+    }
+  }
 
   return (
     <section className="profile-page">
       <header className="page-intro"><p>{t.label}</p><h2>{t.title}</h2></header>
       <article className="profile-page-card">
-        <div className="profile-page-banner" style={bannerStyle} />
+        <div className="profile-page-banner" style={bannerStyle}>{session.bannerUrl ? <img alt={`${profile.fullName} ${t.banner}`} src={session.bannerUrl} /> : null}</div>
         <div className="profile-page-main">
           {session.profilePhotoUrl ? <img alt={profile.fullName} className="profile-page-photo" src={session.profilePhotoUrl} /> : <span className="profile-page-photo profile-page-photo-placeholder">{profile.fullName.slice(0, 1).toUpperCase()}</span>}
           <div className="profile-page-name"><h3>{profile.fullName}</h3><span>{t.roles[profile.role]}</span></div>
@@ -36,6 +64,17 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
           <span><Phone size={17} /><small>{t.mobile}</small><strong>{profile.mobile}</strong></span>
         </div>
       </article>
+
+      {profile.role === 'superAdmin' ? <section className="profile-media-editor">
+        <header><div><p>{t.mediaTitle}</p><h3>{t.mediaHint}</h3></div><Camera size={20} /></header>
+        <div className="profile-media-input-grid">
+          <label className="profile-media-input"><span>{t.profilePhoto}</span><small>{profileFile?.name ?? (session.profilePhotoUrl ? t.currentImage : t.chooseImage)}</small><input accept="image/png,image/jpeg,image/webp" onChange={(event) => setProfileFile(event.target.files?.[0])} type="file" /></label>
+          <label className="profile-media-input"><span>{t.banner}</span><small>{bannerFile?.name ?? (session.bannerUrl ? t.currentImage : t.chooseImage)}</small><input accept="image/png,image/jpeg,image/webp" onChange={(event) => setBannerFile(event.target.files?.[0])} type="file" /></label>
+        </div>
+        {mediaMessage ? <p className="profile-media-message">{mediaMessage}</p> : null}
+        {mediaError ? <p className="form-alert form-alert-error">{mediaError}</p> : null}
+        <button className="primary-button" disabled={mediaSaving || (!profileFile && !bannerFile)} onClick={() => void saveMedia()} type="button">{mediaSaving ? <LoaderCircle className="animate-spin" size={15} /> : <Upload size={15} />}{mediaSaving ? t.savingMedia : t.saveMedia}</button>
+      </section> : null}
 
       <section className="profile-detail-grid">
         <article><h3><MapPinned size={18} />{t.access}</h3>{scope ? <div className="access-lines"><span><small>{t.wards}</small><strong>{scope.wardIds.join(', ') || t.noAccess}</strong></span><span><small>{t.booths}</small><strong>{scope.boothIds.join(', ') || t.noAccess}</strong></span></div> : <p>{t.enabled}</p>}</article>

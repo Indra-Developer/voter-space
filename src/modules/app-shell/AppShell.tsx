@@ -40,6 +40,7 @@ export function AppShell({
   const [themeOpen, setThemeOpen] = useState(false)
   const t = copy[language]
   const visibleNavigation = navigationItems.filter(({ key }) => isNavigationAllowed(key, profile?.role, permissions))
+  const visibleMobileNavigation = mobileNavigationKeys.filter((key) => visibleNavigation.some((item) => item.key === key))
 
   const chooseNavigation = (key: NavigationKey) => {
     onNavigate(key)
@@ -173,8 +174,8 @@ export function AppShell({
         <div className="shell-page">{children}</div>
       </main>
 
-      <nav className="mobile-bottom-navigation" aria-label="Mobile navigation">
-        {mobileNavigationKeys.map((key) => {
+      <nav className="mobile-bottom-navigation" aria-label="Mobile navigation" style={{ gridTemplateColumns: `repeat(${visibleMobileNavigation.length}, minmax(0, 1fr))` }}>
+        {visibleMobileNavigation.map((key) => {
           const item = visibleNavigation.find((navigationItem) => navigationItem.key === key)
           if (!item) return null
           const Icon = item.icon

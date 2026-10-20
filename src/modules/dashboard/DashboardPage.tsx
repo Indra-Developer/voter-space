@@ -113,11 +113,13 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
       <div className="dashboard-profile-banner">
         {session.bannerUrl ? <img alt="" className="dashboard-profile-banner-image" onError={(event) => { event.currentTarget.style.display = 'none' }} src={session.bannerUrl} /> : null}
       </div>
-      <div className="dashboard-profile-avatar">
-        <span>{initials(session.profile.fullName)}</span>
-        {session.profilePhotoUrl ? <img alt={session.profile.fullName} onError={(event) => { event.currentTarget.style.display = 'none' }} src={session.profilePhotoUrl} /> : null}
+      <div className="dashboard-profile-identity">
+        <div className="dashboard-profile-avatar">
+          <span>{initials(session.profile.fullName)}</span>
+          {session.profilePhotoUrl ? <img alt={session.profile.fullName} onError={(event) => { event.currentTarget.style.display = 'none' }} src={session.profilePhotoUrl} /> : null}
+        </div>
+        <div><strong>{session.profile.fullName}</strong><span>{roleLabel}</span></div>
       </div>
-      <div className="dashboard-profile-identity"><strong>{session.profile.fullName}</strong><span>{roleLabel}</span></div>
     </section>
     <header className="page-intro dashboard-intro">
       <div><p>{t.label}</p><h2>{t.title}</h2><span>{t.description}</span></div>

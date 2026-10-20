@@ -34,6 +34,13 @@
 :root[data-theme='dark'] .pdf-library-status.status-completed { background: #1f4933; color: #a8e7c1!important; }
 :root[data-theme='dark'] .pdf-library-status.status-failed, :root[data-theme='dark'] .pdf-library-status.status-completedWithReview { background: #4f3022; color: #ffd0b0!important; }
 .pdf-library-actions { align-items: center; }
+.pdf-library-filter-card { padding: .75rem; }
+.pdf-library-filter-card .voter-global-search .voter-field input { min-height: 2.55rem; }
+.pdf-export-menu { position: relative; }
+.pdf-export-trigger { white-space: nowrap; }
+.pdf-export-options { position: absolute; top: calc(100% + .35rem); right: 0; z-index: 35; display: grid; min-width: 8.5rem; gap: .2rem; padding: .35rem; border: 1px solid var(--border); border-radius: .65rem; background: var(--surface); box-shadow: 0 12px 28px color-mix(in srgb, var(--text) 20%, transparent); }
+.pdf-export-options button { display: flex; align-items: center; justify-content: flex-start; gap: .4rem; width: 100%; min-height: 2.15rem; padding: .4rem .5rem; border: 0; border-radius: .45rem; background: transparent; color: var(--text); cursor: pointer; font-size: .72rem; font-weight: 750; }
+.pdf-export-options button:hover { background: var(--nav-active); color: var(--primary-strong); }
 
 @media (min-width: 760px) { .pdf-library-filter-grid { grid-template-columns: 2fr repeat(4,minmax(0,1fr)); } .pdf-library-row { grid-template-columns: minmax(14rem,1.2fr) minmax(14rem,1fr) auto; align-items: center; } .pdf-library-actions { justify-content: flex-end; } }
-@media (max-width: 430px) { .pdf-library-intro { align-items: flex-start; flex-direction: column; } .pdf-library-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pdf-library-filter-grid > label { grid-column: 1 / -1; } .pdf-library-filter-grid span { font-size: .76rem; } .pdf-library-filter-grid input { min-height: 2.7rem; font-size: .86rem; } .pdf-library-report { align-items: stretch; flex-direction: column; } .pdf-library-report > div:last-child { width: 100%; } .pdf-library-report button { flex: 1; } }
+@media (max-width: 430px) { .pdf-library-intro { align-items: flex-start; flex-direction: column; } .pdf-library-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pdf-library-filter-grid > label { grid-column: 1 / -1; } .pdf-library-filter-grid span { font-size: .76rem; } .pdf-library-filter-grid input { min-height: 2.7rem; font-size: .86rem; } .pdf-library-report { align-items: stretch; flex-direction: column; } .pdf-library-report > div:last-child { width: 100%; } .pdf-library-report button { flex: 1; } .pdf-library-actions { justify-content: stretch; } .pdf-library-actions > .pdf-export-menu, .pdf-library-actions > button { flex: 1; } .pdf-export-trigger { width: 100%; } .pdf-export-options { position: fixed; top: auto; right: .75rem; bottom: 4.75rem; left: .75rem; width: auto; } }

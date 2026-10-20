@@ -73,6 +73,7 @@ type VoterRecord = {
   uploadedBy: string
 }
 type VoterFilters = {
+  sourcePdfId?: unknown
   name?: unknown
   doorNumber?: unknown
   voterId?: unknown
@@ -242,6 +243,26 @@ export const updateUserAccount = onCall({ region }, async (request) => {
   if (password) changes.password = true
   await writeAudit(caller, 'account_updated', input.uid, account.fullName, { changes })
   return { uid: input.uid }
+})
+
+export const updateOwnProfileMedia = onCall({ region }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  if (caller.record.role !== 'superAdmin') throw new HttpsError('permission-denied', 'Only Super Admins can change their profile images.')
+
+  const input = request.data && typeof request.data === 'object' ? request.data as { profilePhotoPath?: unknown; bannerPath?: unknown } : {}
+  const profilePhotoPath = imagePath(input.profilePhotoPath, caller.uid, caller.record.profilePhotoPath)
+  const bannerPath = imagePath(input.bannerPath, caller.uid, caller.record.bannerPath)
+  if (!profilePhotoPath && !bannerPath) throw new HttpsError('invalid-argument', 'Choose a profile photo or banner first.')
+
+  await db.doc(`users/${caller.uid}`).update({
+    ...cleanUndefined({ profilePhotoPath, bannerPath }),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+  await writeAudit(caller, 'account_updated', caller.uid, caller.record.fullName, {
+    profilePhoto: Boolean(profilePhotoPath && profilePhotoPath !== caller.record.profilePhotoPath),
+    banner: Boolean(bannerPath && bannerPath !== caller.record.bannerPath),
+  })
+  return { uid: caller.uid }
 })
 
 export const logPasswordResetRequest = onCall({ region }, async (request) => {
@@ -1311,6 +1332,7 @@ function matchesFilters(record: VoterRecord, filters: VoterFilters) {
   const uploadedDate = record.uploadedAt?.slice(0, 10) ?? ''
   const needsReview = filters.needsReview === 'yes' ? true : filters.needsReview === 'no' ? false : undefined
   return matches(record.fullName, filters.name) &&
+    matches(record.sourcePdfId, filters.sourcePdfId) &&
     matches(record.doorNumber, filters.doorNumber) &&
     matches(record.voterId, filters.voterId) &&
     matches(record.alternateIdentifier, filters.alternateIdentifier) &&
