@@ -36,4 +36,4 @@
 .pdf-library-actions { align-items: center; }
 
 @media (min-width: 760px) { .pdf-library-filter-grid { grid-template-columns: 2fr repeat(4,minmax(0,1fr)); } .pdf-library-row { grid-template-columns: minmax(14rem,1.2fr) minmax(14rem,1fr) auto; align-items: center; } .pdf-library-actions { justify-content: flex-end; } }
-@media (max-width: 430px) { .pdf-library-intro { align-items: flex-start; flex-direction: column; } .pdf-library-filter-grid { grid-template-columns: 1fr; } .pdf-library-report { align-items: stretch; flex-direction: column; } .pdf-library-report > div:last-child { width: 100%; } .pdf-library-report button { flex: 1; } }
+@media (max-width: 430px) { .pdf-library-intro { align-items: flex-start; flex-direction: column; } .pdf-library-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pdf-library-filter-grid > label { grid-column: 1 / -1; } .pdf-library-filter-grid span { font-size: .76rem; } .pdf-library-filter-grid input { min-height: 2.7rem; font-size: .86rem; } .pdf-library-report { align-items: stretch; flex-direction: column; } .pdf-library-report > div:last-child { width: 100%; } .pdf-library-report button { flex: 1; } }

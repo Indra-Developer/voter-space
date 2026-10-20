@@ -258,14 +258,19 @@ export const logPasswordResetRequest = onCall({ region }, async (request) => {
 export const listVoters = onCall({ region }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
   const filters = readVoterFilters(request.data)
-  const snapshot = await db.collection('voters').limit(5000).get()
+  const input = request.data as { cursor?: unknown; pageSize?: unknown }
+  const pageSize = Math.min(optionalInteger(input?.pageSize) ?? 200, 250)
+  const cursorId = plainString(input?.cursor)
+  const cursor = cursorId ? await db.doc(`voters/${cursorId}`).get() : undefined
+  const query = db.collection('voters').orderBy(FieldPath.documentId())
+  const snapshot = await (cursor?.exists ? query.startAfter(cursor).limit(pageSize) : query.limit(pageSize)).get()
   const records = snapshot.docs
     .map((item) => voterFromFirestore(item.id, item.data()))
     .filter((record) => canViewVoter(caller.record, record))
     .filter((record) => matchesFilters(record, filters))
     .sort((first, second) => first.doorNumber.localeCompare(second.doorNumber, 'en', { numeric: true }) || first.serialNumber.localeCompare(second.serialNumber, 'en', { numeric: true }))
 
-  return { records, truncated: snapshot.size === 5000 }
+  return { records, nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1]?.id : undefined, hasMore: snapshot.size === pageSize }
 })
 
 export const getVoterFilterOptions = onCall({ region }, async (request) => {

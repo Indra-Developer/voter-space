@@ -28,7 +28,7 @@ const copy = {
   en: {
     label: 'Workspace overview', title: 'Dashboard', description: 'See your voter data, PDF work, coverage, and account access in one place.',
     refresh: 'Refresh', voters: 'Voter records', wards: 'Wards', booths: 'Booths', pdfs: 'Source PDFs', processing: 'PDFs in progress', attention: 'Needs attention',
-    voterHint: 'Records visible to you', voterLimit: 'Showing the first 5,000 records', wardsHint: 'Wards in your access scope', boothsHint: 'Booths in your access scope', pdfHint: 'PDF files in your allowed scope', processingHint: 'Queued or currently processing', attentionHint: 'Failed, review, or approval work',
+    voterHint: 'Records visible to you', voterLimit: 'More records load as you scroll in Voter Register', wardsHint: 'Wards in your access scope', boothsHint: 'Booths in your access scope', pdfHint: 'PDF files in your allowed scope', processingHint: 'Queued or currently processing', attentionHint: 'Failed, review, or approval work',
     coverage: 'Data coverage', coverageHint: 'The areas and divisions found in your visible voter data.', areas: 'Areas', divisions: 'Divisions', databaseReady: 'Firebase data connected', databaseHint: 'The dashboard is reading live data.',
     pdfStatus: 'PDF processing status', pdfStatusHint: 'Upload and processing progress for your allowed PDFs.', completed: 'Completed', active: 'Working', review: 'Review / approval', failed: 'Failed', openLibrary: 'Open PDF Library',
     recentUploads: 'Recent PDF uploads', noUploads: 'No PDF uploads in your visible scope.', uploadedBy: 'Uploaded by', openUpload: 'Upload PDF',
@@ -40,7 +40,7 @@ const copy = {
   te: {
     label: 'వర్క్‌స్పేస్ సమాచారం', title: 'డ్యాష్‌బోర్డ్', description: 'మీ ఓటర్ డేటా, PDF పని, పరిధి మరియు ఖాతా అనుమతులను ఒకే చోట చూడండి.',
     refresh: 'రిఫ్రెష్', voters: 'ఓటర్ రికార్డులు', wards: 'వార్డులు', booths: 'బూత్‌లు', pdfs: 'సోర్స్ PDFలు', processing: 'ప్రాసెస్‌లో ఉన్న PDFలు', attention: 'చర్య అవసరం',
-    voterHint: 'మీకు కనిపించే రికార్డులు', voterLimit: 'మొదటి 5,000 రికార్డులు చూపిస్తున్నాము', wardsHint: 'మీ పరిధిలోని వార్డులు', boothsHint: 'మీ పరిధిలోని బూత్‌లు', pdfHint: 'మీ పరిధిలోని PDF ఫైళ్లు', processingHint: 'క్యూలో లేదా ప్రాసెస్‌లో ఉన్నవి', attentionHint: 'ఫెయిల్, రివ్యూ లేదా ఆమోదం అవసరమైనవి',
+    voterHint: 'మీకు కనిపించే రికార్డులు', voterLimit: 'ఓటర్ రిజిస్టర్‌లో స్క్రోల్ చేస్తే మరిన్ని రికార్డులు లోడ్ అవుతాయి', wardsHint: 'మీ పరిధిలోని వార్డులు', boothsHint: 'మీ పరిధిలోని బూత్‌లు', pdfHint: 'మీ పరిధిలోని PDF ఫైళ్లు', processingHint: 'క్యూలో లేదా ప్రాసెస్‌లో ఉన్నవి', attentionHint: 'ఫెయిల్, రివ్యూ లేదా ఆమోదం అవసరమైనవి',
     coverage: 'డేటా పరిధి', coverageHint: 'మీకు కనిపించే ఓటర్ డేటాలో ఉన్న ప్రాంతాలు మరియు డివిజన్లు.', areas: 'ప్రాంతాలు', divisions: 'డివిజన్లు', databaseReady: 'Firebase డేటా కనెక్ట్ అయింది', databaseHint: 'డ్యాష్‌బోర్డ్ లైవ్ డేటాను చదువుతోంది.',
     pdfStatus: 'PDF ప్రాసెసింగ్ స్థితి', pdfStatusHint: 'మీ పరిధిలోని PDFల అప్‌లోడ్ మరియు ప్రాసెసింగ్ పురోగతి.', completed: 'పూర్తయినవి', active: 'పనిలో ఉన్నవి', review: 'రివ్యూ / ఆమోదం', failed: 'ఫెయిల్ అయినవి', openLibrary: 'PDF లైబ్రరీ తెరవండి',
     recentUploads: 'ఇటీవలి PDF అప్‌లోడ్‌లు', noUploads: 'మీ పరిధిలో PDF అప్‌లోడ్‌లు లేవు.', uploadedBy: 'అప్‌లోడ్ చేసినవారు', openUpload: 'PDF అప్‌లోడ్',
@@ -70,7 +70,7 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
       loadVoterFilterOptions(),
       session.profile.role === 'superAdmin' || permissions.audit ? loadAuditLogs() : Promise.resolve({ entries: [] }),
     ])
-    const voterData = voters.status === 'fulfilled' ? voters.value : { records: [], truncated: false }
+    const voterData = voters.status === 'fulfilled' ? voters.value : { records: [], hasMore: false }
     const pdfData = pdfs.status === 'fulfilled' ? pdfs.value : []
     const loadedOptions = options.status === 'fulfilled' ? options.value : emptyOptions
     const optionData: VoterFilterOptions = {
@@ -82,7 +82,7 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
       uploaders: loadedOptions?.uploaders ?? [],
     }
     const activityData = activity.status === 'fulfilled' ? activity.value.entries : []
-    setData({ voterCount: voterData.records.length, voterTruncated: voterData.truncated, pdfs: pdfData, options: optionData, activity: activityData })
+    setData({ voterCount: voterData.records.length, voterTruncated: voterData.hasMore, pdfs: pdfData, options: optionData, activity: activityData })
     setHasError([voters, pdfs, options, activity].some((result) => result.status === 'rejected'))
     setLoading(false)
   }, [permissions.audit, session.profile.role])

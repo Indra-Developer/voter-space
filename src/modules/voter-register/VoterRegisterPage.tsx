@@ -1,5 +1,5 @@
-import { Check, ChevronDown, Download, Edit3, FileSpreadsheet, FileText, LoaderCircle, RefreshCcw, Search, Table2, Trash2, UsersRound, X } from 'lucide-react'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { ArrowUp, Check, ChevronDown, Download, Edit3, FileSpreadsheet, FileText, LoaderCircle, RefreshCcw, Search, Table2, Trash2, UsersRound, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type { AppSession } from '../auth/types'
 import { readableFirebaseError } from '../auth/firebase-auth'
 import type { AppLanguage } from '../app-shell/types'
@@ -20,7 +20,7 @@ const screenCopy = {
     any: 'All',
     exportExcel: 'Excel', exportPdf: 'PDF', exportCsv: 'CSV', exportHint: 'Exports include the filtered records only.',
     noRecords: 'No voter records match these filters.', noData: 'No voter records have been imported yet.',
-    loading: 'Loading voter records…', error: 'Voter records could not be loaded.', retry: 'Try again', limit: 'Only the first 5,000 imported records can be shown. Narrow the data by ward or booth after the importer is expanded.',
+    loading: 'Loading voter records…', loadingMore: 'Loading more voters…', allLoaded: 'All available voters are loaded.', error: 'Voter records could not be loaded.', retry: 'Try again', goTop: 'Go to top',
     view: 'View', edit: 'Edit', close: 'Close', save: 'Save changes', saving: 'Saving…', details: 'Voter details', sourcePdf: 'Source PDF', uploaded: 'Uploaded', saveError: 'The record could not be saved. Please try again.', editAccess: 'You can edit records in your allowed scope.', readOnly: 'You have view-only access to these records.', originalCard: 'Original voter card', cardLoading: 'Loading the original card…', cardUnavailable: 'This older voter record has no saved card image. Open PDF Upload and choose Process again for its PDF.', relativeName: 'Relative name', relationship: 'Relationship', age: 'Age', gender: 'Gender', assemblySerial: 'Assembly serial', pdfPosition: 'PDF position',
   },
   te: {
@@ -30,7 +30,7 @@ const screenCopy = {
     any: 'అన్నీ',
     exportExcel: 'ఎక్సెల్', exportPdf: 'PDF', exportCsv: 'CSV', exportHint: 'ఎంచుకున్న ఫిల్టర్లలో ఉన్న రికార్డులు మాత్రమే ఎగుమతి అవుతాయి.',
     noRecords: 'ఈ ఫిల్టర్లకు సరిపోయే ఓటర్ రికార్డులు లేవు.', noData: 'ఇంకా ఓటర్ రికార్డులు దిగుమతి కాలేదు.',
-    loading: 'ఓటర్ రికార్డులు లోడ్ అవుతున్నాయి…', error: 'ఓటర్ రికార్డులు లోడ్ చేయలేకపోయాము.', retry: 'మళ్లీ ప్రయత్నించండి', limit: 'మొదటి 5,000 దిగుమతి చేసిన రికార్డులు మాత్రమే చూపించవచ్చు. దిగుమతి వ్యవస్థ విస్తరించే వరకు వార్డు లేదా బూత్‌తో డేటాను తగ్గించండి.',
+    loading: 'ఓటర్ రికార్డులు లోడ్ అవుతున్నాయి…', loadingMore: 'మరిన్ని ఓటర్లను లోడ్ చేస్తున్నాము…', allLoaded: 'అందుబాటులో ఉన్న ఓటర్లన్నీ లోడ్ అయ్యాయి.', error: 'ఓటర్ రికార్డులు లోడ్ చేయలేకపోయాము.', retry: 'మళ్లీ ప్రయత్నించండి', goTop: 'పైకి వెళ్లండి',
     view: 'చూడండి', edit: 'సవరించండి', close: 'మూసివేయండి', save: 'మార్పులు సేవ్ చేయండి', saving: 'సేవ్ అవుతోంది…', details: 'ఓటర్ వివరాలు', sourcePdf: 'సోర్స్ PDF', uploaded: 'అప్‌లోడ్', saveError: 'రికార్డు సేవ్ కాలేదు. మళ్లీ ప్రయత్నించండి.', editAccess: 'మీకు అనుమతి ఉన్న పరిధిలో రికార్డులను సవరించవచ్చు.', readOnly: 'ఈ రికార్డులను చూడటానికి మాత్రమే మీకు అనుమతి ఉంది.', originalCard: 'అసలు ఓటర్ కార్డు', cardLoading: 'అసలు కార్డు లోడ్ అవుతోంది…', cardUnavailable: 'ఈ పాత ఓటర్ రికార్డుకు కార్డు చిత్రం లేదు. PDF Uploadలో ఆ PDFకి మళ్లీ ప్రాసెస్ చేయండి నొక్కండి.', relativeName: 'బంధువు పేరు', relationship: 'సంబంధం', age: 'వయస్సు', gender: 'లింగము', assemblySerial: 'అసెంబ్లీ సీరియల్', pdfPosition: 'PDF స్థానం',
   },
 } as const
@@ -45,7 +45,12 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   const [showMoreFilters, setShowMoreFilters] = useState(false)
   const [loadError, setLoadError] = useState<string>()
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [truncated, setTruncated] = useState(false)
+  const [nextCursor, setNextCursor] = useState<string>()
+  const [hasMore, setHasMore] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState<string>()
+  const [showGoTop, setShowGoTop] = useState(false)
+  const loadMoreSentinel = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<ViewMode>('individual')
   const [activeRecord, setActiveRecord] = useState<VoterRecord | null>(null)
   const [editing, setEditing] = useState(false)
@@ -67,7 +72,9 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
       const [result, databaseOptions] = await Promise.all([loadVoters(), loadVoterFilterOptions()])
       setRecords(result.records)
       setOptions(databaseOptions)
-      setTruncated(result.truncated)
+      setNextCursor(result.nextCursor)
+      setHasMore(result.hasMore)
+      setLoadMoreError(undefined)
     } catch (reason) {
       setLoadError(readableFirebaseError(reason))
     } finally {
@@ -78,6 +85,39 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   useEffect(() => {
     const initialLoad = window.setTimeout(() => void reload(), 0)
     return () => window.clearTimeout(initialLoad)
+  }, [])
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || !nextCursor || isLoadingMore) return
+    setIsLoadingMore(true)
+    setLoadMoreError(undefined)
+    try {
+      const result = await loadVoters(nextCursor)
+      setRecords((current) => [...(current ?? []), ...result.records])
+      setNextCursor(result.nextCursor)
+      setHasMore(result.hasMore)
+    } catch (reason) {
+      setLoadMoreError(readableFirebaseError(reason))
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [hasMore, isLoadingMore, nextCursor])
+
+  useEffect(() => {
+    const target = loadMoreSentinel.current
+    if (!target || !hasMore) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void loadMore()
+    }, { rootMargin: '500px' })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [hasMore, isLoadingMore, loadMore, nextCursor])
+
+  useEffect(() => {
+    const onScroll = () => setShowGoTop(window.scrollY > 450)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   const filteredRecords = useMemo(() => (records ?? []).filter((record) => matchesFilters(record, filters)), [records, filters])
@@ -116,14 +156,14 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
       <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={() => { setFilters(emptyVoterFilters); setOpenFilter(undefined); setShowMoreFilters(false) }} type="button">{t.clear}</button></div>
       <div className="voter-global-search"><FilterInput label={t.search} placeholder={t.searchPlaceholder} value={filters.search} onChange={(value) => updateFilter('search', value)} /></div>
       <div className="voter-filter-button-row" aria-label={t.moreFilters}>
-        <FilterMenuButton label={t.ward} value={filters.wardId} options={options.wards} anyLabel={t.any} open={openFilter === 'ward'} onToggle={() => setOpenFilter(openFilter === 'ward' ? undefined : 'ward')} onChange={(value) => { updateFilter('wardId', value); setOpenFilter(undefined) }} />
-        <FilterMenuButton label={t.booth} value={filters.boothId} options={options.booths} anyLabel={t.any} open={openFilter === 'booth'} onToggle={() => setOpenFilter(openFilter === 'booth' ? undefined : 'booth')} onChange={(value) => { updateFilter('boothId', value); setOpenFilter(undefined) }} />
-        <FilterMenuButton label={t.area} value={filters.area} options={options.areas} anyLabel={t.any} open={openFilter === 'area'} onToggle={() => setOpenFilter(openFilter === 'area' ? undefined : 'area')} onChange={(value) => { updateFilter('area', value); setOpenFilter(undefined) }} />
+        <FilterMenuButton closeLabel={t.close} label={t.ward} value={filters.wardId} options={options.wards} anyLabel={t.any} open={openFilter === 'ward'} onToggle={() => setOpenFilter(openFilter === 'ward' ? undefined : 'ward')} onChange={(value) => { updateFilter('wardId', value); setOpenFilter(undefined) }} />
+        <FilterMenuButton closeLabel={t.close} label={t.booth} value={filters.boothId} options={options.booths} anyLabel={t.any} open={openFilter === 'booth'} onToggle={() => setOpenFilter(openFilter === 'booth' ? undefined : 'booth')} onChange={(value) => { updateFilter('boothId', value); setOpenFilter(undefined) }} />
+        <FilterMenuButton closeLabel={t.close} label={t.area} value={filters.area} options={options.areas} anyLabel={t.any} open={openFilter === 'area'} onToggle={() => setOpenFilter(openFilter === 'area' ? undefined : 'area')} onChange={(value) => { updateFilter('area', value); setOpenFilter(undefined) }} />
         <button aria-expanded={showMoreFilters} className={`voter-filter-menu-button voter-more-filters-button${filters.division || filters.sourcePdf || filters.uploadedBy || filters.uploadedFrom || filters.uploadedTo ? ' has-value' : ''}`} onClick={() => { setShowMoreFilters((current) => !current); setOpenFilter(undefined) }} type="button"><span>{t.filters}</span><strong>{showMoreFilters ? t.hideFilters : t.moreFilters}</strong><ChevronDown size={14} /></button>
         {showMoreFilters ? <>
-          <FilterMenuButton label={t.division} value={filters.division} options={options.divisions} anyLabel={t.any} open={openFilter === 'division'} onToggle={() => setOpenFilter(openFilter === 'division' ? undefined : 'division')} onChange={(value) => { updateFilter('division', value); setOpenFilter(undefined) }} />
-          <FilterMenuButton label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} open={openFilter === 'source'} onToggle={() => setOpenFilter(openFilter === 'source' ? undefined : 'source')} onChange={(value) => { updateFilter('sourcePdf', value); setOpenFilter(undefined) }} />
-          <FilterMenuButton label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} open={openFilter === 'uploadedBy'} onToggle={() => setOpenFilter(openFilter === 'uploadedBy' ? undefined : 'uploadedBy')} onChange={(value) => { updateFilter('uploadedBy', value); setOpenFilter(undefined) }} />
+          <FilterMenuButton closeLabel={t.close} label={t.division} value={filters.division} options={options.divisions} anyLabel={t.any} open={openFilter === 'division'} onToggle={() => setOpenFilter(openFilter === 'division' ? undefined : 'division')} onChange={(value) => { updateFilter('division', value); setOpenFilter(undefined) }} />
+          <FilterMenuButton closeLabel={t.close} label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} open={openFilter === 'source'} onToggle={() => setOpenFilter(openFilter === 'source' ? undefined : 'source')} onChange={(value) => { updateFilter('sourcePdf', value); setOpenFilter(undefined) }} />
+          <FilterMenuButton closeLabel={t.close} label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} open={openFilter === 'uploadedBy'} onToggle={() => setOpenFilter(openFilter === 'uploadedBy' ? undefined : 'uploadedBy')} onChange={(value) => { updateFilter('uploadedBy', value); setOpenFilter(undefined) }} />
           <DateFilterButton label={t.chooseDate} from={filters.uploadedFrom} to={filters.uploadedTo} open={openFilter === 'date'} onToggle={() => setOpenFilter(openFilter === 'date' ? undefined : 'date')} onFromChange={(value) => updateFilter('uploadedFrom', value)} onToChange={(value) => updateFilter('uploadedTo', value)} t={t} />
         </> : null}
       </div>
@@ -134,7 +174,6 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     {records === undefined && !loadError ? <PageState kind="loading" title={t.loading} description="" /> : null}
     {loadError ? <PageState kind="error" title={t.error} description={loadError} actionLabel={t.retry} onAction={() => void reload()} /> : null}
     {records !== undefined && !loadError ? <>
-      {truncated ? <p className="form-alert form-alert-error">{t.limit}</p> : null}
       <section className="voter-results-toolbar">
         <div><strong>{filteredRecords.length} {t.records}</strong><span>{canEdit ? t.editAccess : t.readOnly}</span></div>
         <div className="voter-toolbar-actions">
@@ -144,8 +183,12 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
       </section>
       {canDownload ? <p className="voter-export-hint">{t.exportHint}</p> : null}
       {records.length === 0 ? <PageState kind="empty" title={t.noData} description="" /> : filteredRecords.length === 0 ? <PageState kind="empty" title={t.noRecords} description="" /> : view === 'individual' ? <IndividualRecords records={filteredRecords} onOpen={openRecord} onEdit={canEdit ? (record) => openRecord(record, true) : undefined} t={t} /> : <DoorWiseRecords groups={doorGroups} onOpen={openRecord} onEdit={canEdit ? (record) => openRecord(record, true) : undefined} t={t} />}
+      {records.length > 0 ? <div aria-live="polite" className={`voter-pagination-status${loadMoreError ? ' is-error' : ''}`} ref={loadMoreSentinel}>
+        {loadMoreError ? <><span>{loadMoreError}</span><button className="voter-text-button" onClick={() => void loadMore()} type="button">{t.retry}</button></> : isLoadingMore ? <><LoaderCircle className="animate-spin" size={15} />{t.loadingMore}</> : hasMore ? t.loadingMore : t.allLoaded}
+      </div> : null}
     </> : null}
     {activeRecord ? <VoterDialog key={activeRecord.id} canEdit={canEdit} language={language} onClose={() => setActiveRecord(null)} onSave={save} record={activeRecord} startEditing={editing} t={t} /> : null}
+    {showGoTop ? <button aria-label={t.goTop} className="voter-go-top-button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} type="button"><ArrowUp size={16} /><span>{t.goTop}</span></button> : null}
   </section>
 }
 
@@ -255,10 +298,10 @@ function FilterInput({ label, type = 'search', placeholder, value, onChange }: {
   return <label className="voter-field"><span>{label}</span><input placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} /></label>
 }
 
-function FilterMenuButton({ label, value, options, anyLabel, open, onToggle, onChange }: { label: string; value: string; options: string[]; anyLabel: string; open: boolean; onToggle: () => void; onChange: (value: string) => void }) {
+function FilterMenuButton({ label, value, options, anyLabel, closeLabel = 'Close', open, onToggle, onChange }: { label: string; value: string; options: string[]; anyLabel: string; closeLabel?: string; open: boolean; onToggle: () => void; onChange: (value: string) => void }) {
   return <div className="voter-filter-menu">
     <button aria-expanded={open} className={`voter-filter-menu-button${value ? ' has-value' : ''}`} onClick={onToggle} type="button"><span>{label}</span><strong>{value || anyLabel}</strong><ChevronDown size={14} /></button>
-    {open ? <div className="voter-filter-menu-popover" role="menu"><button className={!value ? 'is-selected' : ''} onClick={() => onChange('')} role="menuitem" type="button"><span>{anyLabel}</span>{!value ? <Check size={14} /> : null}</button>{options.map((option) => <button className={value === option ? 'is-selected' : ''} key={option} onClick={() => onChange(option)} role="menuitem" type="button"><span>{option}</span>{value === option ? <Check size={14} /> : null}</button>)}</div> : null}
+    {open ? <div aria-modal="true" className="voter-filter-menu-popover" role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={closeLabel} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options" role="menu"><button className={!value ? 'is-selected' : ''} onClick={() => onChange('')} role="menuitem" type="button"><span>{anyLabel}</span>{!value ? <Check size={14} /> : null}</button>{options.map((option) => <button className={value === option ? 'is-selected' : ''} key={option} onClick={() => onChange(option)} role="menuitem" type="button"><span>{option}</span>{value === option ? <Check size={14} /> : null}</button>)}</div></div> : null}
   </div>
 }
 
@@ -266,7 +309,7 @@ function DateFilterButton({ label, from, to, open, onToggle, onFromChange, onToC
   const value = from && to ? `${from} – ${to}` : from || to || t.any
   return <div className="voter-filter-menu voter-date-filter-menu">
     <button aria-expanded={open} className={`voter-filter-menu-button${from || to ? ' has-value' : ''}`} onClick={onToggle} type="button"><span>{label}</span><strong>{value}</strong><ChevronDown size={14} /></button>
-    {open ? <div className="voter-filter-menu-popover voter-date-filter-popover"><FilterInput label={t.uploadedFrom} type="date" value={from} onChange={onFromChange} /><FilterInput label={t.uploadedTo} type="date" value={to} onChange={onToChange} /></div> : null}
+    {open ? <div className="voter-filter-menu-popover voter-date-filter-popover" role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={t.close} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options"><FilterInput label={t.uploadedFrom} type="date" value={from} onChange={onFromChange} /><FilterInput label={t.uploadedTo} type="date" value={to} onChange={onToChange} /></div></div> : null}
   </div>
 }
 
