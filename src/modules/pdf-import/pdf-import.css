@@ -1,5 +1,6 @@
 .pdf-import-page { display: grid; gap: 0.9rem; }
-.pdf-import-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 0; }
+.pdf-import-actions { display: flex; justify-content: flex-end; }
+.pdf-upload-workspace { display: grid; gap: 0.9rem; }
 
 .pdf-primary-button,
 .pdf-secondary-button,
@@ -24,10 +25,6 @@
 .pdf-danger-button:disabled { cursor: wait; opacity: .65; }
 .pdf-icon-button { width: 2rem; padding: 0; color: var(--muted); }
 .pdf-icon-button:disabled { cursor: default; opacity: 0.45; }
-
-.pdf-tabs { display: flex; gap: 0.3rem; overflow-x: auto; padding: 0.25rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); }
-.pdf-tabs button { display: inline-flex; min-height: 2.15rem; align-items: center; gap: 0.4rem; padding: 0.35rem 0.65rem; border: 0; border-radius: 0.5rem; background: transparent; color: var(--muted); cursor: pointer; font-size: 0.73rem; font-weight: 750; white-space: nowrap; }
-.pdf-tabs button.is-active { background: var(--nav-active); color: var(--primary-strong); }
 
 .pdf-drop-card,
 .pdf-queue,
@@ -134,7 +131,6 @@
 @media (min-width: 1024px) { .pdf-review-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 
 @media (max-width: 520px) {
-  .pdf-import-intro,
   .pdf-drop-card { align-items: flex-start; flex-direction: column; }
   .pdf-drop-card .pdf-primary-button { margin-left: 0; }
   .pdf-metadata-grid,
