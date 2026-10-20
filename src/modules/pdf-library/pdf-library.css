@@ -1,10 +1,36 @@
 .pdf-library-page { display: grid; gap: .9rem; }
 .pdf-library-intro, .audit-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 0; }
+.pdf-library-secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 2.1rem; padding: .4rem .65rem; border: 1px solid var(--border); border-radius: .55rem; background: var(--surface); color: var(--primary); cursor: pointer; font: inherit; font-size: .75rem; font-weight: 700; }
+.pdf-library-secondary-button:hover { border-color: var(--primary); background: var(--nav-active); }
 .pdf-library-filter-card, .pdf-library-report, .pdf-library-row, .daily-task-card { border: 1px solid var(--border); border-radius: .9rem; background: var(--surface); box-shadow: 0 3px 12px rgba(15,55,33,.025); }
 .pdf-library-filter-card { padding: .85rem; }
 .pdf-library-filter-title { display: flex; align-items: center; gap: .45rem; margin-bottom: .75rem; color: var(--text); font-size: .84rem; }
 .pdf-library-filter-title svg { color: var(--primary); }
-.pdf-library-filter-title .voter-text-button { margin-left: auto; }
+.pdf-library-filter-title > div { display: flex; align-items: center; gap: .45rem; }
+.pdf-library-filter-title .pdf-library-text-button { margin-left: auto; }
+.pdf-library-text-button { display: inline-flex; align-items: center; justify-content: center; min-height: auto; padding: .2rem; border: 0; background: transparent; color: var(--primary); cursor: pointer; font: inherit; font-size: .72rem; font-weight: 750; }
+.pdf-library-text-button:hover { color: var(--primary-strong); text-decoration: underline; text-underline-offset: .15rem; }
+.pdf-library-global-search { display: grid; gap: .3rem; }
+.pdf-library-field { display: grid; gap: .25rem; min-width: 0; }
+.pdf-library-field > span { color: var(--muted); font-size: .68rem; font-weight: 700; }
+.pdf-library-global-search .pdf-library-field input { width: 100%; min-height: 2.55rem; padding: .4rem .55rem; border: 2px solid var(--primary); border-radius: .55rem; outline: 0; background: color-mix(in srgb, var(--primary) 7%, var(--surface)); color: var(--text); box-shadow: inset 0 1px 2px color-mix(in srgb, var(--text) 12%, transparent), 0 3px 0 color-mix(in srgb, var(--primary) 30%, var(--surface)), 0 5px 12px color-mix(in srgb, var(--primary) 12%, transparent); font: inherit; font-size: .76rem; }
+.pdf-library-global-search .pdf-library-field input:hover { border-color: var(--primary-strong); background: color-mix(in srgb, var(--primary) 11%, var(--surface)); }
+.pdf-library-global-search .pdf-library-field input:focus { border-color: var(--primary-strong); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent), inset 0 1px 2px color-mix(in srgb, var(--text) 12%, transparent), 0 3px 0 color-mix(in srgb, var(--primary) 42%, var(--surface)); }
+.pdf-library-filter-button-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: .5rem; margin-top: .8rem; }
+.pdf-library-filter-menu-button { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .08rem .28rem; width: 100%; min-height: 2.25rem; padding: .28rem .45rem .34rem; border: 1px solid color-mix(in srgb, var(--primary) 58%, var(--border)); border-bottom: 3px solid color-mix(in srgb, var(--primary-strong) 72%, var(--primary)); border-radius: .55rem; background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 13%, var(--surface)), color-mix(in srgb, var(--primary) 4%, var(--surface))); box-shadow: 0 2px 0 color-mix(in srgb, var(--primary-strong) 28%, transparent), 0 4px 8px color-mix(in srgb, var(--primary) 13%, transparent); color: var(--text); cursor: pointer; font: inherit; text-align: left; transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease; }
+.pdf-library-filter-menu-button > span { grid-column: 1 / -1; overflow: hidden; color: var(--primary-strong); font-size: .78rem; font-weight: 850; letter-spacing: .01em; text-overflow: ellipsis; white-space: nowrap; }
+.pdf-library-filter-menu-button > strong { overflow: hidden; color: var(--text); font-size: .72rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.pdf-library-filter-menu-button > svg { grid-column: 2; grid-row: 2; color: var(--primary-strong); }
+.pdf-library-filter-menu-button:hover, .pdf-library-filter-menu-button[aria-expanded='true'] { border-color: var(--primary-strong); background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 22%, var(--surface)), color-mix(in srgb, var(--primary) 8%, var(--surface))); box-shadow: 0 3px 0 color-mix(in srgb, var(--primary-strong) 38%, transparent), 0 6px 12px color-mix(in srgb, var(--primary) 19%, transparent); transform: translateY(-1px); }
+.pdf-library-filter-menu-button:active { box-shadow: 0 1px 0 color-mix(in srgb, var(--primary-strong) 38%, transparent), 0 2px 5px color-mix(in srgb, var(--primary) 13%, transparent); transform: translateY(1px); }
+.pdf-library-filter-menu-button.has-value { border-color: var(--primary-strong); background: linear-gradient(180deg, var(--primary), color-mix(in srgb, var(--primary-strong) 78%, var(--primary))); color: var(--primary-contrast); }
+.pdf-library-filter-menu-button.has-value > span, .pdf-library-filter-menu-button.has-value > strong, .pdf-library-filter-menu-button.has-value > svg { color: var(--primary-contrast); }
+.pdf-library-export-progress { display: flex; align-items: center; gap: .55rem; margin-top: .55rem; padding: .55rem .7rem; border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border)); border-radius: .65rem; background: color-mix(in srgb, var(--primary) 7%, var(--surface)); color: var(--text); font-size: .72rem; font-weight: 750; }
+.pdf-library-export-progress progress { width: min(18rem, 42vw); height: .55rem; accent-color: var(--primary); }
+.pdf-library-export-progress span { min-width: 7rem; }
+.pdf-library-export-ready { margin: .55rem 0 0; padding: .55rem .7rem; border: 1px solid color-mix(in srgb, #16865f 35%, var(--border)); border-radius: .65rem; background: color-mix(in srgb, #16865f 9%, var(--surface)); color: #126344; font-size: .78rem; font-weight: 750; }
+.pdf-library-export-error { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin: .55rem 0 0; border: 1px solid #f2c7be; border-radius: .6rem; padding: .65rem .75rem; background: #fff2ee; color: #9d3627; font-size: .75rem; line-height: 1.45; }
+.pdf-library-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .pdf-library-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .65rem; }
 .pdf-library-filter-grid label { display: grid; min-width: 0; gap: .25rem; }
 .pdf-library-filter-grid span { color: var(--muted); font-size: .68rem; font-weight: 700; }
@@ -35,7 +61,7 @@
 :root[data-theme='dark'] .pdf-library-status.status-failed, :root[data-theme='dark'] .pdf-library-status.status-completedWithReview { background: #4f3022; color: #ffd0b0!important; }
 .pdf-library-actions { align-items: center; }
 .pdf-library-filter-card { padding: .75rem; }
-.pdf-library-filter-card .voter-global-search .voter-field input { min-height: 2.55rem; }
+.pdf-library-filter-card .pdf-library-global-search .pdf-library-field input { min-height: 2.55rem; }
 .pdf-library-native-filter,
 .pdf-library-native-date-filter { display: grid; min-width: 0; gap: .16rem; }
 .pdf-library-native-filter > span,
@@ -52,4 +78,5 @@
 .pdf-export-select:disabled { cursor: wait; opacity: .7; }
 
 @media (min-width: 760px) { .pdf-library-filter-grid { grid-template-columns: 2fr repeat(4,minmax(0,1fr)); } .pdf-library-row { grid-template-columns: minmax(14rem,1.2fr) minmax(14rem,1fr) auto; align-items: center; } .pdf-library-actions { justify-content: flex-end; } }
-@media (max-width: 430px) { .pdf-library-intro { align-items: flex-start; flex-direction: column; } .pdf-library-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pdf-library-filter-grid > label { grid-column: 1 / -1; } .pdf-library-filter-grid span { font-size: .76rem; } .pdf-library-filter-grid input { min-height: 2.7rem; font-size: .86rem; } .pdf-library-native-filter > span, .pdf-library-native-date-filter > span { font-size: .76rem; } .pdf-library-native-filter select, .pdf-library-native-date-filter input { min-height: 2.05rem; padding: .24rem .35rem; border-radius: .48rem; font-size: .68rem; } .pdf-library-report { align-items: stretch; flex-direction: column; } .pdf-library-report > div:last-child { width: 100%; } .pdf-library-report button { flex: 1; } .pdf-library-actions { justify-content: stretch; } .pdf-library-actions > .pdf-export-menu, .pdf-library-actions > button { flex: 1; } .pdf-export-menu { flex: 1; } .pdf-export-select { width: 100%; } }
+@media (max-width: 760px) { .pdf-library-filter-button-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 430px) { .pdf-library-intro { align-items: flex-start; flex-direction: column; } .pdf-library-intro > .pdf-library-secondary-button { width: 100%; } .pdf-library-filter-button-row { gap: .35rem; margin-top: .6rem; } .pdf-library-filter-menu-button { min-height: 2.05rem; padding: .24rem .35rem .3rem; border-radius: .48rem; } .pdf-library-filter-menu-button > span { font-size: .76rem; } .pdf-library-filter-menu-button > strong { font-size: .68rem; } .pdf-library-global-search .pdf-library-field input { min-height: 2.7rem; font-size: .86rem; } .pdf-library-native-filter > span, .pdf-library-native-date-filter > span { font-size: .76rem; } .pdf-library-native-filter select, .pdf-library-native-date-filter input { min-height: 2.05rem; padding: .24rem .35rem; border-radius: .48rem; font-size: .68rem; } .pdf-library-report { align-items: stretch; flex-direction: column; } .pdf-library-report > div:last-child { width: 100%; } .pdf-library-report button { flex: 1; } .pdf-library-actions { justify-content: stretch; } .pdf-library-actions > .pdf-export-menu, .pdf-library-actions > button { flex: 1; } .pdf-export-menu { flex: 1; } .pdf-export-select { width: 100%; } .pdf-library-export-progress { align-items: flex-start; flex-direction: column; } .pdf-library-export-progress progress { width: 100%; } .pdf-library-export-error { align-items: flex-start; flex-direction: column; } }

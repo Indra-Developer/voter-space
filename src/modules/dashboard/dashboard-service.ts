@@ -1,5 +1,6 @@
 import { httpsCallable } from 'firebase/functions'
-import { functions } from '../../lib/firebase'
+import { auth, functions } from '../../lib/firebase'
+import { cachedRequest, invalidateRequestCache } from '../../lib/request-cache'
 import type { PdfImportStatus } from '../pdf-import/types'
 
 export type DashboardRecentUpload = {
@@ -27,8 +28,15 @@ export type DashboardSummary = {
   recentUploads: DashboardRecentUpload[]
 }
 
-export async function loadDashboardSummary() {
-  if (!functions) throw new Error('Firebase is not configured.')
-  const call = httpsCallable<Record<string, never>, DashboardSummary>(functions, 'getDashboardSummary')
-  return (await call({})).data
+export async function loadDashboardSummary(options: { force?: boolean } = {}) {
+  const key = `dashboard-summary:${auth?.currentUser?.uid ?? 'signed-out'}`
+  return cachedRequest(key, async () => {
+    if (!functions) throw new Error('Firebase is not configured.')
+    const call = httpsCallable<Record<string, never>, DashboardSummary>(functions, 'getDashboardSummary')
+    return (await call({})).data
+  }, { ttlMs: 30_000, force: options.force })
+}
+
+export function invalidateDashboardSummaryCache() {
+  invalidateRequestCache('dashboard-summary:')
 }

@@ -37,9 +37,9 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
   const t = copy[language]
   const canDownload = session.profile.role === 'superAdmin' || session.profile.permissions.download
 
-  const reload = async () => {
+  const reload = async (force = false) => {
     setRefreshing(true); setError(undefined)
-    try { setRecords(await listPdfImports()) } catch (reason) { setError(readableFirebaseError(reason)) } finally { setRefreshing(false) }
+    try { setRecords(await listPdfImports({ force })) } catch (reason) { setError(readableFirebaseError(reason)) } finally { setRefreshing(false) }
   }
   useEffect(() => {
     const timer = window.setTimeout(() => void reload(), 0)
@@ -95,15 +95,15 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
   }
   const cancelExport = () => exportAbortController.current?.abort()
 
-  return <section className="pdf-library-page"><header className="page-intro pdf-library-intro"><div><p>{t.label}</p><h2>{t.title}</h2><span>{t.description}</span></div><button className="voter-secondary-button" onClick={() => void reload()} type="button"><RefreshCcw className={refreshing ? 'animate-spin' : undefined} size={15} />{t.refresh}</button></header>
-    <section className="voter-filter-card pdf-library-filter-card">
-      <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={() => { setFilters(emptyFilters); setShowMoreFilters(false); setSearchParams({}, { replace: true }) }} type="button">{t.clear}</button></div>
-      <div className="voter-global-search"><label className="voter-field"><span>{t.search}</span><input placeholder={t.searchPlaceholder} value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} /></label></div>
-      <div className="voter-filter-button-row" aria-label={t.filters}>
+  return <section className="pdf-library-page"><header className="page-intro pdf-library-intro"><div><p>{t.label}</p><h2>{t.title}</h2><span>{t.description}</span></div><button className="pdf-library-secondary-button" onClick={() => void reload(true)} type="button"><RefreshCcw className={refreshing ? 'animate-spin' : undefined} size={15} />{t.refresh}</button></header>
+    <section className="pdf-library-filter-card">
+      <div className="pdf-library-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="pdf-library-text-button" onClick={() => { setFilters(emptyFilters); setShowMoreFilters(false); setSearchParams({}, { replace: true }) }} type="button">{t.clear}</button></div>
+      <div className="pdf-library-global-search"><label className="pdf-library-field"><span>{t.search}</span><input placeholder={t.searchPlaceholder} value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} /></label></div>
+      <div className="pdf-library-filter-button-row" aria-label={t.filters}>
         <LibraryNativeFilter label={t.ward} options={options.wards} value={filters.ward} any={t.all} onChange={(ward) => setFilters((current) => ({ ...current, ward }))} />
         <LibraryNativeFilter label={t.booth} options={options.booths} value={filters.booth} any={t.all} onChange={(booth) => setFilters((current) => ({ ...current, booth }))} />
         <LibraryNativeFilter label={t.area} options={options.areas} value={filters.area} any={t.all} onChange={(area) => setFilters((current) => ({ ...current, area }))} />
-        <button aria-expanded={showMoreFilters} className={`voter-filter-menu-button voter-more-filters-button${filters.division || filters.sourcePdf || filters.status || filters.uploadedBy || filters.uploadedFrom || filters.uploadedTo ? ' has-value' : ''}`} onClick={() => setShowMoreFilters((current) => !current)} type="button"><span>{t.filters}</span><strong>{showMoreFilters ? t.hideFilters : t.moreFilters}</strong><ChevronDown size={14} /></button>
+        <button aria-expanded={showMoreFilters} className={`pdf-library-filter-menu-button${filters.division || filters.sourcePdf || filters.status || filters.uploadedBy || filters.uploadedFrom || filters.uploadedTo ? ' has-value' : ''}`} onClick={() => setShowMoreFilters((current) => !current)} type="button"><span>{t.filters}</span><strong>{showMoreFilters ? t.hideFilters : t.moreFilters}</strong><ChevronDown size={14} /></button>
         {showMoreFilters ? <>
           <LibraryNativeFilter label={t.division} options={options.divisions} value={filters.division} any={t.all} onChange={(division) => setFilters((current) => ({ ...current, division }))} />
           <LibraryNativeFilter label={t.source} options={options.sourcePdfs} value={filters.sourcePdf} any={t.all} onChange={(sourcePdf) => setFilters((current) => ({ ...current, sourcePdf }))} />
@@ -113,9 +113,9 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
         </> : null}
       </div>
     </section>
-    {exportReady ? <p className="voter-export-ready" role="status">{t.downloadReady}</p> : null}
-    {exportingKey ? <div aria-live="polite" className="voter-export-progress pdf-library-export-progress"><progress max="100" value={exportProgress} /><span>{t.preparingExport} {exportCounts.total ? `${t.recordsProcessed}: ${exportCounts.processed} ${t.of} ${exportCounts.total}` : `${exportProgress}%`}</span><button className="voter-text-button" onClick={cancelExport} type="button">{t.cancelExport}</button></div> : null}
-    {downloadError ? <div className="form-alert form-alert-error voter-export-error"><span>{downloadError}</span>{failedExport ? <button className="voter-text-button" onClick={() => void exportPdfVoters(failedExport.item, failedExport.format)} type="button">{t.retryExport}</button> : null}</div> : null}
+    {exportReady ? <p className="pdf-library-export-ready" role="status">{t.downloadReady}</p> : null}
+    {exportingKey ? <div aria-live="polite" className="pdf-library-export-progress"><progress max="100" value={exportProgress} /><span>{t.preparingExport} {exportCounts.total ? `${t.recordsProcessed}: ${exportCounts.processed} ${t.of} ${exportCounts.total}` : `${exportProgress}%`}</span><button className="pdf-library-text-button" onClick={cancelExport} type="button">{t.cancelExport}</button></div> : null}
+    {downloadError ? <div className="pdf-library-export-error"><span>{downloadError}</span>{failedExport ? <button className="pdf-library-text-button" onClick={() => void exportPdfVoters(failedExport.item, failedExport.format)} type="button">{t.retryExport}</button> : null}</div> : null}
     {records === undefined && !error ? <PageState kind="loading" title={t.loading} description="" /> : null}
     {error ? <PageState kind="error" title={t.error} description={error} actionLabel={t.retry} onAction={() => void reload()} /> : null}
     {records !== undefined && !error ? <><section className="pdf-library-stats"><Stat label={t.total} value={visible.length} /><Stat label={t.complete} value={completed} /><Stat label={t.action} value={needsAction} /></section>{records.length === 0 ? <PageState kind="empty" title={t.noData} description="" /> : visible.length === 0 ? <PageState kind="empty" title={t.noMatch} description="" /> : <div className="pdf-library-list">{visible.map((item) => <article className="pdf-library-row" key={item.id}><div className="pdf-library-file"><FileText size={20} /><div><strong>{item.originalFileName}</strong><span>{t.ward} {item.wardId} · {t.booth} {item.boothId}{sourceAreas(item).length ? ` · ${sourceAreas(item).join(', ')}` : ''}{sourceDivisions(item).length ? ` · ${sourceDivisions(item).join(', ')}` : ''}</span></div></div><div className="pdf-library-meta"><span className={`pdf-library-status status-${item.status}`}>{item.status}</span><span>{t.rows}: {item.rowCount ?? '—'}</span><span>{t.uploaded}: {formatDate(item.uploadedAt ?? item.createdAt, language)} · {item.uploadedByName}</span></div><div className="pdf-library-actions">{canDownload ? <ExportMenu exportingKey={exportingKey} id={item.id} onSelect={(format) => void exportPdfVoters(item, format)} t={t} /> : null}</div></article>)}</div>}</> : null}
@@ -132,7 +132,7 @@ function LibraryNativeDateFilter({ from, to, onFromChange, onToChange, t }: { fr
 
 function ExportMenu({ exportingKey, id, onSelect, t }: { exportingKey?: string; id: string; onSelect: (format: VoterExportFormat) => void; t: { export: string; exporting: string; excel: string; pdf: string; csv: string } }) {
   const isExporting = exportingKey?.startsWith(`${id}:`) ?? false
-  return <label className="pdf-export-menu"><span className="sr-only">{t.export}</span><select aria-label={t.export} className="pdf-export-select" disabled={isExporting} onChange={(event) => { const format = event.target.value as VoterExportFormat; if (format) onSelect(format) }} value=""><option disabled value="">{isExporting ? t.exporting : t.export}</option><option value="excel">{t.excel}</option><option value="pdf">{t.pdf}</option><option value="csv">{t.csv}</option></select></label>
+  return <label className="pdf-export-menu"><span className="pdf-library-sr-only">{t.export}</span><select aria-label={t.export} className="pdf-export-select" disabled={isExporting} onChange={(event) => { const format = event.target.value as VoterExportFormat; if (format) onSelect(format) }} value=""><option disabled value="">{isExporting ? t.exporting : t.export}</option><option value="excel">{t.excel}</option><option value="pdf">{t.pdf}</option><option value="csv">{t.csv}</option></select></label>
 }
 
 function Stat({ label, value }: { label: string; value: number }) { return <article><strong>{value}</strong><span>{label}</span></article> }

@@ -37,16 +37,16 @@ export function PdfImportPage({ language, session }: { language: AppLanguage; se
   const uploadTasks = useRef(new Map<string, UploadTaskHandle>())
   const [workingSourceId, setWorkingSourceId] = useState<string>()
 
-  const refreshImports = async () => {
+  const refreshImports = async (force = false) => {
     try {
-      setImports(await listPdfImports())
+      setImports(await listPdfImports({ force }))
       setError(undefined)
     } catch (reason) { setError(readableError(reason)) }
   }
 
   useEffect(() => {
     const initial = window.setTimeout(() => void refreshImports(), 0)
-    const refreshTimer = window.setInterval(() => void refreshImports(), 12000)
+    const refreshTimer = window.setInterval(() => void refreshImports(true), 12000)
     return () => { window.clearTimeout(initial); window.clearInterval(refreshTimer) }
   }, [])
 
@@ -75,7 +75,7 @@ export function PdfImportPage({ language, session }: { language: AppLanguage; se
       if (source.duplicate) {
         setQueue((current) => current.map((entry) => entry.localId === item.localId ? { ...entry, sourcePdfId: source.id, storagePath: source.storagePath, uploadHash, status: 'uploaded', progress: 100 } : entry))
         setNotice(t.duplicate)
-        window.setTimeout(() => void refreshImports(), 300)
+        window.setTimeout(() => void refreshImports(true), 300)
         return
       }
       setQueue((current) => current.map((entry) => entry.localId === item.localId ? { ...entry, sourcePdfId: source.id, storagePath: source.storagePath, status: 'uploading' } : entry))
@@ -84,7 +84,7 @@ export function PdfImportPage({ language, session }: { language: AppLanguage; se
       await upload.completion
       uploadTasks.current.delete(item.localId)
       setQueue((current) => current.map((entry) => entry.localId === item.localId ? { ...entry, status: 'uploaded', progress: 100 } : entry))
-      window.setTimeout(() => void refreshImports(), 1200)
+      window.setTimeout(() => void refreshImports(true), 1200)
     } catch (reason) {
       uploadTasks.current.delete(item.localId)
       setQueue((current) => current.map((entry) => entry.localId === item.localId ? { ...entry, status: entry.status === 'cancelled' ? 'cancelled' : 'failed', error: readableError(reason) } : entry))
@@ -102,23 +102,23 @@ export function PdfImportPage({ language, session }: { language: AppLanguage; se
   const resume = (localId: string) => { uploadTasks.current.get(localId)?.resume(); setQueue((current) => current.map((item) => item.localId === localId ? { ...item, status: 'uploading' } : item)) }
   const cancel = (localId: string) => { uploadTasks.current.get(localId)?.cancel(); setQueue((current) => current.map((item) => item.localId === localId ? { ...item, status: 'cancelled' } : item)) }
   const processAgain = async (source: PdfImport) => {
-    try { await retryPdfImport(source.id); setNotice(t.updated); await refreshImports() } catch (reason) { setError(readableError(reason)) }
+    try { await retryPdfImport(source.id); setNotice(t.updated); await refreshImports(true) } catch (reason) { setError(readableError(reason)) }
   }
   const cancelSource = async (source: PdfImport) => {
     if (!window.confirm(language === 'te' ? 'ఈ PDF ప్రాసెసింగ్‌ను రద్దు చేయాలా?' : 'Cancel processing for this PDF?')) return
     setWorkingSourceId(source.id); setError(undefined)
-    try { await cancelPdfImport(source.id); setNotice(t.cancelled); await refreshImports() } catch (reason) { setError(readableError(reason)) } finally { setWorkingSourceId(undefined) }
+    try { await cancelPdfImport(source.id); setNotice(t.cancelled); await refreshImports(true) } catch (reason) { setError(readableError(reason)) } finally { setWorkingSourceId(undefined) }
   }
   const deleteSource = async (source: PdfImport) => {
     if (!window.confirm(language === 'te' ? 'ఈ సోర్స్ PDF మరియు దాని దిగుమతి వరుసలను శాశ్వతంగా తొలగించాలా? ఓటర్ రిజిస్టర్‌లోని ఓటర్లు తొలగించబడరు.' : 'Permanently delete this source PDF and its import rows? Voter Register records will not be deleted.')) return
     setWorkingSourceId(source.id); setError(undefined)
-    try { await deletePdfImport(source.id); setNotice(t.updated); await refreshImports() } catch (reason) { setError(readableError(reason)) } finally { setWorkingSourceId(undefined) }
+    try { await deletePdfImport(source.id); setNotice(t.updated); await refreshImports(true) } catch (reason) { setError(readableError(reason)) } finally { setWorkingSourceId(undefined) }
   }
 
   if (session.profile.role === 'subMember') return <PageState kind="empty" title={t.subMember} description="" />
 
   return <section className="pdf-import-page">
-    <div className="pdf-import-actions"><button className="pdf-secondary-button" onClick={() => void refreshImports()} type="button"><RefreshCcw size={15} />{t.refresh}</button></div>
+    <div className="pdf-import-actions"><button className="pdf-secondary-button" onClick={() => void refreshImports(true)} type="button"><RefreshCcw size={15} />{t.refresh}</button></div>
     {error ? <p className="form-alert form-alert-error">{error}</p> : null}{notice ? <p className="form-alert form-alert-info">{notice}</p> : null}
     <div className="pdf-upload-workspace">
       <UploadPanel canUpload={canUpload} language={language} onAddFiles={addFiles} onCancel={cancel} onPause={pause} onQueueField={setQueueField} onRemove={(id) => setQueue((current) => current.filter((item) => item.localId !== id))} onResume={resume} onRetry={(item) => void uploadOne(item)} queue={queue} t={t} />

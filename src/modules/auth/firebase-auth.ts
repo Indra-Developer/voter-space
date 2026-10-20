@@ -3,6 +3,7 @@ import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { auth, db, firebaseConfigured, functions, storage } from '../../lib/firebase'
+import { cachedRequest, clearRequestCache } from '../../lib/request-cache'
 import type { AppSession, LoginRole, UserProfile } from './types'
 
 type SessionEvent =
@@ -46,12 +47,15 @@ function profileFromFirestore(data: unknown): UserProfile {
 }
 
 export async function resolveStorageFileUrl(path?: string) {
-  if (!path || !storage) return undefined
-  try {
-    return await getDownloadURL(ref(storage, path))
-  } catch {
-    return undefined
-  }
+  if (!path) return undefined
+  return cachedRequest(`storage-url:${path}`, async () => {
+    if (!storage) return undefined
+    try {
+      return await getDownloadURL(ref(storage, path))
+    } catch {
+      return undefined
+    }
+  }, { ttlMs: 15 * 60 * 1000 })
 }
 
 export function subscribeToSession(onChange: (event: SessionEvent) => void) {
@@ -178,6 +182,7 @@ export async function signOutUser() {
     clearStoredDeviceSession(uid)
   }
   await signOut(auth)
+  clearRequestCache()
 }
 
 export async function uploadAccountImage(file: File, kind: 'profile' | 'banner') {

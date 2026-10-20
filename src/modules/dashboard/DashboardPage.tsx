@@ -55,12 +55,12 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
   const [loading, setLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (force = false) => {
     setLoading(true)
     setHasError(false)
     const [summary, activity] = await Promise.allSettled([
-      loadDashboardSummary(),
-      session.profile.role === 'superAdmin' || permissions.audit ? loadAuditLogs() : Promise.resolve({ entries: [] }),
+      loadDashboardSummary({ force }),
+      session.profile.role === 'superAdmin' || permissions.audit ? loadAuditLogs({ force }) : Promise.resolve({ entries: [] }),
     ])
     const summaryData = summary.status === 'fulfilled' ? summary.value : undefined
     const activityData = activity.status === 'fulfilled' ? activity.value.entries : []
@@ -106,7 +106,7 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
     </section>
     <header className="page-intro dashboard-intro">
       <div><p>{t.label}</p><h2>{t.title}</h2><span>{t.description}</span></div>
-      <button className="voter-secondary-button" disabled={loading} onClick={() => void reload()} type="button"><RefreshCcw className={loading ? 'animate-spin' : undefined} size={15} />{t.refresh}</button>
+      <button className="voter-secondary-button" disabled={loading} onClick={() => void reload(true)} type="button"><RefreshCcw className={loading ? 'animate-spin' : undefined} size={15} />{t.refresh}</button>
     </header>
     {hasError ? <p className="form-alert form-alert-error">{t.partial}</p> : null}
     {loading && !data ? <div className="dashboard-loading"><Gauge className="animate-pulse" size={21} /><span>{t.loading}</span></div> : null}

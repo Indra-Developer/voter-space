@@ -1,4 +1,4 @@
-import { ArrowUp, ChevronDown, Download, Edit3, FileSpreadsheet, FileText, ImageIcon, LoaderCircle, RefreshCcw, Search, Table2, Trash2, UsersRound, X } from 'lucide-react'
+import { ArrowUp, ChevronDown, Download, Edit3, FileSpreadsheet, FileText, LoaderCircle, RefreshCcw, Search, Table2, Trash2, UsersRound, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { AppSession } from '../auth/types'
@@ -6,7 +6,7 @@ import { readableFirebaseError } from '../auth/firebase-auth'
 import type { AppLanguage } from '../app-shell/types'
 import { PageState } from '../app-shell/PageState'
 import './voter-register.css'
-import { countVoters, deleteVoter, deleteVotersByWard, loadVoterCardImage, loadVoterCardThumbnail, loadVoterFilterOptions, loadVoters, runVoterExport, saveVoter, ServerExportCancelledError, type VoterExportFormat } from './voter-service'
+import { countVoters, deleteVoter, deleteVotersByWard, loadVoterCardImage, loadVoterFilterOptions, loadVoters, runVoterExport, saveVoter, ServerExportCancelledError, type VoterExportFormat } from './voter-service'
 import { emptyVoterFilters, type VoterFilterOptions, type VoterFilters, type VoterRecord } from './types'
 import { displayOfficialVoterId, missingOfficialVoterId } from './voter-display'
 
@@ -107,8 +107,8 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     setHasMore(false)
     setIsLoadingMore(false)
     setLoadMoreError(undefined)
-    const countPromise = countVoters(requestedFilters)
-    const pagePromise = cachedPage ? Promise.resolve(cachedPage) : loadVoters(undefined, { filters: requestedFilters })
+    const countPromise = countVoters(requestedFilters, { force: refreshOptions })
+    const pagePromise = cachedPage ? Promise.resolve(cachedPage) : loadVoters(undefined, { filters: requestedFilters, force: refreshOptions })
     const optionsPromise = shouldLoadOptions ? loadVoterFilterOptions() : Promise.resolve<VoterFilterOptions | undefined>(undefined)
     try {
       const result = await pagePromise
@@ -383,7 +383,7 @@ function IndividualRecords({ records, onOpen, onEdit, t }: { records: VoterRecor
     return <article className="voter-profile-card voter-record-card" key={record.id}>
       <button className="voter-profile-card-main voter-record-card-main" onClick={() => onOpen(record)} type="button">
         <div className="voter-profile-card-top"><span>{t.ward} {record.wardId || '—'} · {t.booth} {record.boothId || '—'}</span><span className="voter-house-count">{doorCounts.get(doorNumber)} {t.members}</span></div>
-        <div className="voter-record-card-heading"><VoterCardThumbnail record={record} /><h3>{record.fullName || '—'}</h3></div>
+        <div className="voter-record-card-heading"><h3>{record.fullName || '—'}</h3></div>
         <dl className="voter-record-card-fields"><div><dt>{t.voterId}</dt><dd>{displayOfficialVoterId(record)}</dd></div><div><dt>{t.door}</dt><dd>{doorNumber}</dd></div></dl>
         <div className="voter-record-card-area"><span>{t.area}</span><strong>{record.area || record.division || '—'}</strong></div>
         <span className="voter-profile-card-open">{t.view}</span>
@@ -391,46 +391,6 @@ function IndividualRecords({ records, onOpen, onEdit, t }: { records: VoterRecor
       {onEdit ? <button className="voter-profile-card-edit" onClick={() => onEdit(record)} type="button"><Edit3 size={14} />{t.edit}</button> : null}
     </article>
   })}</div>
-}
-
-function VoterCardThumbnail({ record }: { record: VoterRecord }) {
-  const containerRef = useRef<HTMLSpanElement>(null)
-  const [url, setUrl] = useState<string>()
-  const [failed, setFailed] = useState(false)
-  const hasSourceCard = Boolean(record.voterCardImagePath || record.sourcePdfId)
-
-  useEffect(() => {
-    const target = containerRef.current
-    if (!target || !hasSourceCard) return
-    let active = true
-    let started = false
-    const load = () => {
-      if (started) return
-      started = true
-      void loadVoterCardThumbnail(record.id).then((image) => {
-        if (active) setUrl(image.url)
-      }).catch(() => {
-        if (active) setFailed(true)
-      })
-    }
-    if (!('IntersectionObserver' in window)) {
-      load()
-      return () => { active = false }
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        load()
-        observer.disconnect()
-      }
-    }, { rootMargin: '240px' })
-    observer.observe(target)
-    return () => {
-      active = false
-      observer.disconnect()
-    }
-  }, [hasSourceCard, record.id])
-
-  return <span aria-hidden="true" className={`voter-card-thumbnail${failed ? ' is-error' : ''}`} ref={containerRef}>{url ? <img alt="" decoding="async" loading="lazy" src={url} /> : <ImageIcon size={16} />}</span>
 }
 
 function DoorWiseRecords({ groups, selectedDoor, onDoorOpen, onDoorClose, onOpen, onEdit, t }: { groups: Array<[string, VoterRecord[]]>; selectedDoor?: string; onDoorOpen: (door: string) => void; onDoorClose: () => void; onOpen: (record: VoterRecord) => void; onEdit?: (record: VoterRecord) => void; t: ScreenText }) {
@@ -457,7 +417,7 @@ function DoorWiseRecords({ groups, selectedDoor, onDoorOpen, onDoorClose, onOpen
         </header>
         <div className="door-members-dialog-list">
           {activeGroup[1].map((record) => <div className="door-voter-row" key={record.id}>
-            <div className="door-voter-info"><VoterCardThumbnail record={record} /><div><strong>{record.fullName}</strong><span>{t.voterId}: {record.voterId} · {t.serial}: {record.serialNumber}</span></div></div>
+            <div className="door-voter-info"><div><strong>{record.fullName}</strong><span>{t.voterId}: {record.voterId} · {t.serial}: {record.serialNumber}</span></div></div>
             <div><button className="voter-row-button" onClick={() => onOpen(record)} type="button">{t.view}</button>{onEdit ? <button aria-label={`${t.edit} ${record.fullName}`} className="voter-icon-action" onClick={() => onEdit(record)} type="button"><Edit3 size={14} /></button> : null}</div>
           </div>)}
         </div>

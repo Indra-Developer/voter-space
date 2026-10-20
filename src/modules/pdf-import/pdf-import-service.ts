@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions'
 import { ref, uploadBytesResumable, type UploadTask } from 'firebase/storage'
-import { functions, storage } from '../../lib/firebase'
+import { auth, functions, storage } from '../../lib/firebase'
+import { cachedRequest, invalidateRequestCache } from '../../lib/request-cache'
 import type { ImportRow, PdfImport, PdfImportDetails } from './types'
 
 function requireFunctions() {
@@ -16,6 +17,9 @@ function requireStorage() {
 export async function createPdfImport(file: File, details: PdfImportDetails, uploadHash: string) {
   const call = httpsCallable<PdfImportDetails & { originalFileName: string; uploadHash: string }, { id: string; storagePath: string; duplicate?: boolean; status?: string }>(requireFunctions(), 'createPdfImport')
   const result = await call({ ...details, originalFileName: file.name, uploadHash })
+  invalidatePdfImportCache()
+  invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('audit-logs:')
   return result.data
 }
 
@@ -40,18 +44,25 @@ export function uploadPdfFile({ file, sourcePdfId, storagePath, onProgress }: { 
   return { task, completion }
 }
 
-export async function listPdfImports() {
-  const call = httpsCallable<{ cursor?: string; pageSize: number }, { imports: PdfImport[]; nextCursor?: string; hasMore: boolean }>(requireFunctions(), 'listPdfImports')
-  const imports: PdfImport[] = []
-  let cursor: string | undefined
-  let hasMore = true
-  while (hasMore) {
-    const result = (await call({ cursor, pageSize: 200 })).data
-    imports.push(...result.imports)
-    cursor = result.nextCursor
-    hasMore = result.hasMore && Boolean(cursor)
-  }
-  return imports.sort((first, second) => pdfImportTime(second) - pdfImportTime(first))
+export async function listPdfImports(options: { force?: boolean } = {}) {
+  const key = `pdf-imports:${auth?.currentUser?.uid ?? 'signed-out'}`
+  return cachedRequest(key, async () => {
+    const call = httpsCallable<{ cursor?: string; pageSize: number }, { imports: PdfImport[]; nextCursor?: string; hasMore: boolean }>(requireFunctions(), 'listPdfImports')
+    const imports: PdfImport[] = []
+    let cursor: string | undefined
+    let hasMore = true
+    while (hasMore) {
+      const result = (await call({ cursor, pageSize: 200 })).data
+      imports.push(...result.imports)
+      cursor = result.nextCursor
+      hasMore = result.hasMore && Boolean(cursor)
+    }
+    return imports.sort((first, second) => pdfImportTime(second) - pdfImportTime(first))
+  }, { ttlMs: 20_000, force: options.force })
+}
+
+export function invalidatePdfImportCache() {
+  invalidateRequestCache('pdf-imports:')
 }
 
 function pdfImportTime(item: PdfImport) {
@@ -63,11 +74,17 @@ function pdfImportTime(item: PdfImport) {
 export async function cancelPdfImport(sourcePdfId: string) {
   const call = httpsCallable<{ sourcePdfId: string }, { status: string }>(requireFunctions(), 'cancelPdfImport')
   await call({ sourcePdfId })
+  invalidatePdfImportCache()
+  invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('audit-logs:')
 }
 
 export async function deletePdfImport(sourcePdfId: string) {
   const call = httpsCallable<{ sourcePdfId: string }, { sourcePdfId: string }>(requireFunctions(), 'deletePdfImport')
   await call({ sourcePdfId })
+  invalidatePdfImportCache()
+  invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('audit-logs:')
 }
 
 export async function listPdfImportRows(sourcePdfId: string, cursor?: string) {
@@ -88,16 +105,25 @@ export async function loadImportCardImage(sourcePdfId: string, rowId: string) {
 export async function requestPdfImportApproval(sourcePdfId: string) {
   const call = httpsCallable<{ sourcePdfId: string }, { status: string }>(requireFunctions(), 'requestPdfImportApproval')
   await call({ sourcePdfId })
+  invalidatePdfImportCache()
+  invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('audit-logs:')
 }
 
 export async function approvePdfImport(sourcePdfId: string) {
   const call = httpsCallable<{ sourcePdfId: string }, { status: string }>(requireFunctions(), 'approvePdfImport')
   await call({ sourcePdfId })
+  invalidatePdfImportCache()
+  invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('audit-logs:')
 }
 
 export async function retryPdfImport(sourcePdfId: string) {
   const call = httpsCallable<{ sourcePdfId: string }, { status: string }>(requireFunctions(), 'retryPdfImport')
   await call({ sourcePdfId })
+  invalidatePdfImportCache()
+  invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('audit-logs:')
 }
 
 export type UploadTaskHandle = UploadTask

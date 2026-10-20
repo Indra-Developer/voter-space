@@ -206,11 +206,8 @@
 .voter-record-card { display: flex; flex-direction: column; border-color: color-mix(in srgb, var(--primary) 46%, var(--border)); box-shadow: 0 10px 24px color-mix(in srgb, var(--text) 16%, transparent), 0 1px 6px color-mix(in srgb, var(--primary) 20%, transparent); }
 .voter-record-card-main { flex: 1; min-height: 10.2rem; padding: 0.85rem; background: linear-gradient(145deg, color-mix(in srgb, var(--nav-active) 64%, var(--surface)), var(--surface) 64%); }
 .voter-record-card-main:hover { background: linear-gradient(145deg, var(--nav-active), var(--surface) 68%); }
-.voter-record-card-heading { display: flex; align-items: center; gap: 0.55rem; min-height: 3.35rem; margin-top: 0.6rem; }
+.voter-record-card-heading { display: block; min-height: 2.35rem; margin-top: 0.6rem; }
 .voter-record-card h3 { min-width: 0; min-height: 2.35rem; margin: 0; overflow: hidden; font-size: 0.88rem; text-overflow: ellipsis; }
-.voter-card-thumbnail { display: inline-grid; flex: 0 0 4rem; width: 4rem; height: 3rem; place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border)); border-radius: 0.45rem; background: var(--surface-muted); color: var(--muted); }
-.voter-card-thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.voter-card-thumbnail.is-error { color: color-mix(in srgb, #c74735 65%, var(--muted)); }
 .voter-house-count { display: inline-flex; align-items: center; padding: 0.18rem 0.35rem; border-radius: 999px; background: color-mix(in srgb, var(--primary) 14%, var(--surface)); color: var(--primary-strong); font-size: 0.58rem; white-space: nowrap; }
 .voter-record-card-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin: 0.65rem 0 0; }
 .voter-record-card-fields div, .voter-record-card-area { min-width: 0; padding: 0.42rem 0.48rem; border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border)); border-radius: 0.5rem; background: color-mix(in srgb, var(--surface-muted) 72%, var(--surface)); }
@@ -322,8 +319,7 @@
   .voter-native-filter select, .voter-native-date-filter input { min-height: 2.05rem; padding: 0.24rem 0.35rem; border-radius: 0.48rem; font-size: 0.68rem; }
   .voter-record-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
   .voter-record-card-main { min-height: 8.45rem; padding: 0.48rem; }
-  .voter-record-card-heading { min-height: 2.5rem; gap: 0.3rem; margin-top: 0.35rem; }
-  .voter-card-thumbnail { flex-basis: 3rem; width: 3rem; height: 2.25rem; border-radius: 0.35rem; }
+  .voter-record-card-heading { min-height: 1.9rem; margin-top: 0.35rem; }
   .voter-record-card h3 { min-height: 1.9rem; font-size: 0.72rem; }
   .voter-record-card-fields { gap: 0.25rem; margin-top: 0.4rem; }
   .voter-record-card-fields div, .voter-record-card-area { padding: 0.28rem 0.32rem; }

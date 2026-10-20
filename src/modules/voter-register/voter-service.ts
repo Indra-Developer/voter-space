@@ -1,10 +1,12 @@
 import { httpsCallable } from 'firebase/functions'
-import { functions } from '../../lib/firebase'
+import { auth, functions } from '../../lib/firebase'
+import { cachedRequest, invalidateRequestCache } from '../../lib/request-cache'
 import type { VoterFilterOptions, VoterFilters, VoterRecord } from './types'
 
 export type VoterLoadOptions = {
   filters?: VoterFilters
   sourcePdfId?: string
+  force?: boolean
 }
 
 export type VoterExportFormat = 'excel' | 'pdf' | 'csv'
@@ -43,14 +45,20 @@ function requireFunctions() {
 }
 
 export async function loadVoters(cursor?: string, options: VoterLoadOptions = {}) {
-  const listVoters = httpsCallable<{ cursor?: string; pageSize: number; sourcePdfId?: string } & Partial<VoterFilters>, { records: VoterRecord[]; nextCursor?: string; hasMore: boolean }>(requireFunctions(), 'listVoters')
-  const result = await listVoters({ cursor, pageSize: VOTER_PAGE_SIZE, sourcePdfId: options.sourcePdfId, ...(options.filters ?? {}) })
-  return result.data
+  const key = `voter-page:${auth?.currentUser?.uid ?? 'signed-out'}:${cursor ?? 'first'}:${JSON.stringify({ filters: options.filters ?? {}, sourcePdfId: options.sourcePdfId ?? '' })}`
+  return cachedRequest(key, async () => {
+    const listVoters = httpsCallable<{ cursor?: string; pageSize: number; sourcePdfId?: string } & Partial<VoterFilters>, { records: VoterRecord[]; nextCursor?: string; hasMore: boolean }>(requireFunctions(), 'listVoters')
+    const result = await listVoters({ cursor, pageSize: VOTER_PAGE_SIZE, sourcePdfId: options.sourcePdfId, ...(options.filters ?? {}) })
+    return result.data
+  }, { ttlMs: 30_000, force: options.force })
 }
 
-export async function countVoters(filters: VoterFilters) {
-  const call = httpsCallable<Partial<VoterFilters>, { totalCount: number }>(requireFunctions(), 'countVoters')
-  return (await call(filters)).data
+export async function countVoters(filters: VoterFilters, options: { force?: boolean } = {}) {
+  const key = `voter-count:${auth?.currentUser?.uid ?? 'signed-out'}:${JSON.stringify(filters)}`
+  return cachedRequest(key, async () => {
+    const call = httpsCallable<Partial<VoterFilters>, { totalCount: number }>(requireFunctions(), 'countVoters')
+    return (await call(filters)).data
+  }, { ttlMs: 30_000, force: options.force })
 }
 
 export async function runVoterExport(options: {
@@ -95,36 +103,56 @@ export async function runVoterExport(options: {
 }
 
 export async function loadAllVoters(options: VoterLoadOptions = {}) {
-  const records: VoterRecord[] = []
-  let cursor: string | undefined
-  let hasMore = true
-  while (hasMore) {
-    const result = await loadVoters(cursor, options)
-    records.push(...result.records)
-    cursor = result.nextCursor
-    hasMore = result.hasMore && Boolean(cursor)
-  }
-  return [...new Map(records.map((record) => [record.id, record])).values()]
+  const key = `voter-all:${auth?.currentUser?.uid ?? 'signed-out'}:${JSON.stringify(options)}`
+  return cachedRequest(key, async () => {
+    const records: VoterRecord[] = []
+    let cursor: string | undefined
+    let hasMore = true
+    while (hasMore) {
+      const result = await loadVoters(cursor, options)
+      records.push(...result.records)
+      cursor = result.nextCursor
+      hasMore = result.hasMore && Boolean(cursor)
+    }
+    return [...new Map(records.map((record) => [record.id, record])).values()]
+  }, { ttlMs: 60_000 })
 }
 
-export async function loadVoterFilterOptions() {
-  const getVoterFilterOptions = httpsCallable<Record<string, never>, VoterFilterOptions>(requireFunctions(), 'getVoterFilterOptions')
-  return (await getVoterFilterOptions({})).data
+export async function loadVoterFilterOptions(options: { force?: boolean } = {}) {
+  const key = `voter-filter-options:${auth?.currentUser?.uid ?? 'signed-out'}`
+  return cachedRequest(key, async () => {
+    const getVoterFilterOptions = httpsCallable<Record<string, never>, VoterFilterOptions>(requireFunctions(), 'getVoterFilterOptions')
+    return (await getVoterFilterOptions({})).data
+  }, { ttlMs: 60_000, force: options.force })
+}
+
+export function invalidateVoterDataCache() {
+  invalidateRequestCache('voter-page:')
+  invalidateRequestCache('voter-count:')
+  invalidateRequestCache('voter-all:')
+  invalidateRequestCache('voter-filter-options:')
+  invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('audit-logs:')
 }
 
 export async function deleteVotersByWard(wardId: string) {
   const call = httpsCallable<{ wardId: string; confirmation: string }, { wardId: string; deletedVoters: number; deletedSourcePdfs: number }>(requireFunctions(), 'deleteVotersByWard')
-  return (await call({ wardId, confirmation: wardId })).data
+  const result = (await call({ wardId, confirmation: wardId })).data
+  invalidateVoterDataCache()
+  return result
 }
 
 export async function saveVoter(record: VoterRecord) {
   const updateVoterRecord = httpsCallable<VoterRecord, { id: string }>(requireFunctions(), 'updateVoterRecord')
   await updateVoterRecord(record)
+  invalidateVoterDataCache()
 }
 
 export async function deleteVoter(voterRecordId: string) {
   const deleteVoterRecord = httpsCallable<{ voterRecordId: string }, { id: string; deletedImportRows: number; deletedStoragePaths: number }>(requireFunctions(), 'deleteVoterRecord')
-  return (await deleteVoterRecord({ voterRecordId })).data
+  const result = (await deleteVoterRecord({ voterRecordId })).data
+  invalidateVoterDataCache()
+  return result
 }
 
 function cachedCardImage(cache: Map<string, CachedCardImage>, voterRecordId: string) {
