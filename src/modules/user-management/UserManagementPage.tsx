@@ -3,6 +3,7 @@ import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestor
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { db } from '../../lib/firebase'
 import type { AppLanguage } from '../app-shell/types'
+import './user-management.css'
 import { createAccount, readableFirebaseError, resolveStorageFileUrl, updateAccount, uploadAccountImage } from '../auth/firebase-auth'
 import { emptyPermissions, type AccountFormValues, type AppSession, type UserProfile } from '../auth/types'
 import { loadVoterFilterOptions } from '../voter-register/voter-service'
@@ -41,6 +42,7 @@ const pageCopy = {
 
 export function UserManagementPage({ language, session }: UserManagementPageProps) {
   const [users, setUsers] = useState<DirectoryUser[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(true)
   const [directoryError, setDirectoryError] = useState<string>()
   const [editingUser, setEditingUser] = useState<DirectoryUser>()
   const [showForm, setShowForm] = useState(false)
@@ -51,7 +53,10 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
 
   useEffect(() => {
     if (!db) {
-      const timer = window.setTimeout(() => setDirectoryError('Firebase is not configured. Check the .env.local file and restart Vite.'), 0)
+      const timer = window.setTimeout(() => {
+        setDirectoryError('Firebase is not configured. Check the .env.local file and restart Vite.')
+        setLoadingUsers(false)
+      }, 0)
       return () => window.clearTimeout(timer)
     }
     const userQuery = isSuperAdmin
@@ -71,9 +76,13 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
           if (!active) return
           setUsers(resolved)
           setDirectoryError(undefined)
+          setLoadingUsers(false)
         })
       },
-      (error) => setDirectoryError(`User accounts could not be loaded. ${readableFirebaseError(error)}`),
+      (error) => {
+        setDirectoryError(`User accounts could not be loaded. ${readableFirebaseError(error)}`)
+        setLoadingUsers(false)
+      },
     )
     return () => { active = false; unsubscribe() }
   }, [isSuperAdmin, session.uid])
@@ -146,7 +155,7 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
       ) : null}
 
       <div className="user-list-card">
-        {editableUsers.length === 0 ? <p className="user-list-empty">{t.noUsers}</p> : null}
+        {loadingUsers ? <p aria-live="polite" className="user-list-loading"><span aria-hidden="true" className="loading-dots">•••</span>{language === 'te' ? 'వినియోగదారుల వివరాలు లోడ్ అవుతున్నాయి…' : 'Loading user accounts…'}</p> : editableUsers.length === 0 ? <p className="user-list-empty">{t.noUsers}</p> : null}
         {editableUsers.map((user) => (
           <article className="user-row" key={user.uid}>
             {user.bannerUrl ? <img alt="" className="user-row-banner" src={user.bannerUrl} /> : null}

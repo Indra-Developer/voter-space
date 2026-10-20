@@ -2,6 +2,7 @@ import { Camera, Download, LoaderCircle, Mail, MapPinned, Phone, ShieldCheck, Up
 import { useState } from 'react'
 import type { AppLanguage } from '../app-shell/types'
 import type { AppSession } from './types'
+import './auth.css'
 import { readableFirebaseError, updateOwnProfileMedia, uploadAccountImage } from './firebase-auth'
 
 type ProfilePageProps = {

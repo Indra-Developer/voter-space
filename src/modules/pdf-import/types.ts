@@ -1,4 +1,4 @@
-export type PdfImportStatus = 'readyForUpload' | 'queued' | 'processing' | 'review' | 'awaitingApproval' | 'approvalQueued' | 'applying' | 'completed' | 'completedWithReview' | 'failed' | 'cancelled'
+export type PdfImportStatus = 'readyForUpload' | 'uploaded' | 'queued' | 'processing' | 'review' | 'awaitingApproval' | 'approvalQueued' | 'applying' | 'completed' | 'completedWithReview' | 'failed' | 'cancelled'
 export type DuplicateState = 'new' | 'updatesExisting' | 'missingIdentity'
 
 export type PdfImport = {
@@ -16,6 +16,10 @@ export type PdfImport = {
   status: PdfImportStatus
   stage: string
   progress: number
+  pageCount?: number
+  processedPage?: number
+  failedPage?: number
+  uploadHash?: string
   fileSize?: number
   rowCount?: number
   readyCount?: number
@@ -35,6 +39,8 @@ export type ImportRow = {
   age: string
   gender: string
   doorNumber: string
+  doorNumberStatus?: 'available' | 'missing' | 'verificationRequired'
+  doorNumberCandidate?: string
   voterId: string
   alternateIdentifier: string
   mobile: string
@@ -49,6 +55,7 @@ export type ImportRow = {
   needsReview: boolean
   confidence: number
   rawText: string
+  identityKey?: string
   voterCardImagePath?: string
   pageNumber?: number
   cardPosition?: number
@@ -65,6 +72,7 @@ export type UploadQueueItem = PdfImportDetails & {
   file: File
   sourcePdfId?: string
   storagePath?: string
+  uploadHash?: string
   status: UploadQueueStatus
   progress: number
   error?: string

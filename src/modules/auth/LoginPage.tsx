@@ -1,6 +1,7 @@
 import { Eye, EyeOff, Info, KeyRound, Mail, MessageCircle, Phone, ShieldCheck, UserCog, UsersRound, X } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import logoAsset from '../../assets/voter-space-logo.jpg'
+import './auth.css'
 import { firebaseConfigured } from '../../lib/firebase'
 import type { AppLanguage } from '../app-shell/types'
 import { isDeviceLimitError, readableFirebaseError, signInForRole } from './firebase-auth'

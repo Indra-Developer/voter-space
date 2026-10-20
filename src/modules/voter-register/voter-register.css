@@ -165,6 +165,11 @@
 .voter-view-toggle button.is-active { background: var(--nav-active); color: var(--primary-strong); }
 .voter-export-buttons button { padding: 0.35rem 0.5rem; color: var(--primary); }
 .voter-export-hint { margin: -0.4rem 0 0; }
+.voter-export-progress { display: flex; align-items: center; gap: 0.55rem; margin-top: 0.55rem; padding: 0.55rem 0.7rem; border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border)); border-radius: 0.65rem; background: color-mix(in srgb, var(--primary) 7%, var(--surface)); color: var(--text); font-size: 0.72rem; font-weight: 750; }
+.voter-export-progress progress { width: min(18rem, 42vw); height: 0.55rem; accent-color: var(--primary); }
+.voter-export-progress span { min-width: 7rem; }
+.voter-export-error { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.voter-export-ready { margin: 0.55rem 0 0; padding: 0.55rem 0.7rem; border: 1px solid color-mix(in srgb, #16865f 35%, var(--border)); border-radius: 0.65rem; background: color-mix(in srgb, #16865f 9%, var(--surface)); color: #126344; font-size: 0.78rem; font-weight: 750; }
 
 .voter-table-card { overflow-x: auto; }
 .voter-desktop-records { display: none; }
@@ -201,7 +206,11 @@
 .voter-record-card { display: flex; flex-direction: column; border-color: color-mix(in srgb, var(--primary) 46%, var(--border)); box-shadow: 0 10px 24px color-mix(in srgb, var(--text) 16%, transparent), 0 1px 6px color-mix(in srgb, var(--primary) 20%, transparent); }
 .voter-record-card-main { flex: 1; min-height: 10.2rem; padding: 0.85rem; background: linear-gradient(145deg, color-mix(in srgb, var(--nav-active) 64%, var(--surface)), var(--surface) 64%); }
 .voter-record-card-main:hover { background: linear-gradient(145deg, var(--nav-active), var(--surface) 68%); }
-.voter-record-card h3 { min-height: 2.35rem; margin-top: 0.6rem; font-size: 0.88rem; }
+.voter-record-card-heading { display: flex; align-items: center; gap: 0.55rem; min-height: 3.35rem; margin-top: 0.6rem; }
+.voter-record-card h3 { min-width: 0; min-height: 2.35rem; margin: 0; overflow: hidden; font-size: 0.88rem; text-overflow: ellipsis; }
+.voter-card-thumbnail { display: inline-grid; flex: 0 0 4rem; width: 4rem; height: 3rem; place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border)); border-radius: 0.45rem; background: var(--surface-muted); color: var(--muted); }
+.voter-card-thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.voter-card-thumbnail.is-error { color: color-mix(in srgb, #c74735 65%, var(--muted)); }
 .voter-house-count { display: inline-flex; align-items: center; padding: 0.18rem 0.35rem; border-radius: 999px; background: color-mix(in srgb, var(--primary) 14%, var(--surface)); color: var(--primary-strong); font-size: 0.58rem; white-space: nowrap; }
 .voter-record-card-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin: 0.65rem 0 0; }
 .voter-record-card-fields div, .voter-record-card-area { min-width: 0; padding: 0.42rem 0.48rem; border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border)); border-radius: 0.5rem; background: color-mix(in srgb, var(--surface-muted) 72%, var(--surface)); }
@@ -212,6 +221,12 @@
 
 .voter-pagination-status { display: flex; align-items: center; justify-content: center; gap: 0.4rem; min-height: 2.8rem; color: var(--muted); font-size: 0.8rem; font-weight: 700; text-align: center; }
 .voter-pagination-status.is-error { color: #b6382a; }
+.voter-loading-skeleton { display: grid; gap: 0.8rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.voter-loading-skeleton-card { display: grid; gap: 0.65rem; min-height: 10.2rem; padding: 0.85rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border)); border-radius: 0.9rem; background: var(--surface); box-shadow: 0 8px 22px color-mix(in srgb, var(--text) 8%, transparent); }
+.voter-loading-skeleton-line { display: block; width: 78%; height: 0.72rem; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--surface-muted) 88%, var(--surface)), color-mix(in srgb, var(--primary) 13%, var(--surface)), color-mix(in srgb, var(--surface-muted) 88%, var(--surface))); background-size: 220% 100%; animation: voter-skeleton-shimmer 1.25s ease-in-out infinite; }
+.voter-loading-skeleton-line-short { width: 42%; }
+.voter-loading-skeleton-line-title { width: 65%; height: 1rem; }
+@keyframes voter-skeleton-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 .voter-go-top-button { position: fixed; right: 1.2rem; bottom: 1.2rem; z-index: 45; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; min-height: 2.5rem; padding: 0.45rem 0.7rem; border: 1px solid var(--primary-strong); border-radius: 999px; background: var(--primary); color: var(--primary-contrast); box-shadow: 0 8px 20px color-mix(in srgb, var(--primary) 32%, transparent); cursor: pointer; font-size: 0.76rem; font-weight: 800; }
 .voter-go-top-button:hover { transform: translateY(-1px); box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 42%, transparent); }
 
@@ -244,6 +259,8 @@
 .door-voter-list { padding: 0 0.75rem; }
 .door-voter-row { padding: 0.65rem 0; border-bottom: 1px solid var(--border); }
 .door-voter-row:last-child { border-bottom: 0; }
+.door-voter-info { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+.door-voter-info > div { min-width: 0; }
 .door-voter-row > div:first-child { min-width: 0; }
 .door-voter-row strong { display: block; overflow: hidden; font-size: 0.76rem; text-overflow: ellipsis; white-space: nowrap; }
 .door-voter-row span { display: block; margin-top: 0.12rem; color: var(--muted); font-size: 0.64rem; }
@@ -257,17 +274,25 @@
 .voter-dialog-close { display: inline-grid; width: 2rem; height: 2rem; place-items: center; border: 1px solid var(--border); border-radius: 0.55rem; background: var(--surface); color: var(--muted); cursor: pointer; }
 .voter-dialog-body { overflow-y: auto; padding: 1rem; }
 .voter-original-card { margin-bottom: 1rem; padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.8rem; background: var(--surface-muted); }
-.voter-original-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.6rem; }
+.voter-original-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.6rem; }
 .voter-original-card-heading strong { font-size: 0.76rem; }
-.voter-original-card-heading span { color: var(--muted); font-size: 0.65rem; }
-.voter-original-card img { display: block; width: 100%; height: auto; border: 1px solid color-mix(in srgb, var(--text) 55%, var(--border)); background: #fff; }
-.voter-card-placeholder { display: grid; min-height: 8rem; place-items: center; border: 1px dashed var(--border); background: var(--surface); color: var(--muted); font-size: 0.72rem; }
+.voter-card-reference { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem; color: var(--muted); font-size: 0.65rem; text-align: right; }
+.voter-card-reference span { display: inline-flex; gap: 0.2rem; }
+.voter-card-reference b { color: var(--text); font-weight: 800; }
+.voter-original-card-media { display: grid; height: clamp(10rem, 42vw, 24rem); place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--text) 55%, var(--border)); background: #fff; }
+.voter-original-card-media img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.voter-card-placeholder { display: grid; width: 100%; height: 100%; place-items: center; gap: 0.55rem; padding: 1rem; background: var(--surface); color: var(--muted); font-size: 0.72rem; text-align: center; }
+.voter-card-placeholder p { margin: 0; }
+.voter-card-placeholder.is-error { border-color: color-mix(in srgb, #c74735 48%, var(--border)); background: color-mix(in srgb, #c74735 6%, var(--surface)); color: #b6382a; }
 .voter-editor-grid { display: grid; gap: 0.7rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .voter-check-field { display: flex; align-items: center; gap: 0.5rem; min-height: 2.25rem; align-self: end; padding: 0.45rem 0.55rem; border: 1px solid var(--border); border-radius: 0.55rem; background: var(--surface-muted); }
 .voter-readonly-data { display: grid; gap: 0.5rem; margin: 1rem 0 0; padding: 0.75rem; border-radius: 0.7rem; background: var(--surface-muted); }
 .voter-readonly-data div { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: 0.5rem; }
 .voter-readonly-data dt { color: var(--muted); font-size: 0.68rem; font-weight: 700; }
 .voter-readonly-data dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--text); font-size: 0.72rem; }
+.voter-ocr-text { margin-top: 0.75rem; padding: 0.7rem 0.8rem; border: 1px solid var(--border); border-radius: 0.7rem; background: var(--surface-muted); }
+.voter-ocr-text summary { color: var(--primary-strong); cursor: pointer; font-size: 0.75rem; font-weight: 800; }
+.voter-ocr-text pre { max-height: 12rem; margin: 0.65rem 0 0; overflow: auto; white-space: pre-wrap; color: var(--muted); font: inherit; font-size: 0.7rem; line-height: 1.5; }
 .voter-dialog footer { padding: 0.75rem 1rem; border-top: 1px solid var(--border); justify-content: flex-end; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
@@ -283,6 +308,8 @@
 }
 
 @media (max-width: 639px) {
+  .voter-loading-skeleton { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+  .voter-loading-skeleton-card { min-height: 8.45rem; padding: 0.48rem; }
   .voter-desktop-records { display: none; }
   .voter-mobile-records { display: grid; }
   .voter-filter-card { padding: 0.6rem; }
@@ -295,7 +322,9 @@
   .voter-native-filter select, .voter-native-date-filter input { min-height: 2.05rem; padding: 0.24rem 0.35rem; border-radius: 0.48rem; font-size: 0.68rem; }
   .voter-record-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
   .voter-record-card-main { min-height: 8.45rem; padding: 0.48rem; }
-  .voter-record-card h3 { min-height: 1.9rem; margin-top: 0.35rem; font-size: 0.72rem; }
+  .voter-record-card-heading { min-height: 2.5rem; gap: 0.3rem; margin-top: 0.35rem; }
+  .voter-card-thumbnail { flex-basis: 3rem; width: 3rem; height: 2.25rem; border-radius: 0.35rem; }
+  .voter-record-card h3 { min-height: 1.9rem; font-size: 0.72rem; }
   .voter-record-card-fields { gap: 0.25rem; margin-top: 0.4rem; }
   .voter-record-card-fields div, .voter-record-card-area { padding: 0.28rem 0.32rem; }
   .voter-record-card-area { align-items: flex-start; flex-direction: column; gap: 0.1rem; margin-top: 0.3rem; }

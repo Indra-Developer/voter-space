@@ -13,10 +13,20 @@ function requireStorage() {
   return storage
 }
 
-export async function createPdfImport(file: File, details: PdfImportDetails) {
-  const call = httpsCallable<PdfImportDetails & { originalFileName: string }, { id: string; storagePath: string }>(requireFunctions(), 'createPdfImport')
-  const result = await call({ ...details, originalFileName: file.name })
+export async function createPdfImport(file: File, details: PdfImportDetails, uploadHash: string) {
+  const call = httpsCallable<PdfImportDetails & { originalFileName: string; uploadHash: string }, { id: string; storagePath: string; duplicate?: boolean; status?: string }>(requireFunctions(), 'createPdfImport')
+  const result = await call({ ...details, originalFileName: file.name, uploadHash })
   return result.data
+}
+
+/**
+ * Hash the exact PDF bytes before uploading. The server uses this value to
+ * converge repeated uploads of the same file into one OCR source.
+ */
+export async function hashPdfFile(file: File) {
+  if (!globalThis.crypto?.subtle) throw new Error('This browser cannot safely check duplicate PDF files.')
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('')
 }
 
 export function uploadPdfFile({ file, sourcePdfId, storagePath, onProgress }: { file: File; sourcePdfId: string; storagePath: string; onProgress: (progress: number) => void }) {

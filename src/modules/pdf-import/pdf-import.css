@@ -96,7 +96,8 @@
 .pdf-import-summary span { display: block; margin-top: 0.12rem; color: var(--muted); font-size: 0.68rem; }
 .pdf-status { display: inline-flex; min-height: 1.55rem; align-items: center; padding: 0.15rem 0.45rem; border-radius: 999px; background: var(--surface-muted); color: var(--muted); font-size: 0.65rem; font-weight: 750; white-space: nowrap; }
 .pdf-status-review,
-.pdf-status-completed { background: #daf3e4; color: #17683e; }
+.pdf-status-completed,
+.pdf-status-uploaded { background: #daf3e4; color: #17683e; }
 .pdf-status-failed { background: #fff0e7; color: #b6531c; }
 .pdf-status-awaitingApproval,
 .pdf-status-approvalQueued { background: #edf3ff; color: #2d6099; }

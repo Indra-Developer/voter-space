@@ -4,6 +4,7 @@ import type { AppSession } from '../auth/types'
 import { readableFirebaseError } from '../auth/firebase-auth'
 import type { AppLanguage } from '../app-shell/types'
 import { PageState } from '../app-shell/PageState'
+import './audit-logs.css'
 import { loadAuditLogs, type AuditEntry } from './audit-log-service'
 
 type AuditFilter = 'all' | 'user' | 'pdf' | 'permission'

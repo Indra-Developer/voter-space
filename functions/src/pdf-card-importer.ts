@@ -58,11 +58,17 @@ export async function extractVoterCardsFromPdf({
   pdfBytes,
   sourcePdfId,
   scope,
+  startPage = 1,
+  allowEmpty = false,
+  onPageComplete,
   onProgress,
 }: {
   pdfBytes: Buffer
   sourcePdfId: string
   scope: ScopeDefaults
+  startPage?: number
+  allowEmpty?: boolean
+  onPageComplete?: (pageNumber: number, rows: ExtractedVoterCard[]) => Promise<void>
   onProgress?: (pageNumber: number, pageCount: number, cardCount: number) => Promise<void>
 }): Promise<PdfCardExtractionResult> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
@@ -84,7 +90,8 @@ export async function extractVoterCardsFromPdf({
       coverPage.cleanup()
     }
 
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const firstPage = Math.max(1, Math.min(Math.floor(startPage), pdf.numPages || 1))
+    for (let pageNumber = firstPage; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber)
       const smallViewport = page.getViewport({ scale: 2 })
       const small = createCanvas(Math.ceil(smallViewport.width), Math.ceil(smallViewport.height))
@@ -96,6 +103,7 @@ export async function extractVoterCardsFromPdf({
 
       if (!rects.length) {
         page.cleanup()
+        await onPageComplete?.(pageNumber, [])
         await onProgress?.(pageNumber, pdf.numPages, rows.length)
         continue
       }
@@ -119,9 +127,19 @@ export async function extractVoterCardsFromPdf({
         context.fillRect(0, 0, outputWidth, outputHeight)
         context.drawImage(large, x, y, width, height, 0, 0, outputWidth, outputHeight)
         const buffer = card.toBuffer('image/png')
+        const thumbnailWidth = 240
+        const thumbnailHeight = Math.max(1, Math.round(thumbnailWidth * outputHeight / outputWidth))
+        const thumbnailCanvas = createCanvas(thumbnailWidth, thumbnailHeight)
+        const thumbnailContext = thumbnailCanvas.getContext('2d')
+        thumbnailContext.fillStyle = '#fff'
+        thumbnailContext.fillRect(0, 0, thumbnailWidth, thumbnailHeight)
+        thumbnailContext.drawImage(card, 0, 0, thumbnailWidth, thumbnailHeight)
+        const thumbnailBuffer = thumbnailCanvas.toBuffer('image/jpeg', 72)
+        thumbnailCanvas.width = 1
+        thumbnailCanvas.height = 1
         card.width = 1
         card.height = 1
-        return { buffer, cardPosition: index + 1 }
+        return { buffer, thumbnailBuffer, cardPosition: index + 1 }
       })
 
       large.width = 1
@@ -134,19 +152,31 @@ export async function extractVoterCardsFromPdf({
       const retryValues = retryIndexes.length ? await retryCardFields(cards, retryIndexes, vision) : new Map<number, { fullName?: string; doorNumber?: string }>()
       const pageRows = await Promise.all(cards.map(async (card, index) => {
         const imagePath = `voter-cards/${sourcePdfId}/p${String(pageNumber).padStart(4, '0')}-c${String(card.cardPosition).padStart(3, '0')}.png`
-        await bucket.file(imagePath).save(card.buffer, {
-          resumable: false,
-          contentType: 'image/png',
-          metadata: {
-            cacheControl: 'private, max-age=3600',
-            metadata: { sourcePdfId, pageNumber: String(pageNumber), cardPosition: String(card.cardPosition) },
-          },
-        })
+        const thumbnailPath = `voter-card-thumbnails/${sourcePdfId}/p${String(pageNumber).padStart(4, '0')}-c${String(card.cardPosition).padStart(3, '0')}.jpg`
+        await Promise.all([
+          bucket.file(imagePath).save(card.buffer, {
+            resumable: false,
+            contentType: 'image/png',
+            metadata: {
+              cacheControl: 'private, max-age=3600',
+              metadata: { sourcePdfId, pageNumber: String(pageNumber), cardPosition: String(card.cardPosition) },
+            },
+          }),
+          bucket.file(thumbnailPath).save(card.thumbnailBuffer, {
+            resumable: false,
+            contentType: 'image/jpeg',
+            metadata: {
+              cacheControl: 'private, max-age=86400',
+              metadata: { sourcePdfId, pageNumber: String(pageNumber), cardPosition: String(card.cardPosition) },
+            },
+          }),
+        ])
         const parsed = parsedRows[index]
         const retry = retryValues.get(index)
         return { ...parsed, fullName: retry?.fullName || parsed.fullName, doorNumber: retry?.doorNumber || parsed.doorNumber, voterCardImagePath: imagePath }
       }))
       rows.push(...pageRows)
+      await onPageComplete?.(pageNumber, pageRows)
       await onProgress?.(pageNumber, pdf.numPages, rows.length)
     }
   } finally {
@@ -154,7 +184,7 @@ export async function extractVoterCardsFromPdf({
     await vision.close().catch(() => undefined)
   }
 
-  if (!rows.length) {
+  if (!rows.length && !allowEmpty) {
     throw new Error('No voter cards were detected. Use a voter-list PDF with clear black card borders like the original Ward Desk PDF.')
   }
   return { rows, pageCount: pdf.numPages, coverRows }
@@ -491,7 +521,9 @@ function parseFieldText(result: RecognizedCardText | undefined, field: 'name' | 
 export function parseVoterCard(text: string, confidence: number, scope: ScopeDefaults, coverRows: CoverAreaRow[], imagePath: string, pageNumber: number, cardPosition: number, annotation?: any): ExtractedVoterCard {
   const lines = text.split(/\r?\n/).map(cleanOcrLine).filter(Boolean)
   const composite = text.match(/(?:^|\D)(\d{1,3})\s*[-–—]\s*(\d{1,4})\s*[-–—]\s*(\d{1,6})(?:\D|$)/m)
-  const division = composite?.[2] ?? scope.division
+  // Division numbers are numeric codes. Treat 1 and 01 as the same value so
+  // cover-page area mapping does not fail because of OCR zero padding.
+  const division = normalizeDivision(composite?.[2] ?? scope.division)
   const assemblySerial = composite?.[3] ?? ''
   const serialNumber = findSerial(lines, composite?.[0] ?? '')
   const annotatedName = annotationFieldValue(annotation, 'name')
@@ -504,7 +536,7 @@ export function parseVoterCard(text: string, confidence: number, scope: ScopeDef
   const genderRaw = labelledValue(lines, [/లింగ(?:ము|ం)?/i, /gender/i])
   const gender = normalizeGender(genderRaw || text)
   const mobile = text.match(/(?:\+91[-\s]?)?([6-9]\d{4}[-\s]?\d{5})\b/)?.[1]?.replace(/\D/g, '') ?? ''
-  const matchingAreas = coverRows.filter((row) => row.division === division && row.area)
+  const matchingAreas = coverRows.filter((row) => normalizeDivision(row.division) === division && row.area)
   const area = matchingAreas.length === 1 ? matchingAreas[0].area : scope.area
 
   return {
@@ -674,6 +706,7 @@ function isOcrPlaceholder(value: string) {
 
 function normalizeDoor(value: string) {
   const cleaned = cleanFieldValue(value)
+    .replace(/\b(?:NOT\s+AVAILABLE|AVAILABLE|N\/A)\b/gi, ' ')
     .replace(/^(?:సంఖ్య|నంబరు|నం|no\.?|number)\s*[:.;|-]?\s*/i, '')
     .replace(/\s+/g, '')
     .replace(/[.,;|]+$/, '')
@@ -681,6 +714,12 @@ function normalizeDoor(value: string) {
   if (!cleaned || isIdentityNoise(cleaned) || /^[A-Z]{3}\d{7}$/i.test(cleaned)) return ''
   const match = cleaned.match(/\d[A-Z0-9]*(?:[-/]\s*[A-Z0-9]+)*/i)
   return (match?.[0] ?? '').replace(/\s+/g, '').slice(0, 40)
+}
+
+function normalizeDivision(value: string) {
+  const cleaned = cleanFieldValue(value).replace(/\s+/g, '')
+  if (/^\d+$/.test(cleaned)) return String(Number(cleaned))
+  return cleaned.toLocaleUpperCase()
 }
 
 function normalizeGender(value: string) {

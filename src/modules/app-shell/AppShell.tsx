@@ -1,6 +1,7 @@
 import { ArrowLeft, ChevronDown, ChevronRight, CircleUserRound, Menu, Palette, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import logoAsset from '../../assets/voter-space-logo.jpg'
+import './app-shell.css'
 import { copy } from './copy'
 import { mobileNavigationKeys, navigationItems } from './navigation'
 import type { AppLanguage, AppTheme, NavigationKey, ShellProfile } from './types'

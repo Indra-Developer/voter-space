@@ -3,9 +3,8 @@ import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } 
 import type { AppSession } from '../auth/types'
 import type { AppLanguage, NavigationKey } from '../app-shell/types'
 import { loadAuditLogs, type AuditEntry } from '../audit-logs/audit-log-service'
-import { listPdfImports } from '../pdf-import/pdf-import-service'
-import type { PdfImport } from '../pdf-import/types'
-import { loadDashboardSummary, type DashboardSummary } from './dashboard-service'
+import './dashboard.css'
+import { loadDashboardSummary, type DashboardRecentUpload, type DashboardSummary } from './dashboard-service'
 
 type DashboardPageProps = {
   language: AppLanguage
@@ -15,36 +14,34 @@ type DashboardPageProps = {
 
 type DashboardData = {
   summary: DashboardSummary
-  pdfs: PdfImport[]
+  pdfs: DashboardRecentUpload[]
   activity: AuditEntry[]
 }
-
-const emptySummary: DashboardSummary = { voterCount: 0, wardCount: 0, boothCount: 0, areaCount: 0, divisionCount: 0, sourcePdfCount: 0, sourceStatusCounts: {} }
 
 const copy = {
   en: {
     label: 'Workspace overview', title: 'Dashboard', description: 'See your voter data, PDF work, coverage, and account access in one place.',
     refresh: 'Refresh', voters: 'Voter records', wards: 'Wards', booths: 'Booths', pdfs: 'Source PDFs', processing: 'PDFs in progress', attention: 'Needs attention',
-    voterHint: 'Records visible to you', voterLimit: 'More records load as you scroll in Voter Register', wardsHint: 'Wards in your access scope', boothsHint: 'Booths in your access scope', pdfHint: 'PDF files in your allowed scope', processingHint: 'Queued or currently processing', attentionHint: 'Failed, review, or approval work',
+    voterHint: 'Exact records in your access scope', voterLimit: 'More records load as you scroll in Voter Register', wardsHint: 'Wards in your access scope', boothsHint: 'Booths in your access scope', pdfHint: 'PDF files in your allowed scope', processingHint: 'Queued or currently processing', attentionHint: 'Failed, review, or approval work',
     coverage: 'Data coverage', coverageHint: 'The areas and divisions found in your visible voter data.', areas: 'Areas', divisions: 'Divisions', databaseReady: 'Firebase data connected', databaseHint: 'The dashboard is reading live data.',
     pdfStatus: 'PDF processing status', pdfStatusHint: 'Upload and processing progress for your allowed PDFs.', completed: 'Completed', active: 'Working', review: 'Review / approval', failed: 'Failed', openLibrary: 'Open PDF Library',
     recentUploads: 'Recent PDF uploads', noUploads: 'No PDF uploads in your visible scope.', uploadedBy: 'Uploaded by', openUpload: 'Upload PDF',
     activity: 'Recent activity', noActivity: 'No recent activity is available.', openAudit: 'Open Audit Logs',
     access: 'Your access', role: 'Role', allowedWards: 'Allowed wards', allowedBooths: 'Allowed booths', allWards: 'All wards', allBooths: 'All booths', permissions: 'Permissions', uploadPermission: 'Upload', editPermission: 'Edit', downloadPermission: 'Download', auditPermission: 'Audit', allowed: 'Allowed', notAllowed: 'Not allowed',
     quickActions: 'Quick actions', register: 'Voter Register', library: 'PDF Library', upload: 'Upload PDF', users: 'User Management', audit: 'Audit Logs', profile: 'My Profile',
-    superAdmin: 'Super Admin', admin: 'Admin', subMember: 'Sub-member', loading: 'Loading dashboard…', partial: 'Some dashboard sections could not be loaded. Use Refresh or open the related page.',
+    superAdmin: 'Super Admin', admin: 'Admin', subMember: 'Sub-member', loading: 'Loading dashboard…', refreshing: 'Refreshing dashboard…', partial: 'Some dashboard sections could not be loaded. Use Refresh or open the related page.',
   },
   te: {
     label: 'వర్క్‌స్పేస్ సమాచారం', title: 'డ్యాష్‌బోర్డ్', description: 'మీ ఓటర్ డేటా, PDF పని, పరిధి మరియు ఖాతా అనుమతులను ఒకే చోట చూడండి.',
     refresh: 'రిఫ్రెష్', voters: 'ఓటర్ రికార్డులు', wards: 'వార్డులు', booths: 'బూత్‌లు', pdfs: 'సోర్స్ PDFలు', processing: 'ప్రాసెస్‌లో ఉన్న PDFలు', attention: 'చర్య అవసరం',
-    voterHint: 'మీకు కనిపించే రికార్డులు', voterLimit: 'ఓటర్ రిజిస్టర్‌లో స్క్రోల్ చేస్తే మరిన్ని రికార్డులు లోడ్ అవుతాయి', wardsHint: 'మీ పరిధిలోని వార్డులు', boothsHint: 'మీ పరిధిలోని బూత్‌లు', pdfHint: 'మీ పరిధిలోని PDF ఫైళ్లు', processingHint: 'క్యూలో లేదా ప్రాసెస్‌లో ఉన్నవి', attentionHint: 'ఫెయిల్, రివ్యూ లేదా ఆమోదం అవసరమైనవి',
+    voterHint: 'మీ పరిధిలోని మొత్తం రికార్డులు', voterLimit: 'ఓటర్ రిజిస్టర్‌లో స్క్రోల్ చేస్తే మరిన్ని రికార్డులు లోడ్ అవుతాయి', wardsHint: 'మీ పరిధిలోని వార్డులు', boothsHint: 'మీ పరిధిలోని బూత్‌లు', pdfHint: 'మీ పరిధిలోని PDF ఫైళ్లు', processingHint: 'క్యూలో లేదా ప్రాసెస్‌లో ఉన్నవి', attentionHint: 'ఫెయిల్, రివ్యూ లేదా ఆమోదం అవసరమైనవి',
     coverage: 'డేటా పరిధి', coverageHint: 'మీకు కనిపించే ఓటర్ డేటాలో ఉన్న ప్రాంతాలు మరియు డివిజన్లు.', areas: 'ప్రాంతాలు', divisions: 'డివిజన్లు', databaseReady: 'Firebase డేటా కనెక్ట్ అయింది', databaseHint: 'డ్యాష్‌బోర్డ్ లైవ్ డేటాను చదువుతోంది.',
     pdfStatus: 'PDF ప్రాసెసింగ్ స్థితి', pdfStatusHint: 'మీ పరిధిలోని PDFల అప్‌లోడ్ మరియు ప్రాసెసింగ్ పురోగతి.', completed: 'పూర్తయినవి', active: 'పనిలో ఉన్నవి', review: 'రివ్యూ / ఆమోదం', failed: 'ఫెయిల్ అయినవి', openLibrary: 'PDF లైబ్రరీ తెరవండి',
     recentUploads: 'ఇటీవలి PDF అప్‌లోడ్‌లు', noUploads: 'మీ పరిధిలో PDF అప్‌లోడ్‌లు లేవు.', uploadedBy: 'అప్‌లోడ్ చేసినవారు', openUpload: 'PDF అప్‌లోడ్',
     activity: 'ఇటీవలి కార్యకలాపాలు', noActivity: 'ఇటీవలి కార్యకలాపాలు లేవు.', openAudit: 'ఆడిట్ లాగ్‌లు తెరవండి',
     access: 'మీ యాక్సెస్', role: 'పాత్ర', allowedWards: 'అనుమతించిన వార్డులు', allowedBooths: 'అనుమతించిన బూత్‌లు', allWards: 'అన్ని వార్డులు', allBooths: 'అన్ని బూత్‌లు', permissions: 'అనుమతులు', uploadPermission: 'అప్‌లోడ్', editPermission: 'సవరణ', downloadPermission: 'డౌన్‌లోడ్', auditPermission: 'ఆడిట్', allowed: 'అనుమతి ఉంది', notAllowed: 'అనుమతి లేదు',
     quickActions: 'త్వరిత చర్యలు', register: 'ఓటర్ రిజిస్టర్', library: 'PDF లైబ్రరీ', upload: 'PDF అప్‌లోడ్', users: 'యూజర్ మేనేజ్‌మెంట్', audit: 'ఆడిట్ లాగ్‌లు', profile: 'నా ప్రొఫైల్',
-    superAdmin: 'సూపర్ అడ్మిన్', admin: 'అడ్మిన్', subMember: 'సబ్-మెంబర్', loading: 'డ్యాష్‌బోర్డ్ లోడ్ అవుతోంది…', partial: 'కొన్ని డ్యాష్‌బోర్డ్ విభాగాలు లోడ్ కాలేదు. Refresh నొక్కండి లేదా సంబంధిత పేజీని తెరవండి.',
+    superAdmin: 'సూపర్ అడ్మిన్', admin: 'అడ్మిన్', subMember: 'సబ్-మెంబర్', loading: 'డ్యాష్‌బోర్డ్ లోడ్ అవుతోంది…', refreshing: 'డ్యాష్‌బోర్డ్ మళ్లీ లోడ్ అవుతోంది…', partial: 'కొన్ని డ్యాష్‌బోర్డ్ విభాగాలు లోడ్ కాలేదు. రిఫ్రెష్ నొక్కండి లేదా సంబంధిత పేజీని తెరవండి.',
   },
 } as const
 
@@ -61,16 +58,14 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
   const reload = useCallback(async () => {
     setLoading(true)
     setHasError(false)
-    const [summary, pdfs, activity] = await Promise.allSettled([
+    const [summary, activity] = await Promise.allSettled([
       loadDashboardSummary(),
-      listPdfImports(),
       session.profile.role === 'superAdmin' || permissions.audit ? loadAuditLogs() : Promise.resolve({ entries: [] }),
     ])
-    const summaryData = summary.status === 'fulfilled' ? summary.value : emptySummary
-    const pdfData = pdfs.status === 'fulfilled' ? pdfs.value : []
+    const summaryData = summary.status === 'fulfilled' ? summary.value : undefined
     const activityData = activity.status === 'fulfilled' ? activity.value.entries : []
-    setData({ summary: summaryData, pdfs: pdfData, activity: activityData })
-    setHasError([summary, pdfs, activity].some((result) => result.status === 'rejected'))
+    if (summaryData) setData({ summary: summaryData, pdfs: summaryData.recentUploads, activity: activityData })
+    setHasError([summary, activity].some((result) => result.status === 'rejected'))
     setLoading(false)
   }, [permissions.audit, session.profile.role])
 
@@ -82,10 +77,10 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
   const roleLabel = roleName(session.profile.role, t)
   const pdfs = data?.pdfs ?? []
   const statusCounts = data?.summary.sourceStatusCounts ?? {}
-  const activePdfs = countStatuses(statusCounts, ['queued', 'processing', 'approvalQueued', 'applying'])
+  const activePdfs = data?.summary.processingPdfCount ?? countStatuses(statusCounts, ['queued', 'processing', 'approvalQueued', 'applying'])
   const reviewPdfs = countStatuses(statusCounts, ['review', 'awaitingApproval', 'completedWithReview'])
   const failedPdfs = countStatuses(statusCounts, ['failed'])
-  const completedPdfs = countStatuses(statusCounts, ['completed', 'completedWithReview'])
+  const completedPdfs = data?.summary.completedPdfCount ?? countStatuses(statusCounts, ['completed', 'completedWithReview'])
   const needsAttention = reviewPdfs + failedPdfs
   const stats = data ? [
     { icon: <UsersRound size={19} />, value: formatCount(data.summary.voterCount), label: t.voters, hint: t.voterHint, tone: 'blue', target: 'register' as const, search: '' },
@@ -115,6 +110,7 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
     </header>
     {hasError ? <p className="form-alert form-alert-error">{t.partial}</p> : null}
     {loading && !data ? <div className="dashboard-loading"><Gauge className="animate-pulse" size={21} /><span>{t.loading}</span></div> : null}
+    {loading && data ? <div aria-live="polite" className="dashboard-refreshing"><Gauge className="animate-spin" size={17} /><span>{t.refreshing}</span></div> : null}
     {data ? <>
       <section className="dashboard-stat-grid">{stats.map((card) => <button className={`dashboard-stat-card dashboard-stat-${card.tone}`} key={card.label} onClick={() => onNavigate(card.target, card.search)} type="button"><span className="dashboard-stat-icon">{card.icon}</span><strong>{card.value}</strong><b>{card.label}</b><small>{card.hint}</small><ArrowUpRight className="dashboard-card-arrow" size={15} /></button>)}</section>
 
@@ -199,7 +195,7 @@ function formatDate(value: string | undefined, language: AppLanguage) {
   return new Intl.DateTimeFormat(language === 'te' ? 'te-IN' : 'en-IN', { day: '2-digit', month: 'short' }).format(date)
 }
 
-function sortByDate(items: PdfImport[]) {
+function sortByDate(items: DashboardRecentUpload[]) {
   return [...items].sort((first, second) => dateValue(second.createdAt || second.uploadedAt || second.updatedAt) - dateValue(first.createdAt || first.uploadedAt || first.updatedAt))
 }
 
@@ -208,7 +204,7 @@ function dateValue(value: string | undefined) {
   return Number.isNaN(time) ? 0 : time
 }
 
-function statusTone(status: PdfImport['status']) {
+function statusTone(status: DashboardRecentUpload['status']) {
   if (status === 'failed') return 'danger'
   if (['review', 'awaitingApproval', 'completedWithReview'].includes(status)) return 'warning'
   if (['queued', 'processing', 'approvalQueued', 'applying'].includes(status)) return 'primary'

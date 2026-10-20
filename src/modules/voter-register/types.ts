@@ -6,6 +6,8 @@ export type VoterRecord = {
   age: string
   gender: string
   doorNumber: string
+  doorNumberStatus?: 'available' | 'missing' | 'verificationRequired'
+  doorNumberCandidate?: string
   voterId: string
   alternateIdentifier: string
   mobile: string
@@ -18,6 +20,7 @@ export type VoterRecord = {
   sourcePdfId: string
   sourcePdfName: string
   voterCardImagePath: string
+  rawText: string
   pageNumber?: number
   cardPosition?: number
   uploadedAt?: string
@@ -26,6 +29,7 @@ export type VoterRecord = {
 
 export type VoterFilters = {
   search: string
+  sourcePdfId?: string
   name: string
   doorNumber: string
   voterId: string
