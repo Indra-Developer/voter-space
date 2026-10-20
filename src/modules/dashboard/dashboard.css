@@ -3,7 +3,7 @@
 .dashboard-profile-banner { position: relative; aspect-ratio: 1600 / 340; height: auto; overflow: hidden; background: linear-gradient(120deg, color-mix(in srgb, var(--primary) 82%, #ffffff), color-mix(in srgb, var(--nav-active) 92%, #ffffff) 55%, color-mix(in srgb, var(--primary-strong) 55%, #ffffff)); }
 .dashboard-profile-banner::after { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 35%, color-mix(in srgb, #092a26 32%, transparent)); content: ''; pointer-events: none; }
 .dashboard-profile-banner-image { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
-.dashboard-profile-avatar { position: relative; z-index: 1; display: grid; width: 6rem; height: 6rem; flex: 0 0 auto; place-items: center; overflow: hidden; margin-top: -3rem; border: 0.3rem solid var(--surface); border-radius: 50%; background: var(--primary); box-shadow: 0 8px 22px color-mix(in srgb, #10201c 25%, transparent); color: var(--primary-contrast); font-size: 1.2rem; font-weight: 850; }
+.dashboard-profile-avatar { position: relative; z-index: 1; display: grid; width: 6rem; height: 6rem; flex: 0 0 auto; place-items: center; overflow: hidden; margin-top: 0.75rem; border: 0.3rem solid var(--surface); border-radius: 50%; background: var(--primary); box-shadow: 0 8px 22px color-mix(in srgb, #10201c 25%, transparent); color: var(--primary-contrast); font-size: 1.2rem; font-weight: 850; }
 .dashboard-profile-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .dashboard-profile-identity { display: flex; align-items: center; gap: 0.85rem; padding: 0 1rem 0.9rem; text-align: left; }
 .dashboard-profile-identity > div:last-child { display: grid; gap: 0.2rem; min-width: 0; }
@@ -90,8 +90,8 @@
 @media (max-width: 620px) {
   .dashboard-profile-banner { height: auto; }
   .dashboard-profile-banner-image { object-fit: cover; }
-  .dashboard-profile-avatar { width: 5.25rem; height: 5.25rem; margin-top: -2.65rem; }
-  .dashboard-profile-identity { gap: 0.7rem; padding-inline: 0.75rem; }
+  .dashboard-profile-avatar { width: 5.25rem; height: 5.25rem; margin-top: 0.65rem; }
+  .dashboard-profile-identity { gap: 0.7rem; padding: 0 0.75rem 0.8rem; }
   .dashboard-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
   .dashboard-stat-card { padding: 0.75rem; }
   .dashboard-stat-card b { min-height: 0; font-size: 0.78rem; }
