@@ -124,6 +124,17 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!openFilter) return
+      const target = event.target
+      if (target instanceof Element && target.closest('.voter-filter-menu')) return
+      setOpenFilter(undefined)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [openFilter])
+
   const filteredRecords = useMemo(() => (records ?? []).filter((record) => matchesFilters(record, filters)), [records, filters])
   const doorGroups = useMemo(() => groupByDoor(filteredRecords), [filteredRecords])
 
@@ -299,7 +310,7 @@ function VoterDialog({ canEdit, language, onClose, onSave, record, startEditing,
     return () => { active = false }
   }, [record.id, record.voterCardImagePath])
 
-  return <div aria-modal="true" className="voter-dialog-backdrop" role="dialog"><form className="voter-dialog" onSubmit={submit}><header><div><p>{t.details}</p><h2>{record.fullName}</h2></div><button aria-label={t.close} className="voter-dialog-close" onClick={onClose} type="button"><X size={19} /></button></header><div className="voter-dialog-body">
+  return <div aria-modal="true" className="voter-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }} role="dialog"><form className="voter-dialog" onMouseDown={(event) => event.stopPropagation()} onSubmit={submit}><header><div><p>{t.details}</p><h2>{record.fullName}</h2></div><button aria-label={t.close} className="voter-dialog-close" onClick={onClose} type="button"><X size={19} /></button></header><div className="voter-dialog-body">
     {error ? <p className="form-alert form-alert-error">{t.saveError}</p> : null}
     <section className="voter-original-card"><div className="voter-original-card-heading"><strong>{t.originalCard}</strong>{record.pageNumber ? <span>{t.pdfPosition}: {record.pageNumber} / {record.cardPosition ?? '—'}</span> : null}</div>{cardImageUrl ? <img alt={`${t.originalCard} - ${record.fullName}`} src={cardImageUrl} /> : <div className="voter-card-placeholder">{cardImageError ? t.cardUnavailable : t.cardLoading}</div>}</section>
     <div className="voter-editor-grid">
@@ -330,7 +341,7 @@ function FilterInput({ label, type = 'search', placeholder, value, onChange }: {
 function FilterMenuButton({ label, value, options, anyLabel, closeLabel = 'Close', open, onToggle, onChange }: { label: string; value: string; options: string[]; anyLabel: string; closeLabel?: string; open: boolean; onToggle: () => void; onChange: (value: string) => void }) {
   return <div className="voter-filter-menu">
     <button aria-expanded={open} className={`voter-filter-menu-button${value ? ' has-value' : ''}`} onClick={onToggle} type="button"><span>{label}</span><strong>{value || anyLabel}</strong><ChevronDown size={14} /></button>
-    {open ? <div aria-modal="true" className="voter-filter-menu-popover" role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={closeLabel} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options" role="menu"><button className={!value ? 'is-selected' : ''} onClick={() => onChange('')} role="menuitem" type="button"><span>{anyLabel}</span>{!value ? <Check size={14} /> : null}</button>{options.map((option) => <button className={value === option ? 'is-selected' : ''} key={option} onClick={() => onChange(option)} role="menuitem" type="button"><span>{option}</span>{value === option ? <Check size={14} /> : null}</button>)}</div></div> : null}
+    {open ? <div aria-modal="true" className="voter-filter-menu-popover" onMouseDown={(event) => { if (event.target === event.currentTarget) onToggle() }} role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={closeLabel} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options" role="menu"><button className={!value ? 'is-selected' : ''} onClick={() => onChange('')} role="menuitem" type="button"><span>{anyLabel}</span>{!value ? <Check size={14} /> : null}</button>{options.map((option) => <button className={value === option ? 'is-selected' : ''} key={option} onClick={() => onChange(option)} role="menuitem" type="button"><span>{option}</span>{value === option ? <Check size={14} /> : null}</button>)}</div></div> : null}
   </div>
 }
 
@@ -338,7 +349,7 @@ function DateFilterButton({ label, from, to, open, onToggle, onFromChange, onToC
   const value = from && to ? `${from} – ${to}` : from || to || t.any
   return <div className="voter-filter-menu voter-date-filter-menu">
     <button aria-expanded={open} className={`voter-filter-menu-button${from || to ? ' has-value' : ''}`} onClick={onToggle} type="button"><span>{label}</span><strong>{value}</strong><ChevronDown size={14} /></button>
-    {open ? <div className="voter-filter-menu-popover voter-date-filter-popover" role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={t.close} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options"><FilterInput label={t.uploadedFrom} type="date" value={from} onChange={onFromChange} /><FilterInput label={t.uploadedTo} type="date" value={to} onChange={onToChange} /></div></div> : null}
+    {open ? <div className="voter-filter-menu-popover voter-date-filter-popover" onMouseDown={(event) => { if (event.target === event.currentTarget) onToggle() }} role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={t.close} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options"><FilterInput label={t.uploadedFrom} type="date" value={from} onChange={onFromChange} /><FilterInput label={t.uploadedTo} type="date" value={to} onChange={onToChange} /></div></div> : null}
   </div>
 }
 

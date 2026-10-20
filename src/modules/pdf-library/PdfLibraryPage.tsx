@@ -35,6 +35,17 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
   const t = copy[language]
   const canDownload = session.profile.role === 'superAdmin' || session.profile.permissions.download
 
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (!target.closest('.pdf-library-filter-menu')) setOpenFilter(undefined)
+      if (!target.closest('.pdf-export-menu')) setOpenExportId(undefined)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [])
+
   const reload = async () => {
     setRefreshing(true); setError(undefined)
     try { setRecords(await listPdfImports()) } catch (reason) { setError(readableFirebaseError(reason)) } finally { setRefreshing(false) }
@@ -97,7 +108,7 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
 function LibraryFilterButton({ label, options, value, any, open, onToggle, onChange, closeLabel }: { label: string; options: string[]; value: string; any: string; open: boolean; onToggle: () => void; onChange: (value: string) => void; closeLabel: string }) {
   return <div className="voter-filter-menu pdf-library-filter-menu">
     <button aria-expanded={open} className={`voter-filter-menu-button${value ? ' has-value' : ''}`} onClick={onToggle} type="button"><span>{label}</span><strong>{value || any}</strong><ChevronDown size={14} /></button>
-    {open ? <div aria-modal="true" className="voter-filter-menu-popover" role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={closeLabel} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options" role="menu"><button className={!value ? 'is-selected' : ''} onClick={() => onChange('')} role="menuitem" type="button"><span>{any}</span>{!value ? <Check size={14} /> : null}</button>{options.map((option) => <button className={value === option ? 'is-selected' : ''} key={option} onClick={() => onChange(option)} role="menuitem" type="button"><span>{option}</span>{value === option ? <Check size={14} /> : null}</button>)}</div></div> : null}
+    {open ? <div aria-modal="true" className="voter-filter-menu-popover" onMouseDown={(event) => { if (event.target === event.currentTarget) onToggle() }} role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={closeLabel} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options" role="menu"><button className={!value ? 'is-selected' : ''} onClick={() => onChange('')} role="menuitem" type="button"><span>{any}</span>{!value ? <Check size={14} /> : null}</button>{options.map((option) => <button className={value === option ? 'is-selected' : ''} key={option} onClick={() => onChange(option)} role="menuitem" type="button"><span>{option}</span>{value === option ? <Check size={14} /> : null}</button>)}</div></div> : null}
   </div>
 }
 
@@ -105,7 +116,7 @@ function LibraryDateFilterButton({ closeLabel, from, label, open, to, onFromChan
   const value = from && to ? `${from} – ${to}` : from || to || t.all
   return <div className="voter-filter-menu pdf-library-filter-menu">
     <button aria-expanded={open} className={`voter-filter-menu-button${from || to ? ' has-value' : ''}`} onClick={onToggle} type="button"><span>{label}</span><strong>{value}</strong><ChevronDown size={14} /></button>
-    {open ? <div aria-modal="true" className="voter-filter-menu-popover voter-date-filter-popover" role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={closeLabel} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options"><label className="voter-field"><span>{t.uploadedFrom}</span><input type="date" value={from} onChange={(event) => onFromChange(event.target.value)} /></label><label className="voter-field"><span>{t.uploadedTo}</span><input type="date" value={to} onChange={(event) => onToChange(event.target.value)} /></label></div></div> : null}
+    {open ? <div aria-modal="true" className="voter-filter-menu-popover voter-date-filter-popover" onMouseDown={(event) => { if (event.target === event.currentTarget) onToggle() }} role="dialog"><div className="voter-filter-menu-popover-header"><strong>{label}</strong><button aria-label={closeLabel} onClick={onToggle} type="button"><X size={17} /></button></div><div className="voter-filter-menu-options"><label className="voter-field"><span>{t.uploadedFrom}</span><input type="date" value={from} onChange={(event) => onFromChange(event.target.value)} /></label><label className="voter-field"><span>{t.uploadedTo}</span><input type="date" value={to} onChange={(event) => onToChange(event.target.value)} /></label></div></div> : null}
   </div>
 }
 

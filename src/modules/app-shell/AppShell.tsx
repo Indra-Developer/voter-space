@@ -1,5 +1,5 @@
 import { ArrowLeft, ChevronDown, ChevronRight, CircleUserRound, Menu, Palette, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import logoAsset from '../../assets/voter-space-logo.jpg'
 import { copy } from './copy'
 import { mobileNavigationKeys, navigationItems } from './navigation'
@@ -41,6 +41,18 @@ export function AppShell({
   const t = copy[language]
   const visibleNavigation = navigationItems.filter(({ key }) => isNavigationAllowed(key, profile?.role, permissions))
   const visibleMobileNavigation = mobileNavigationKeys.filter((key) => visibleNavigation.some((item) => item.key === key))
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (target.closest('.shell-popover-wrap')) return
+      setProfileOpen(false)
+      setThemeOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [])
 
   const chooseNavigation = (key: NavigationKey) => {
     onNavigate(key)
