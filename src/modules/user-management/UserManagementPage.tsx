@@ -1,10 +1,11 @@
-import { Camera, CheckCircle2, Pencil, Plus, ShieldCheck, UserRound, XCircle } from 'lucide-react'
+import { Camera, Check, CheckCircle2, ChevronDown, Pencil, Plus, ShieldCheck, UserRound, XCircle } from 'lucide-react'
 import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { db } from '../../lib/firebase'
 import type { AppLanguage } from '../app-shell/types'
 import { createAccount, readableFirebaseError, resolveStorageFileUrl, updateAccount, uploadAccountImage } from '../auth/firebase-auth'
 import { emptyPermissions, type AccountFormValues, type AppSession, type UserProfile } from '../auth/types'
+import { loadVoterFilterOptions } from '../voter-register/voter-service'
 
 type DirectoryUser = UserProfile & { uid: string; profilePhotoUrl?: string; bannerUrl?: string }
 
@@ -19,20 +20,20 @@ const pageCopy = {
     create: 'కొత్త ఖాతా', edit: 'ఖాతా సవరించండి', fullName: 'పూర్తి పేరు', mobile: 'మొబైల్ నంబర్', email: 'లాగిన్ ఇమెయిల్',
     role: 'పాత్ర', admin: 'అడ్మిన్', subMember: 'సబ్-మెంబర్', status: 'ఖాతా స్థితి', active: 'యాక్టివ్', disabled: 'డిసేబుల్',
     profilePhoto: 'ప్రొఫైల్ ఫోటో', banner: 'అడ్మిన్ బ్యానర్', parentAdmin: 'పేరెంట్ అడ్మిన్', wardAccess: 'అనుమతించిన వార్డులు', boothAccess: 'అనుమతించిన బూత్‌లు',
-    assignedWard: 'కేటాయించిన వార్డు', assignedBooth: 'కేటాయించిన బూత్', permissions: 'అడ్మిన్ అనుమతులు', upload: 'PDF అప్‌లోడ్', editPermission: 'డేటా సవరింపు', download: 'డౌన్‌లోడ్', audit: 'సొంత ఆడిట్ కార్యకలాపాలు',
+    assignedWard: 'కేటాయించిన వార్డులు', assignedBooth: 'కేటాయించిన బూత్‌లు', permissions: 'అడ్మిన్ అనుమతులు', upload: 'PDF అప్‌లోడ్', editPermission: 'డేటా సవరింపు', download: 'డౌన్‌లోడ్', audit: 'సొంత ఆడిట్ కార్యకలాపాలు',
     password: 'లాగిన్ పాస్‌వర్డ్', confirmPassword: 'పాస్‌వర్డ్ నిర్ధారించండి', passwordHelp: 'కనీసం 8 అక్షరాలు. సృష్టించిన ఖాతా ఇదే పాస్‌వర్డ్‌తో లాగిన్ అవుతుంది.', passwordEditHelp: 'మార్చాల్సిన అవసరం లేకపోతే ఖాళీగా ఉంచండి.', passwordMismatch: 'రెండు పాస్‌వర్డ్‌లు ఒకేలా ఉండాలి.', passwordShort: 'పాస్‌వర్డ్‌లో కనీసం 8 అక్షరాలు ఉండాలి.', save: 'ఖాతా సేవ్ చేయండి', cancel: 'రద్దు', editAccount: 'సవరించండి', disable: 'యాక్సెస్ తొలగించండి', enable: 'యాక్సెస్ ఇవ్వండి',
     ownMembers: 'మీ సబ్-మెంబర్లు మాత్రమే కనిపిస్తారు.', noUsers: 'ఇంకా వినియోగదారులు లేరు.', saved: 'ఖాతా సేవ్ అయింది. ఈ ఫారమ్‌లో ఇచ్చిన పాస్‌వర్డ్‌తో యూజర్ లాగిన్ అవ్వవచ్చు.',
-    commaHelp: 'ఒకటి కంటే ఎక్కువైతే కామాతో వేరు చేయండి. ఉదా: 12, 13', noAdmins: 'ముందుగా ఒక అడ్మిన్ ఖాతాను సృష్టించండి.', imageWarning: 'ఖాతా సృష్టించబడింది. చిత్రం సేవ్ కాలేదు; ఈ ఖాతాను సవరించి మళ్లీ చిత్రాన్ని ఎంచుకోండి.',
+    commaHelp: 'డేటాబేస్‌లో ఉన్న వార్డులు మరియు బూత్‌లను ఇక్కడ ఎంచుకోండి.', selectOneOrMore: 'ఒకటి లేదా అంతకంటే ఎక్కువ ఎంచుకోండి', noValues: 'ఇంకా విలువలు అందుబాటులో లేవు', noAdmins: 'ముందుగా ఒక అడ్మిన్ ఖాతాను సృష్టించండి.', imageWarning: 'ఖాతా సృష్టించబడింది. చిత్రం సేవ్ కాలేదు; ఈ ఖాతాను సవరించి మళ్లీ చిత్రాన్ని ఎంచుకోండి.',
   },
   en: {
     label: 'Account management', title: 'User management', description: 'Create and manage accounts within your role.',
     create: 'New account', edit: 'Edit account', fullName: 'Full name', mobile: 'Mobile number', email: 'Login email',
     role: 'Role', admin: 'Admin', subMember: 'Sub-member', status: 'Account status', active: 'Active', disabled: 'Disabled',
     profilePhoto: 'Profile photo', banner: 'Admin banner', parentAdmin: 'Parent Admin', wardAccess: 'Allowed wards', boothAccess: 'Allowed booths',
-    assignedWard: 'Assigned ward', assignedBooth: 'Assigned booth', permissions: 'Admin permissions', upload: 'PDF upload', editPermission: 'Edit data', download: 'Download', audit: 'Own audit activity',
+    assignedWard: 'Assigned wards', assignedBooth: 'Assigned booths', permissions: 'Admin permissions', upload: 'PDF upload', editPermission: 'Edit data', download: 'Download', audit: 'Own audit activity',
     password: 'Login password', confirmPassword: 'Confirm password', passwordHelp: 'At least 8 characters. The new account will log in with this password.', passwordEditHelp: 'Leave blank if the password should stay unchanged.', passwordMismatch: 'Both passwords must match.', passwordShort: 'Password must contain at least 8 characters.', save: 'Save account', cancel: 'Cancel', editAccount: 'Edit', disable: 'Remove access', enable: 'Enable access',
     ownMembers: 'Only your own sub-members are shown.', noUsers: 'There are no users yet.', saved: 'Account saved. The user can log in with the password entered in this form.',
-    commaHelp: 'Separate more than one value with a comma. Example: 12, 13', noAdmins: 'Create an Admin account first.', imageWarning: 'The account was created, but an image was not saved. Edit this account and select the image again.',
+    commaHelp: 'Select the wards and booths available in the database.', selectOneOrMore: 'Select one or more', noValues: 'No values are available yet', noAdmins: 'Create an Admin account first.', imageWarning: 'The account was created, but an image was not saved. Edit this account and select the image again.',
   },
 } as const
 
@@ -42,6 +43,7 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
   const [editingUser, setEditingUser] = useState<DirectoryUser>()
   const [showForm, setShowForm] = useState(false)
   const [notice, setNotice] = useState<string>()
+  const [scopeOptions, setScopeOptions] = useState({ wards: [] as string[], booths: [] as string[] })
   const t = pageCopy[language]
   const isSuperAdmin = session.profile.role === 'superAdmin'
 
@@ -74,15 +76,31 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
     return () => { active = false; unsubscribe() }
   }, [isSuperAdmin, session.uid])
 
+  useEffect(() => {
+    let active = true
+    void loadVoterFilterOptions().then((options) => {
+      if (active) setScopeOptions({ wards: options.wards, booths: options.booths })
+    }).catch(() => {
+      if (active) setScopeOptions({ wards: [], booths: [] })
+    })
+    return () => { active = false }
+  }, [session.uid])
+
   const adminOptions = useMemo(() => users.filter((user) => user.role === 'admin'), [users])
   const editableUsers = isSuperAdmin ? users.filter((user) => user.uid !== session.uid) : users
 
+  const refreshScopeOptions = () => {
+    void loadVoterFilterOptions().then((options) => setScopeOptions({ wards: options.wards, booths: options.booths })).catch(() => setScopeOptions({ wards: [], booths: [] }))
+  }
+
   const startCreate = () => {
+    refreshScopeOptions()
     setEditingUser(undefined)
     setShowForm(true)
   }
 
   const startEdit = (user: DirectoryUser) => {
+    refreshScopeOptions()
     setEditingUser(user)
     setShowForm(true)
   }
@@ -121,6 +139,7 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
           onCancel={() => { setShowForm(false); setEditingUser(undefined) }}
           onComplete={(message) => { setNotice(message); setShowForm(false); setEditingUser(undefined) }}
           session={session}
+          scopeOptions={scopeOptions}
         />
       ) : null}
 
@@ -150,9 +169,10 @@ type AccountFormProps = {
   onCancel: () => void
   onComplete: (message: string) => void
   session: AppSession
+  scopeOptions: { wards: string[]; booths: string[] }
 }
 
-function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete, session }: AccountFormProps) {
+function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete, session, scopeOptions }: AccountFormProps) {
   const t = pageCopy[language]
   const isSuperAdmin = session.profile.role === 'superAdmin'
   const isEditing = Boolean(initialUser)
@@ -164,6 +184,13 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string>()
   const isAdminAccount = values.role === 'admin'
+  const parentScope = useMemo(() => {
+    if (isAdminAccount) return undefined
+    if (values.parentAdminId === session.uid) return session.profile.scope
+    return adminOptions.find((admin) => admin.uid === values.parentAdminId)?.scope
+  }, [adminOptions, isAdminAccount, session.profile.scope, session.uid, values.parentAdminId])
+  const availableWardOptions = useMemo(() => uniqueOptions(isAdminAccount ? scopeOptions.wards : parentScope?.wardIds ?? [], values.scope.wardIds), [isAdminAccount, parentScope?.wardIds, scopeOptions.wards, values.scope.wardIds])
+  const availableBoothOptions = useMemo(() => uniqueOptions(isAdminAccount ? scopeOptions.booths : parentScope?.boothIds ?? [], values.scope.boothIds), [isAdminAccount, parentScope?.boothIds, scopeOptions.booths, values.scope.boothIds])
 
   const setField = <Key extends keyof AccountFormValues>(key: Key, value: AccountFormValues[Key]) => setValues((current) => ({ ...current, [key]: value }))
   const setPermission = (key: keyof AccountFormValues['permissions'], checked: boolean) => setValues((current) => ({ ...current, permissions: { ...current.permissions, [key]: checked } }))
@@ -173,6 +200,14 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
     setError(undefined)
     if (values.role === 'subMember' && !values.parentAdminId) {
       setError('Select the parent Admin before saving this Sub-member.')
+      return
+    }
+    if (values.scope.wardIds.length === 0) {
+      setError('Select at least one ward before saving the account.')
+      return
+    }
+    if (values.role === 'subMember' && values.scope.boothIds.length === 0) {
+      setError('Select at least one booth before saving this Sub-member.')
       return
     }
     if (!isEditing && password.length < 8) {
@@ -239,12 +274,12 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
       </div>
 
         {isAdminAccount ? (
-        <fieldset className="account-scope"><legend>{t.wardAccess} & {t.boothAccess}</legend><div className="account-form-grid"><label><span>{t.wardAccess}</span><input onChange={(event) => setField('scope', { ...values.scope, wardIds: toScope(event.target.value) })} placeholder="12, 13" required value={values.scope.wardIds.join(', ')} /><small>{t.commaHelp}</small></label><label><span>{t.boothAccess}</span><input onChange={(event) => setField('scope', { ...values.scope, boothIds: toScope(event.target.value) })} placeholder="120, 121" value={values.scope.boothIds.join(', ')} /><small>{t.commaHelp}</small></label></div></fieldset>
+        <fieldset className="account-scope"><legend>{t.wardAccess} & {t.boothAccess}</legend><div className="account-form-grid"><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.wardAccess} options={availableWardOptions} selected={values.scope.wardIds} onChange={(wardIds) => setField('scope', { ...values.scope, wardIds })} placeholder={t.wardAccess} /><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.boothAccess} options={availableBoothOptions} selected={values.scope.boothIds} onChange={(boothIds) => setField('scope', { ...values.scope, boothIds })} placeholder={t.boothAccess} /><small>{t.commaHelp}</small></div></fieldset>
       ) : (
         <fieldset className="account-scope"><legend>{t.parentAdmin}</legend><div className="account-form-grid">
-          {isSuperAdmin ? <label><span>{t.parentAdmin}</span><select onChange={(event) => setField('parentAdminId', event.target.value)} required value={values.parentAdminId ?? ''}><option value="">{adminOptions.length ? 'Select Admin' : t.noAdmins}</option>{adminOptions.map((admin) => <option key={admin.uid} value={admin.uid}>{admin.fullName}</option>)}</select></label> : null}
-          <label><span>{t.assignedWard}</span><input onChange={(event) => setField('scope', { ...values.scope, wardIds: toScope(event.target.value).slice(0, 1) })} required value={values.scope.wardIds[0] ?? ''} /></label>
-          <label><span>{t.assignedBooth}</span><input onChange={(event) => setField('scope', { ...values.scope, boothIds: toScope(event.target.value).slice(0, 1) })} required value={values.scope.boothIds[0] ?? ''} /></label>
+          {isSuperAdmin ? <label><span>{t.parentAdmin}</span><select onChange={(event) => setValues((current) => ({ ...current, parentAdminId: event.target.value, scope: { wardIds: [], boothIds: [] } }))} required value={values.parentAdminId ?? ''}><option value="">{adminOptions.length ? 'Select Admin' : t.noAdmins}</option>{adminOptions.map((admin) => <option key={admin.uid} value={admin.uid}>{admin.fullName}</option>)}</select></label> : null}
+          <ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.assignedWard} options={availableWardOptions} selected={values.scope.wardIds} onChange={(wardIds) => setField('scope', { ...values.scope, wardIds })} placeholder={t.assignedWard} />
+          <ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.assignedBooth} options={availableBoothOptions} selected={values.scope.boothIds} onChange={(boothIds) => setField('scope', { ...values.scope, boothIds })} placeholder={t.assignedBooth} />
         </div></fieldset>
       )}
 
@@ -263,9 +298,29 @@ function CheckBox({ checked, label, onChange }: { checked: boolean; label: strin
   return <label className="permission-option"><input checked={checked} onChange={(event) => onChange(event.target.checked)} type="checkbox" /><span>{label}</span></label>
 }
 
+function ScopeMultiSelect({ emptyText, helpText, label, options, selected, onChange, placeholder }: { emptyText: string; helpText: string; label: string; options: string[]; selected: string[]; onChange: (values: string[]) => void; placeholder: string }) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Node && !containerRef.current?.contains(target)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [])
+
+  const toggleValue = (value: string) => onChange(selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value])
+  return <div className="scope-multi-select" ref={containerRef}>
+    <span className="scope-multi-select-label">{label}</span>
+    <button aria-expanded={open} className={`scope-multi-select-trigger${selected.length ? ' has-value' : ''}`} onClick={() => setOpen((current) => !current)} type="button"><span>{selected.length ? selected.join(', ') : placeholder}</span><ChevronDown size={15} /></button>
+    {open ? <div className="scope-multi-select-options" role="listbox"><div className="scope-multi-select-help">{options.length ? helpText : emptyText}</div>{options.map((option) => <label className="scope-multi-select-option" key={option}><input checked={selected.includes(option)} onChange={() => toggleValue(option)} type="checkbox" /><span>{option}</span>{selected.includes(option) ? <Check size={14} /> : null}</label>)}</div> : null}
+  </div>
+}
+
 function accountValues(user: DirectoryUser | undefined, isSuperAdmin: boolean, currentUserId: string): AccountFormValues {
   if (user) return { uid: user.uid, fullName: user.fullName, email: user.email, mobile: user.mobile, role: user.role === 'admin' ? 'admin' : 'subMember', status: user.status, parentAdminId: user.parentAdminId, scope: user.scope, permissions: user.permissions, profilePhotoPath: user.profilePhotoPath, bannerPath: user.bannerPath }
   return { fullName: '', email: '', mobile: '', role: isSuperAdmin ? 'admin' : 'subMember', status: 'active', parentAdminId: isSuperAdmin ? '' : currentUserId, scope: { wardIds: [], boothIds: [] }, permissions: emptyPermissions }
 }
 
-function toScope(value: string) { return value.split(',').map((item) => item.trim()).filter(Boolean) }
+function uniqueOptions(...lists: string[][]) { return [...new Set(lists.flat().filter(Boolean))].sort((a, b) => a.localeCompare(b, 'en', { numeric: true })) }

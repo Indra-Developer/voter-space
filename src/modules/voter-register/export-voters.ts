@@ -44,6 +44,8 @@ export async function downloadPdf(records: VoterRecord[]) {
   document.body.appendChild(pdfTable)
 
   try {
+    await document.fonts.ready
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
     await new Promise<void>((resolve, reject) => {
       pdf.html(pdfTable, {
@@ -52,7 +54,15 @@ export async function downloadPdf(records: VoterRecord[]) {
           completedPdf.save('voter-register.pdf')
           resolve()
         },
-        html2canvas: { backgroundColor: '#ffffff', scale: 1, useCORS: true },
+        html2canvas: {
+          backgroundColor: '#ffffff',
+          scale: 1,
+          useCORS: true,
+          onclone: (clonedDocument) => {
+            const clonedTable = clonedDocument.querySelector('[data-voter-pdf-export="true"]')
+            if (clonedTable instanceof HTMLElement) clonedTable.style.opacity = '1'
+          },
+        },
         margin: [24, 24, 24, 24],
         windowWidth: 1100,
         x: 24,
@@ -67,7 +77,8 @@ export async function downloadPdf(records: VoterRecord[]) {
 
 function createPdfTable(records: VoterRecord[]) {
   const container = document.createElement('div')
-  container.style.cssText = 'position:fixed;left:-100000px;top:0;width:1100px;background:#fff;color:#173b3a;font-family:"Nirmala UI","Noto Sans Telugu",Arial,sans-serif;font-size:12px;line-height:1.35;'
+  container.dataset.voterPdfExport = 'true'
+  container.style.cssText = 'position:absolute;left:0;top:0;width:1100px;background:#fff;color:#173b3a;font-family:"Nirmala UI","Noto Sans Telugu",Arial,sans-serif;font-size:12px;line-height:1.35;opacity:0;pointer-events:none;'
 
   const title = document.createElement('h1')
   title.textContent = 'Voter Space — Voter Register / ఓటర్ రిజిస్టర్'

@@ -230,6 +230,7 @@
 }
 
 .shell-back-button { flex: 0 0 auto; }
+.shell-back-label { display: none; }
 
 .icon-button:hover,
 .profile-trigger:hover {
@@ -539,6 +540,12 @@ button:focus-visible,
 select:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--primary) 30%, transparent);
   outline-offset: 2px;
+}
+
+@media (max-width: 639px) {
+  .shell-back-button { width: auto; min-width: 0; padding: 0 .35rem; border: 0; background: transparent; }
+  .shell-back-icon { display: none; }
+  .shell-back-label { display: inline; color: var(--primary); font-size: .75rem; font-weight: 750; }
 }
 
 @media (min-width: 640px) {

@@ -43,15 +43,15 @@ export function AppShell({
   const visibleMobileNavigation = mobileNavigationKeys.filter((key) => visibleNavigation.some((item) => item.key === key))
 
   useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
+    const onDocumentClick = (event: MouseEvent) => {
       const target = event.target
       if (!(target instanceof Element)) return
       if (target.closest('.shell-popover-wrap')) return
       setProfileOpen(false)
       setThemeOpen(false)
     }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
+    document.addEventListener('click', onDocumentClick)
+    return () => document.removeEventListener('click', onDocumentClick)
   }, [])
 
   const chooseNavigation = (key: NavigationKey) => {
@@ -111,7 +111,7 @@ export function AppShell({
       <main className="shell-main">
         <header className="shell-header">
           <div className="shell-header-inner">
-            {showBackButton ? <button aria-label={t.actions.back} className="icon-button shell-back-button" onClick={onBack} type="button"><ArrowLeft size={19} /></button> : null}
+            {showBackButton ? <button aria-label={t.actions.back} className="icon-button shell-back-button" onClick={onBack} type="button"><ArrowLeft className="shell-back-icon" size={19} /><span className="shell-back-label">{t.actions.back}</span></button> : null}
             <button className="icon-button shell-menu-button" aria-label={t.actions.openMenu} onClick={() => setMobileMenuOpen(true)} type="button">
               <Menu size={21} />
             </button>

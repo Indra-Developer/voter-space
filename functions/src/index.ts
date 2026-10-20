@@ -836,8 +836,8 @@ async function buildAccount(input: AccountInput, role: 'admin' | 'subMember', up
     throw new HttpsError('invalid-argument', 'An Admin needs at least one allowed ward.')
   }
 
-  if (role === 'subMember' && (scope.wardIds.length !== 1 || scope.boothIds.length !== 1)) {
-    throw new HttpsError('invalid-argument', 'A Sub-member needs exactly one assigned ward and one assigned booth.')
+  if (role === 'subMember' && (scope.wardIds.length === 0 || scope.boothIds.length === 0)) {
+    throw new HttpsError('invalid-argument', 'A Sub-member needs at least one assigned ward and one assigned booth.')
   }
 
   const parent = role === 'subMember' ? await db.doc(`users/${parentAdminId}`).get() : undefined
@@ -903,7 +903,9 @@ function imagePath(value: unknown, uploaderUid: string, existingPath?: string) {
 }
 
 function isInsideScope(child: Scope, parent: Scope) {
-  return child.wardIds.every((wardId) => parent.wardIds.includes(wardId)) && child.boothIds.every((boothId) => parent.boothIds.includes(boothId))
+  const wardsInside = child.wardIds.every((wardId) => parent.wardIds.includes(wardId))
+  const boothsInside = parent.boothIds.length === 0 || child.boothIds.every((boothId) => parent.boothIds.includes(boothId))
+  return wardsInside && boothsInside
 }
 
 async function writeAudit(actor: Awaited<ReturnType<typeof requireCaller>>, action: string, targetUid: string, targetName: string, details: Record<string, unknown>) {
@@ -1323,7 +1325,6 @@ function canViewVoter(user: UserRecord, voter: VoterRecord) {
   if (user.role === 'superAdmin') return true
   if (user.scope.wardIds.length === 0 || !user.scope.wardIds.includes(voter.wardId)) return false
   if (user.scope.boothIds.length > 0 && !user.scope.boothIds.includes(voter.boothId)) return false
-  if (user.role === 'subMember') return user.scope.boothIds.length === 1 && user.scope.boothIds[0] === voter.boothId
   return true
 }
 

@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Download, FileSpreadsheet, FileText, LoaderCircle, RefreshCcw, Search, X } from 'lucide-react'
+import { Check, ChevronDown, Download, FileText, LoaderCircle, RefreshCcw, Search, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { AppSession } from '../auth/types'
 import { readableFirebaseError } from '../auth/firebase-auth'
@@ -29,7 +29,6 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
   const [refreshing, setRefreshing] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string>()
   const [exportingKey, setExportingKey] = useState<string>()
-  const [openExportId, setOpenExportId] = useState<string>()
   const [showMoreFilters, setShowMoreFilters] = useState(false)
   const [downloadError, setDownloadError] = useState<string>()
   const t = copy[language]
@@ -40,7 +39,6 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
       const target = event.target
       if (!(target instanceof Element)) return
       if (!target.closest('.pdf-library-filter-menu')) setOpenFilter(undefined)
-      if (!target.closest('.pdf-export-menu')) setOpenExportId(undefined)
     }
     document.addEventListener('pointerdown', onPointerDown)
     return () => document.removeEventListener('pointerdown', onPointerDown)
@@ -66,7 +64,7 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
 
   const exportPdfVoters = async (item: PdfImport, format: ExportFormat) => {
     const key = `${item.id}:${format}`
-    setExportingKey(key); setOpenExportId(undefined); setDownloadError(undefined)
+    setExportingKey(key); setDownloadError(undefined)
     try {
       const voters = await loadAllVotersForPdf(item.id)
       if (!voters.length) throw new Error(t.noVoters)
@@ -101,7 +99,7 @@ export function PdfLibraryPage({ language, session }: { language: AppLanguage; s
     {downloadError ? <p className="form-alert form-alert-error">{downloadError}</p> : null}
     {records === undefined && !error ? <PageState kind="loading" title={t.loading} description="" /> : null}
     {error ? <PageState kind="error" title={t.error} description={error} actionLabel={t.retry} onAction={() => void reload()} /> : null}
-    {records !== undefined && !error ? <><section className="pdf-library-stats"><Stat label={t.total} value={visible.length} /><Stat label={t.complete} value={completed} /><Stat label={t.action} value={needsAction} /></section>{records.length === 0 ? <PageState kind="empty" title={t.noData} description="" /> : visible.length === 0 ? <PageState kind="empty" title={t.noMatch} description="" /> : <div className="pdf-library-list">{visible.map((item) => <article className="pdf-library-row" key={item.id}><div className="pdf-library-file"><FileText size={20} /><div><strong>{item.originalFileName}</strong><span>{t.ward} {item.wardId} · {t.booth} {item.boothId}{item.area ? ` · ${item.area}` : ''}{item.division ? ` · ${item.division}` : ''}</span></div></div><div className="pdf-library-meta"><span className={`pdf-library-status status-${item.status}`}>{item.status}</span><span>{t.rows}: {item.rowCount ?? '—'}</span><span>{t.uploaded}: {formatDate(item.uploadedAt ?? item.createdAt, language)} · {item.uploadedByName}</span></div><div className="pdf-library-actions">{canDownload ? <><ExportMenu exportingKey={exportingKey} id={item.id} onSelect={(format) => void exportPdfVoters(item, format)} onToggle={() => setOpenExportId(openExportId === item.id ? undefined : item.id)} open={openExportId === item.id} t={t} /><button disabled={downloadingId === item.id} onClick={() => void downloadOriginal(item)} type="button">{downloadingId === item.id ? <LoaderCircle className="animate-spin" size={15} /> : <Download size={15} />}{downloadingId === item.id ? t.downloading : t.original}</button></> : null}</div></article>)}</div>}</> : null}
+    {records !== undefined && !error ? <><section className="pdf-library-stats"><Stat label={t.total} value={visible.length} /><Stat label={t.complete} value={completed} /><Stat label={t.action} value={needsAction} /></section>{records.length === 0 ? <PageState kind="empty" title={t.noData} description="" /> : visible.length === 0 ? <PageState kind="empty" title={t.noMatch} description="" /> : <div className="pdf-library-list">{visible.map((item) => <article className="pdf-library-row" key={item.id}><div className="pdf-library-file"><FileText size={20} /><div><strong>{item.originalFileName}</strong><span>{t.ward} {item.wardId} · {t.booth} {item.boothId}{item.area ? ` · ${item.area}` : ''}{item.division ? ` · ${item.division}` : ''}</span></div></div><div className="pdf-library-meta"><span className={`pdf-library-status status-${item.status}`}>{item.status}</span><span>{t.rows}: {item.rowCount ?? '—'}</span><span>{t.uploaded}: {formatDate(item.uploadedAt ?? item.createdAt, language)} · {item.uploadedByName}</span></div><div className="pdf-library-actions">{canDownload ? <><ExportMenu exportingKey={exportingKey} id={item.id} onSelect={(format) => void exportPdfVoters(item, format)} t={t} /><button disabled={downloadingId === item.id} onClick={() => void downloadOriginal(item)} type="button">{downloadingId === item.id ? <LoaderCircle className="animate-spin" size={15} /> : <Download size={15} />}{downloadingId === item.id ? t.downloading : t.original}</button></> : null}</div></article>)}</div>}</> : null}
   </section>
 }
 
@@ -120,12 +118,9 @@ function LibraryDateFilterButton({ closeLabel, from, label, open, to, onFromChan
   </div>
 }
 
-function ExportMenu({ exportingKey, id, onSelect, onToggle, open, t }: { exportingKey?: string; id: string; onSelect: (format: ExportFormat) => void; onToggle: () => void; open: boolean; t: { export: string; exporting: string; excel: string; pdf: string; csv: string } }) {
+function ExportMenu({ exportingKey, id, onSelect, t }: { exportingKey?: string; id: string; onSelect: (format: ExportFormat) => void; t: { export: string; exporting: string; excel: string; pdf: string; csv: string } }) {
   const isExporting = exportingKey?.startsWith(`${id}:`) ?? false
-  return <div className="pdf-export-menu">
-    <button aria-expanded={open} aria-haspopup="menu" className="pdf-export-trigger" disabled={isExporting} onClick={onToggle} type="button">{isExporting ? <LoaderCircle className="animate-spin" size={15} /> : <Download size={15} />}{isExporting ? t.exporting : t.export}<ChevronDown size={14} /></button>
-    {open ? <div className="pdf-export-options" role="menu"><button onClick={() => onSelect('excel')} role="menuitem" type="button"><FileSpreadsheet size={15} />{t.excel}</button><button onClick={() => onSelect('pdf')} role="menuitem" type="button"><FileText size={15} />{t.pdf}</button><button onClick={() => onSelect('csv')} role="menuitem" type="button"><Download size={15} />{t.csv}</button></div> : null}
-  </div>
+  return <label className="pdf-export-menu"><span className="sr-only">{t.export}</span><select aria-label={t.export} className="pdf-export-select" disabled={isExporting} onChange={(event) => { const format = event.target.value as ExportFormat; if (format) onSelect(format) }} value=""><option disabled value="">{isExporting ? t.exporting : t.export}</option><option value="excel">{t.excel}</option><option value="pdf">{t.pdf}</option><option value="csv">{t.csv}</option></select></label>
 }
 
 function Stat({ label, value }: { label: string; value: number }) { return <article><strong>{value}</strong><span>{label}</span></article> }
