@@ -11,6 +11,7 @@ type AppCopy = {
     language: string
     theme: string
     profile: string
+    back: string
     tryAgain: string
     signOut: string
   }
@@ -61,6 +62,7 @@ export const copy: Record<AppLanguage, AppCopy> = {
       language: 'భాష',
       theme: 'థీమ్',
       profile: 'ప్రొఫైల్',
+      back: 'వెనక్కి వెళ్లండి',
       tryAgain: 'మళ్లీ ప్రయత్నించండి',
       signOut: 'లాగ్ అవుట్',
     },
@@ -103,6 +105,7 @@ export const copy: Record<AppLanguage, AppCopy> = {
       language: 'Language',
       theme: 'Theme',
       profile: 'Profile',
+      back: 'Go back',
       tryAgain: 'Try again',
       signOut: 'Sign out',
     },

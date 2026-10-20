@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, CircleUserRound, Menu, Palette, X } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronRight, CircleUserRound, Menu, Palette, X } from 'lucide-react'
 import { useState } from 'react'
 import { copy } from './copy'
 import { mobileNavigationKeys, navigationItems } from './navigation'
@@ -11,6 +11,8 @@ type AppShellProps = {
   language: AppLanguage
   onLanguageChange: (language: AppLanguage) => void
   onNavigate: (key: NavigationKey) => void
+  onBack: () => void
+  showBackButton: boolean
   onSignOut?: () => void
   onThemeChange: (theme: AppTheme) => void
   permissions?: UserPermissions
@@ -24,6 +26,8 @@ export function AppShell({
   language,
   onLanguageChange,
   onNavigate,
+  onBack,
+  showBackButton,
   onSignOut,
   onThemeChange,
   permissions,
@@ -93,6 +97,7 @@ export function AppShell({
       <main className="shell-main">
         <header className="shell-header">
           <div className="shell-header-inner">
+            {showBackButton ? <button aria-label={t.actions.back} className="icon-button shell-back-button" onClick={onBack} type="button"><ArrowLeft size={19} /></button> : null}
             <button className="icon-button shell-menu-button" aria-label={t.actions.openMenu} onClick={() => setMobileMenuOpen(true)} type="button">
               <Menu size={21} />
             </button>

@@ -1,7 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AppShell } from './modules/app-shell/AppShell'
 import { copy } from './modules/app-shell/copy'
 import { PageState } from './modules/app-shell/PageState'
+import { navigationForPath, pathForNavigation } from './modules/app-shell/routes'
 import type { AppLanguage, AppTheme, NavigationKey } from './modules/app-shell/types'
 import { LoginPage } from './modules/auth/LoginPage'
 import { ProfilePage } from './modules/auth/ProfilePage'
@@ -30,12 +32,20 @@ function getStoredTheme(): AppTheme {
 }
 
 function App() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [language, setLanguage] = useState<AppLanguage>(getStoredLanguage)
   const [theme, setTheme] = useState<AppTheme>(getStoredTheme)
-  const [activeNavigation, setActiveNavigation] = useState<NavigationKey>('dashboard')
   const sessionState = useSession()
   const t = copy[language]
+  const activeNavigation = navigationForPath(location.pathname) ?? 'dashboard'
   const isDashboard = activeNavigation === 'dashboard'
+
+  useEffect(() => {
+    if (sessionState.status === 'signedOut' && location.pathname !== '/login') {
+      navigate('/login', { replace: true })
+    }
+  }, [location.pathname, navigate, sessionState.status])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -55,6 +65,9 @@ function App() {
     return <LoginPage language={language} message={sessionState.message} onLanguageChange={setLanguage} />
   }
 
+  if (location.pathname === '/login') return <Navigate replace to={pathForNavigation('dashboard')} />
+  if (!navigationForPath(location.pathname)) return <Navigate replace to={pathForNavigation('dashboard')} />
+
   const session = sessionState.session
   const isUserManagement = activeNavigation === 'users'
   const isProfile = activeNavigation === 'settings'
@@ -62,15 +75,28 @@ function App() {
   const isVoterRegister = activeNavigation === 'register'
   const isPdfUpload = activeNavigation === 'upload'
   const isPdfLibrary = activeNavigation === 'library'
+  const navigateTo = (key: NavigationKey) => {
+    const target = pathForNavigation(key)
+    if (location.pathname !== target || location.search) navigate(target)
+  }
+  const goBack = () => {
+    if (location.key !== 'default' && window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+    navigate(pathForNavigation('dashboard'), { replace: true })
+  }
 
   return (
     <AppShell
       activeNavigation={activeNavigation}
       language={language}
       onLanguageChange={setLanguage}
-      onNavigate={setActiveNavigation}
+      onBack={goBack}
+      onNavigate={navigateTo}
       onSignOut={() => void signOutUser()}
       onThemeChange={setTheme}
+      showBackButton={activeNavigation !== 'dashboard'}
       permissions={session.profile.permissions}
       profile={{
         name: session.profile.fullName,
@@ -80,7 +106,7 @@ function App() {
       }}
       theme={theme}
     >
-      {isUserManagement ? <UserManagementPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isVoterRegister ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><VoterRegisterPage language={language} session={session} /></Suspense> : isPdfUpload ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><PdfImportPage language={language} session={session} /></Suspense> : isPdfLibrary ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><PdfLibraryPage language={language} session={session} /></Suspense> : isDashboard ? <DashboardPage language={language} onNavigate={setActiveNavigation} session={session} /> : <>
+      {isUserManagement ? <UserManagementPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isVoterRegister ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><VoterRegisterPage language={language} session={session} /></Suspense> : isPdfUpload ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><PdfImportPage language={language} session={session} /></Suspense> : isPdfLibrary ? <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}><PdfLibraryPage language={language} session={session} /></Suspense> : isDashboard ? <DashboardPage language={language} onNavigate={navigateTo} session={session} /> : <>
         <section className="page-intro">
           <p>{t.page.section}</p>
           <h2>{isDashboard ? t.page.dashboardTitle : t.nav[activeNavigation]}</h2>

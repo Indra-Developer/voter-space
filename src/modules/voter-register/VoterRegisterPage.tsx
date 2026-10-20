@@ -1,5 +1,6 @@
 import { ArrowUp, Check, ChevronDown, Download, Edit3, FileSpreadsheet, FileText, LoaderCircle, RefreshCcw, Search, Table2, Trash2, UsersRound, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import type { AppSession } from '../auth/types'
 import { readableFirebaseError } from '../auth/firebase-auth'
 import type { AppLanguage } from '../app-shell/types'
@@ -38,6 +39,7 @@ const screenCopy = {
 type ScreenText = { [Key in keyof typeof screenCopy.en]: string }
 
 export function VoterRegisterPage({ language, session }: { language: AppLanguage; session: AppSession }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [records, setRecords] = useState<VoterRecord[]>()
   const [options, setOptions] = useState<VoterFilterOptions>({ wards: [], booths: [], areas: [], divisions: [], sourcePdfs: [], uploaders: [] })
   const [filters, setFilters] = useState<VoterFilters>(emptyVoterFilters)
@@ -51,8 +53,6 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   const [loadMoreError, setLoadMoreError] = useState<string>()
   const [showGoTop, setShowGoTop] = useState(false)
   const loadMoreSentinel = useRef<HTMLDivElement>(null)
-  const [view, setView] = useState<ViewMode>('individual')
-  const [activeRecord, setActiveRecord] = useState<VoterRecord | null>(null)
   const [editing, setEditing] = useState(false)
   const [deleteWardId, setDeleteWardId] = useState('')
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
@@ -64,6 +64,10 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   const canEdit = session.profile.role === 'superAdmin' || (session.profile.role === 'admin' && session.profile.permissions.edit)
   const canDownload = session.profile.role === 'superAdmin' || session.profile.permissions.download
   const canDeleteWard = session.profile.role === 'superAdmin'
+  const view: ViewMode = searchParams.get('view') === 'door' ? 'door' : 'individual'
+  const selectedDoor = searchParams.get('door') || undefined
+  const selectedVoterId = searchParams.get('voter') || undefined
+  const activeRecord = useMemo(() => selectedVoterId ? (records ?? []).find((record) => record.id === selectedVoterId) ?? null : null, [records, selectedVoterId])
 
   const reload = async () => {
     setIsRefreshing(true)
@@ -124,11 +128,37 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   const doorGroups = useMemo(() => groupByDoor(filteredRecords), [filteredRecords])
 
   const updateFilter = <Key extends keyof VoterFilters>(key: Key, value: VoterFilters[Key]) => setFilters((current) => ({ ...current, [key]: value }))
-  const openRecord = (record: VoterRecord, shouldEdit = false) => { setActiveRecord(record); setEditing(shouldEdit && canEdit) }
+  const setRegisterState = (changes: { view?: ViewMode; door?: string | null; voter?: string }, replace = false) => {
+    const next = new URLSearchParams(searchParams)
+    if (changes.view) next.set('view', changes.view)
+    if (changes.door === undefined && changes.view === 'individual') next.delete('door')
+    if (changes.door === null) next.delete('door')
+    if (changes.door) next.set('door', changes.door)
+    if (changes.voter !== undefined) next.set('voter', changes.voter)
+    setSearchParams(next, { replace })
+  }
+  const setViewMode = (nextView: ViewMode) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('view', nextView)
+    next.delete('voter')
+    if (nextView === 'individual') next.delete('door')
+    setEditing(false)
+    setSearchParams(next)
+  }
+  const closeRecord = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('voter')
+    setEditing(false)
+    setSearchParams(next, { replace: true })
+  }
+  const openRecord = (record: VoterRecord, shouldEdit = false) => {
+    setEditing(shouldEdit && canEdit)
+    setRegisterState({ voter: record.id, view })
+  }
   const save = async (record: VoterRecord) => {
     await saveVoter(record)
     await reload()
-    setActiveRecord(null)
+    closeRecord()
   }
   const deleteWard = async () => {
     if (!deleteWardId || deleteConfirmation.trim() !== deleteWardId) return
@@ -177,17 +207,17 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
       <section className="voter-results-toolbar">
         <div><strong>{filteredRecords.length} {t.records}</strong><span>{canEdit ? t.editAccess : t.readOnly}</span></div>
         <div className="voter-toolbar-actions">
-          <div className="voter-view-toggle" aria-label="Record view"><button className={view === 'individual' ? 'is-active' : ''} onClick={() => setView('individual')} type="button"><Table2 size={15} />{t.individual}</button><button className={view === 'door' ? 'is-active' : ''} onClick={() => setView('door')} type="button"><UsersRound size={15} />{t.doorWise}</button></div>
+          <div className="voter-view-toggle" aria-label="Record view"><button className={view === 'individual' ? 'is-active' : ''} onClick={() => setViewMode('individual')} type="button"><Table2 size={15} />{t.individual}</button><button className={view === 'door' ? 'is-active' : ''} onClick={() => setViewMode('door')} type="button"><UsersRound size={15} />{t.doorWise}</button></div>
           {canDownload ? <div className="voter-export-buttons"><button onClick={() => void downloadExcel(filteredRecords)} type="button"><FileSpreadsheet size={15} />{t.exportExcel}</button><button onClick={() => void downloadPdf(filteredRecords)} type="button"><FileText size={15} />{t.exportPdf}</button><button onClick={() => downloadCsv(filteredRecords)} type="button"><Download size={15} />{t.exportCsv}</button></div> : null}
         </div>
       </section>
       {canDownload ? <p className="voter-export-hint">{t.exportHint}</p> : null}
-      {records.length === 0 ? <PageState kind="empty" title={t.noData} description="" /> : filteredRecords.length === 0 ? <PageState kind="empty" title={t.noRecords} description="" /> : view === 'individual' ? <IndividualRecords records={filteredRecords} onOpen={openRecord} onEdit={canEdit ? (record) => openRecord(record, true) : undefined} t={t} /> : <DoorWiseRecords groups={doorGroups} onOpen={openRecord} onEdit={canEdit ? (record) => openRecord(record, true) : undefined} t={t} />}
+      {records.length === 0 ? <PageState kind="empty" title={t.noData} description="" /> : filteredRecords.length === 0 ? <PageState kind="empty" title={t.noRecords} description="" /> : view === 'individual' ? <IndividualRecords records={filteredRecords} onOpen={openRecord} onEdit={canEdit ? (record) => openRecord(record, true) : undefined} t={t} /> : <DoorWiseRecords groups={doorGroups} onDoorClose={() => setRegisterState({ door: null })} onDoorOpen={(door) => setRegisterState({ view: 'door', door })} selectedDoor={selectedDoor} onOpen={openRecord} onEdit={canEdit ? (record) => openRecord(record, true) : undefined} t={t} />}
       {records.length > 0 ? <div aria-live="polite" className={`voter-pagination-status${loadMoreError ? ' is-error' : ''}`} ref={loadMoreSentinel}>
         {loadMoreError ? <><span>{loadMoreError}</span><button className="voter-text-button" onClick={() => void loadMore()} type="button">{t.retry}</button></> : isLoadingMore ? <><LoaderCircle className="animate-spin" size={15} />{t.loadingMore}</> : hasMore ? t.loadingMore : t.allLoaded}
       </div> : null}
     </> : null}
-    {activeRecord ? <VoterDialog key={activeRecord.id} canEdit={canEdit} language={language} onClose={() => setActiveRecord(null)} onSave={save} record={activeRecord} startEditing={editing} t={t} /> : null}
+    {activeRecord ? <VoterDialog key={activeRecord.id} canEdit={canEdit} language={language} onClose={closeRecord} onSave={save} record={activeRecord} startEditing={editing} t={t} /> : null}
     {showGoTop ? <button aria-label={t.goTop} className="voter-go-top-button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} type="button"><ArrowUp size={16} /><span>{t.goTop}</span></button> : null}
   </section>
 }
@@ -213,20 +243,19 @@ function IndividualRecords({ records, onOpen, onEdit, t }: { records: VoterRecor
   })}</div>
 }
 
-function DoorWiseRecords({ groups, onOpen, onEdit, t }: { groups: Array<[string, VoterRecord[]]>; onOpen: (record: VoterRecord) => void; onEdit?: (record: VoterRecord) => void; t: ScreenText }) {
-  const [openDoor, setOpenDoor] = useState<string>()
-  const activeGroup = groups.find(([doorNumber]) => doorNumber === openDoor)
+function DoorWiseRecords({ groups, selectedDoor, onDoorOpen, onDoorClose, onOpen, onEdit, t }: { groups: Array<[string, VoterRecord[]]>; selectedDoor?: string; onDoorOpen: (door: string) => void; onDoorClose: () => void; onOpen: (record: VoterRecord) => void; onEdit?: (record: VoterRecord) => void; t: ScreenText }) {
+  const activeGroup = groups.find(([doorNumber]) => doorNumber === selectedDoor)
 
   return <>
     <div className="door-wise-grid">{groups.map(([doorNumber, records]) => <article className="door-wise-card" key={doorNumber}>
-      <button aria-haspopup="dialog" className="door-wise-summary" onClick={() => setOpenDoor(doorNumber)} type="button">
+      <button aria-haspopup="dialog" className="door-wise-summary" onClick={() => onDoorOpen(doorNumber)} type="button">
         <span className="door-wise-summary-label">{t.door}</span>
         <strong className="door-wise-summary-number">{doorNumber || '—'}</strong>
         <span className="door-wise-summary-count">{records.length} {t.members}</span>
         <ChevronDown size={16} />
       </button>
     </article>)}</div>
-    {activeGroup ? <div className="door-members-backdrop" onMouseDown={() => setOpenDoor(undefined)} role="presentation">
+    {activeGroup ? <div className="door-members-backdrop" onMouseDown={onDoorClose} role="presentation">
       <section aria-modal="true" aria-labelledby="door-members-title" className="door-members-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
         <header className="door-members-dialog-header">
           <div>
@@ -234,12 +263,12 @@ function DoorWiseRecords({ groups, onOpen, onEdit, t }: { groups: Array<[string,
             <h2 id="door-members-title">{activeGroup[0] || '—'}</h2>
             <span>{activeGroup[1].length} {t.members}</span>
           </div>
-          <button aria-label={t.close} className="voter-dialog-close" onClick={() => setOpenDoor(undefined)} type="button"><X size={19} /></button>
+          <button aria-label={t.close} className="voter-dialog-close" onClick={onDoorClose} type="button"><X size={19} /></button>
         </header>
         <div className="door-members-dialog-list">
           {activeGroup[1].map((record) => <div className="door-voter-row" key={record.id}>
             <div><strong>{record.fullName}</strong><span>{t.voterId}: {record.voterId} · {t.serial}: {record.serialNumber}</span></div>
-            <div><button className="voter-row-button" onClick={() => { setOpenDoor(undefined); onOpen(record) }} type="button">{t.view}</button>{onEdit ? <button aria-label={`${t.edit} ${record.fullName}`} className="voter-icon-action" onClick={() => { setOpenDoor(undefined); onEdit(record) }} type="button"><Edit3 size={14} /></button> : null}</div>
+            <div><button className="voter-row-button" onClick={() => onOpen(record)} type="button">{t.view}</button>{onEdit ? <button aria-label={`${t.edit} ${record.fullName}`} className="voter-icon-action" onClick={() => onEdit(record)} type="button"><Edit3 size={14} /></button> : null}</div>
           </div>)}
         </div>
       </section>

@@ -227,6 +227,8 @@
   height: 2.25rem;
 }
 
+.shell-back-button { flex: 0 0 auto; }
+
 .icon-button:hover,
 .profile-trigger:hover {
   border-color: var(--primary);
