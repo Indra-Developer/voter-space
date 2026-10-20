@@ -106,6 +106,8 @@
   letter-spacing: 0.05em;
 }
 
+.brand-logo-mark { border: 1px solid var(--border); background: #fff; object-fit: cover; object-position: center top; padding: 0.12rem; }
+
 .brand-copy {
   display: grid;
   gap: 0.05rem;

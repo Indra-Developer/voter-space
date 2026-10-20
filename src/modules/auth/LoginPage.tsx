@@ -1,5 +1,6 @@
 import { Eye, EyeOff, KeyRound, Mail, ShieldCheck, UserCog, UsersRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import logoAsset from '../../assets/voter-space-logo.jpg'
 import { firebaseConfigured } from '../../lib/firebase'
 import type { AppLanguage } from '../app-shell/types'
 import { readableFirebaseError, signInForRole } from './firebase-auth'
@@ -19,6 +20,9 @@ const loginCopy = {
     password: 'పాస్‌వర్డ్',
     signIn: 'లాగిన్ అవ్వండి',
     signInAs: 'లాగిన్ రకం',
+    roleHint: 'మీ యాక్సెస్ స్థాయిని ఎంచుకోండి',
+    secure: 'సురక్షితమైన పాత్ర ఆధారిత యాక్సెస్',
+    workspace: 'మీ ఓటర్ డేటా వర్క్‌స్పేస్',
     firebaseMissing: 'Firebase సెట్టింగులు ఇంకా జోడించలేదు. .env.local లో VITE_FIREBASE వివరాలు ఇవ్వండి.',
     roles: {
       superAdmin: { title: 'సూపర్ అడ్మిన్', description: 'అన్ని వార్డులు, ఖాతాలు మరియు అనుమతులు' },
@@ -33,6 +37,9 @@ const loginCopy = {
     password: 'Password',
     signIn: 'Sign in',
     signInAs: 'Login type',
+    roleHint: 'Select your access level',
+    secure: 'Secure role-based access',
+    workspace: 'Your voter data workspace',
     firebaseMissing: 'Firebase settings are not ready. Add VITE_FIREBASE values to .env.local.',
     roles: {
       superAdmin: { title: 'Super Admin', description: 'All wards, accounts, and permissions' },
@@ -72,32 +79,42 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
 
   return (
     <main className="auth-page">
-      <section className="auth-panel">
-        <header className="auth-heading">
-          <div className="auth-brand"><span>VS</span><strong>వోటర్ స్పేస్</strong></div>
+      <div className="auth-shell">
+        <aside className="auth-showcase">
+          <div className="auth-showcase-top"><span>{t.workspace}</span><ShieldCheck size={18} /></div>
+          <img alt="Voter Space" className="auth-showcase-logo" src={logoAsset} />
+          <div className="auth-showcase-copy"><p>VOTER SPACE</p><h2>{t.welcome}</h2><span>{t.description}</span></div>
+          <div className="auth-showcase-points"><div><span className="auth-point-icon"><ShieldCheck size={16} /></span><div><strong>{t.secure}</strong><span>{t.roles.superAdmin.description}</span></div></div><div><span className="auth-point-icon"><UsersRound size={16} /></span><div><strong>{t.roleHint}</strong><span>{t.roles.subMember.description}</span></div></div></div>
+        </aside>
+
+        <section className="auth-panel">
+          <header className="auth-heading">
+            <div className="auth-brand"><img alt="" className="auth-brand-logo" src={logoAsset} /><div><strong>వోటర్ స్పేస్</strong><span>Voter Space</span></div></div>
           <select aria-label="Language" value={language} onChange={(event) => onLanguageChange(event.target.value as AppLanguage)}>
             <option value="te">తెలుగు</option>
             <option value="en">English</option>
           </select>
-        </header>
+          </header>
 
         <div className="auth-intro">
-          <p>VOTER SPACE</p>
+          <p>{t.signInAs}</p>
           <h1>{t.welcome}</h1>
           <span>{t.description}</span>
         </div>
 
+        <div className="login-role-heading"><strong>{t.signInAs}</strong><span>{t.roleHint}</span></div>
         <div className="login-role-grid" aria-label={t.signInAs}>
           {roles.map(({ role, icon: Icon }) => (
             <button
+              aria-pressed={selectedRole === role}
               className={selectedRole === role ? 'is-selected' : ''}
               key={role}
               onClick={() => setSelectedRole(role)}
               type="button"
             >
-              <Icon size={19} />
-              <strong>{t.roles[role].title}</strong>
-              <span>{t.roles[role].description}</span>
+              <span className="login-role-icon"><Icon size={19} /></span>
+              <span className="login-role-copy"><strong>{t.roles[role].title}</strong><span>{t.roles[role].description}</span></span>
+              <span aria-hidden="true" className="login-role-selected">{selectedRole === role ? '✓' : ''}</span>
             </button>
           ))}
         </div>
@@ -120,11 +137,13 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
               </button>
             </div>
           </label>
-          <button className="primary-button" disabled={isSubmitting || !firebaseConfigured} type="submit">
+          <button className="primary-button login-submit" disabled={isSubmitting || !firebaseConfigured} type="submit">
             {isSubmitting ? '…' : t.signIn}
           </button>
         </form>
-      </section>
+          <div className="auth-login-footer"><ShieldCheck size={15} /><span>{t.secure}</span></div>
+        </section>
+      </div>
     </main>
   )
 }

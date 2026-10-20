@@ -1,5 +1,6 @@
 import { ArrowLeft, ChevronDown, ChevronRight, CircleUserRound, Menu, Palette, X } from 'lucide-react'
 import { useState } from 'react'
+import logoAsset from '../../assets/voter-space-logo.jpg'
 import { copy } from './copy'
 import { mobileNavigationKeys, navigationItems } from './navigation'
 import type { AppLanguage, AppTheme, NavigationKey, ShellProfile } from './types'
@@ -193,7 +194,7 @@ function Brand({ language, compact = false }: { language: AppLanguage; compact?:
   const t = copy[language]
   return (
     <div className="brand">
-      <span className="brand-mark">VS</span>
+      <img alt="" className="brand-mark brand-logo-mark" src={logoAsset} />
       {!compact || <div className="brand-copy">{t.appName}</div>}
       {compact ? null : (
         <div className="brand-copy">
