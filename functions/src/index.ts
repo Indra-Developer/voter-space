@@ -2851,6 +2851,7 @@ function normalizeDoorNumber(value: unknown) {
   const cleaned = plainString(value)
     .replace(/[–—]/g, '-')
     .replace(/\b(?:NOT\s+AVAILABLE|AVAILABLE|N\/A)\b/gi, ' ')
+    .replace(/(?:PHOTO|PH0T0|PHTO)(?:\s*AVAILABLE)?\s*$/i, ' ')
     .replace(/\s+/g, '')
     .toLocaleUpperCase()
   if (!cleaned || /^[A-Z]{3}\d{7}$/i.test(cleaned)) return ''

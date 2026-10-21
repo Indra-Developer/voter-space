@@ -8,7 +8,7 @@ import { PageState } from '../app-shell/PageState'
 import { joinClasses, uiClasses } from '../app-shell/ui'
 import { countVoters, deleteVoter, loadVoterCardImage, loadVoterFilterOptions, loadVoters, runVoterExport, saveVoter, ServerExportCancelledError, type VoterExportFormat } from './voter-service'
 import { emptyVoterFilters, type VoterFilterOptions, type VoterFilters, type VoterRecord } from './types'
-import { displayOfficialVoterId, missingOfficialVoterId } from './voter-display'
+import { displayDoorNumber, displayOfficialVoterId, missingOfficialVoterId } from './voter-display'
 
 type ViewMode = 'individual' | 'door'
 type VoterPageResult = Awaited<ReturnType<typeof loadVoters>>
@@ -339,7 +339,7 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
 }
 
 function VoterRegisterSkeleton() {
-  return <section aria-label="Loading voter records" className="grid grid-cols-2 gap-3 tablet:grid-cols-2 shell:grid-cols-3" aria-busy="true">
+  return <section aria-label="Loading voter records" className="grid grid-cols-2 gap-3 max-[389px]:grid-cols-1 tablet:grid-cols-2 shell:grid-cols-3" aria-busy="true">
     {Array.from({ length: 6 }, (_, index) => <article className={joinClasses(uiClasses.card, 'grid min-h-64 gap-3 rounded-[1.25rem] p-3 sm:p-4')} key={index}>
       <span className="block h-9 w-4/5 animate-pulse rounded-xl bg-surface-muted" />
       <span className="block h-11 animate-pulse rounded-xl bg-surface-muted" />
@@ -351,18 +351,18 @@ function VoterRegisterSkeleton() {
 
 function IndividualRecords({ records, onOpen, t }: { records: VoterRecord[]; onOpen: (record: VoterRecord) => void; t: ScreenText }) {
   const doorCounts = records.reduce((counts, record) => {
-    const key = record.doorNumber || '—'
+    const key = displayDoorNumber(record.doorNumber) || '—'
     counts.set(key, (counts.get(key) ?? 0) + 1)
     return counts
   }, new Map<string, number>())
-  return <div className="grid grid-cols-2 gap-2.5 tablet:grid-cols-2 shell:grid-cols-3">{records.map((record) => {
-    const doorNumber = record.doorNumber || '—'
-    return <article className={joinClasses(uiClasses.card, 'overflow-hidden rounded-2xl border-primary/15 shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_10%,transparent)]')} key={record.id}>
-      <button className="block w-full p-2.5 text-left transition hover:bg-nav-active focus-visible:bg-nav-active min-[390px]:p-3" onClick={() => onOpen(record)} type="button">
+  return <div className="grid grid-cols-2 gap-2.5 max-[389px]:grid-cols-1 tablet:grid-cols-2 shell:grid-cols-3">{records.map((record) => {
+    const doorNumber = displayDoorNumber(record.doorNumber) || '—'
+    return <article className={joinClasses(uiClasses.card, 'min-w-0 overflow-hidden rounded-2xl border-primary/15 shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_10%,transparent)]')} key={record.id}>
+      <button className="block min-w-0 w-full p-2.5 text-left transition hover:bg-nav-active focus-visible:bg-nav-active min-[390px]:p-3" onClick={() => onOpen(record)} type="button">
         <div className="flex min-h-8 items-center justify-between gap-1.5 rounded-xl bg-nav-active/75 px-2 py-1.5 text-[9px] font-extrabold text-primary-strong min-[390px]:text-[10px]"><span className="min-w-0 truncate">{t.ward} {record.wardId || '—'} · {t.booth} {record.boothId || '—'}</span><span className="shrink-0 whitespace-nowrap rounded-full bg-primary/10 px-1.5 py-0.5 text-[8px] min-[390px]:text-[9px]">{doorCounts.get(doorNumber)} {t.members}</span></div>
-        <h3 className="mt-2 line-clamp-2 min-h-9 text-[13px] font-extrabold leading-5 text-copy min-[390px]:text-base">{record.fullName || '—'}</h3>
-        <dl className="mt-2 grid grid-cols-2 gap-1.5"><div className={joinClasses(voterUi.mutedBox, 'min-w-0 p-1.5 min-[390px]:p-2')}><dt className="truncate text-[8px] font-semibold text-muted min-[390px]:text-[10px]">{t.voterId}</dt><dd className="mt-0.5 truncate whitespace-nowrap text-[10px] font-extrabold tracking-[-0.06em] text-copy min-[390px]:text-[11px]">{displayOfficialVoterId(record)}</dd></div><div className={joinClasses(voterUi.mutedBox, 'min-w-0 p-1.5 min-[390px]:p-2')}><dt className="truncate text-[8px] font-semibold text-muted min-[390px]:text-[10px]">{t.door}</dt><dd className="mt-0.5 truncate whitespace-nowrap text-[10px] font-extrabold tracking-[-0.04em] text-copy min-[390px]:text-[11px]">{doorNumber}</dd></div></dl>
-        <div className={joinClasses(voterUi.mutedBox, 'mt-1.5 min-w-0 p-2')}><span className="block truncate text-[8px] font-semibold text-muted min-[390px]:text-[10px]">{t.area}</span><strong className="mt-0.5 block truncate whitespace-nowrap text-[10px] font-extrabold text-copy min-[390px]:text-[13px]">{record.area || record.division || '—'}</strong></div>
+        <h3 className="mt-2 min-h-5 truncate whitespace-nowrap text-[10px] font-extrabold leading-4 text-copy min-[390px]:text-[12px]" title={record.fullName || '—'}>{record.fullName || '—'}</h3>
+        <dl className="mt-2 grid grid-cols-2 gap-1.5"><div className={joinClasses(voterUi.mutedBox, 'min-w-0 p-1.5 min-[390px]:p-2')}><dt className="truncate text-[8px] font-semibold text-muted min-[390px]:text-[10px]">{t.voterId}</dt><dd className="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap text-[8px] font-extrabold leading-3 tracking-[-0.06em] text-copy min-[390px]:text-[9px]" title={displayOfficialVoterId(record)}>{displayOfficialVoterId(record)}</dd></div><div className={joinClasses(voterUi.mutedBox, 'min-w-0 p-1.5 min-[390px]:p-2')}><dt className="truncate text-[8px] font-semibold text-muted min-[390px]:text-[10px]">{t.door}</dt><dd className="mt-0.5 overflow-hidden text-ellipsis whitespace-nowrap text-[8px] font-extrabold leading-3 tracking-[-0.04em] text-copy min-[390px]:text-[9px]" title={doorNumber}>{doorNumber}</dd></div></dl>
+        <div className={joinClasses(voterUi.mutedBox, 'mt-1.5 min-w-0 p-2')}><span className="block truncate text-[8px] font-semibold text-muted min-[390px]:text-[10px]">{t.area}</span><strong className="mt-0.5 block overflow-hidden text-ellipsis whitespace-nowrap text-[9px] font-extrabold leading-4 text-copy min-[390px]:text-[10px]" title={record.area || record.division || '—'}>{record.area || record.division || '—'}</strong></div>
         <span className="mt-2 flex items-center justify-between text-[13px] font-extrabold text-primary-strong min-[390px]:text-sm"><span>{t.view}</span><span className="grid size-7 place-items-center rounded-full border border-primary/15 bg-surface min-[390px]:size-8"><ArrowRight size={15} /></span></span>
       </button>
     </article>
@@ -373,10 +373,10 @@ function DoorWiseRecords({ groups, selectedDoor, onDoorOpen, onDoorClose, onOpen
   const activeGroup = groups.find(([doorNumber]) => doorNumber === selectedDoor)
 
   return <>
-    <div className="grid grid-cols-2 gap-2.5 tablet:grid-cols-2 shell:grid-cols-3">{groups.map(([doorNumber, records]) => <article className={joinClasses(uiClasses.card, 'min-w-0 overflow-hidden rounded-2xl border-primary/15 bg-gradient-to-br from-surface via-surface to-nav-active/35 shadow-[0_6px_18px_color-mix(in_srgb,var(--primary)_8%,transparent)]')} key={doorNumber}>
+    <div className="grid grid-cols-2 gap-2.5 max-[389px]:grid-cols-1 tablet:grid-cols-2 shell:grid-cols-3">{groups.map(([doorNumber, records]) => <article className={joinClasses(uiClasses.card, 'min-w-0 overflow-hidden rounded-2xl border-primary/15 bg-gradient-to-br from-surface via-surface to-nav-active/35 shadow-[0_6px_18px_color-mix(in_srgb,var(--primary)_8%,transparent)]')} key={doorNumber}>
       <button aria-haspopup="dialog" className="grid min-h-[5.75rem] w-full gap-2 p-3 text-left transition hover:bg-nav-active" onClick={() => onDoorOpen(doorNumber)} type="button">
         <div className="flex min-w-0 items-center justify-between gap-2"><span className="min-w-0 truncate whitespace-nowrap text-[10px] font-semibold text-muted">{t.door}</span><ChevronDown className="shrink-0 text-primary-strong" size={16} /></div>
-        <div className="flex min-w-0 items-center gap-1.5"><strong className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] font-extrabold leading-5 text-copy" title={doorNumber || '—'}>{doorNumber || '—'}</strong><span className="shrink-0 whitespace-nowrap rounded-full bg-nav-active px-1.5 py-1 text-[9px] font-extrabold text-primary-strong">{records.length} {t.members}</span></div>
+        <div className="flex min-w-0 items-start gap-1.5"><strong className="min-w-0 flex-1 truncate whitespace-nowrap text-[10px] font-extrabold leading-4 text-copy" title={doorNumber || '—'}>{displayDoorNumber(doorNumber) || '—'}</strong><span className="shrink-0 whitespace-nowrap rounded-full bg-nav-active px-1.5 py-1 text-[8px] font-extrabold text-primary-strong">{records.length} {t.members}</span></div>
       </button>
     </article>)}</div>
     {activeGroup ? <div className="fixed inset-0 z-[70] grid place-items-end bg-slate-950/55 p-2 backdrop-blur-sm sm:place-items-center sm:p-4" onMouseDown={onDoorClose} role="presentation">
@@ -399,7 +399,7 @@ function DoorWiseRecords({ groups, selectedDoor, onDoorOpen, onDoorClose, onOpen
 
 function VoterDialog({ canDelete, canEdit, language, onClose, onDelete, onSave, record, startEditing, t }: { canDelete: boolean; canEdit: boolean; language: AppLanguage; onClose: () => void; onDelete: (record: VoterRecord) => Promise<void>; onSave: (record: VoterRecord) => Promise<void>; record: VoterRecord; startEditing: boolean; t: ScreenText }) {
   const [editing, setEditing] = useState(startEditing)
-  const [draft, setDraft] = useState(record)
+  const [draft, setDraft] = useState(() => ({ ...record, doorNumber: displayDoorNumber(record.doorNumber) }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -497,7 +497,7 @@ function groupByDoor(records: VoterRecord[]) {
   const groups = records.reduce((result, record) => {
     // Use the corrected, stored house number. A verification candidate is
     // intentionally not used for grouping until it is confirmed.
-    const key = record.doorNumber.trim() || '—'
+    const key = displayDoorNumber(record.doorNumber).trim() || '—'
     result.set(key, [...(result.get(key) ?? []), record])
     return result
   }, new Map<string, VoterRecord[]>())

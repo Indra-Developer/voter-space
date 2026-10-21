@@ -707,6 +707,7 @@ function isOcrPlaceholder(value: string) {
 function normalizeDoor(value: string) {
   const cleaned = cleanFieldValue(value)
     .replace(/\b(?:NOT\s+AVAILABLE|AVAILABLE|N\/A)\b/gi, ' ')
+    .replace(/(?:PHOTO|PH0T0|PHTO)(?:\s*AVAILABLE)?\s*$/i, ' ')
     .replace(/^(?:సంఖ్య|నంబరు|నం|no\.?|number)\s*[:.;|-]?\s*/i, '')
     .replace(/\s+/g, '')
     .replace(/[.,;|]+$/, '')
