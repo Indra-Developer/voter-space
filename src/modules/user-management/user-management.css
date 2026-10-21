@@ -104,6 +104,22 @@
 @media (max-width: 719px) { .permissions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .user-management-intro { align-items: stretch; flex-direction: column; }.user-management-intro .primary-button { width: 100%; }.user-metric-card { min-height: 3.65rem; gap: .45rem; padding: .55rem; }.user-metric-icon { width: 1.75rem; height: 1.75rem; }.user-metric-card div > span:first-child { font-size: .61rem; }.user-metric-card strong { font-size: 1rem; }.user-management-form-backdrop { padding: .5rem; }.account-form { padding: .75rem; }.account-form-actions { flex-direction: column-reverse; }.account-form-actions button { width: 100%; }.user-row { padding: .75rem; }.user-row-actions button { flex: 1 1 auto; justify-content: center; } }
 .image-input-preview { width: 2.4rem; height: 2.4rem; flex: 0 0 auto; border-radius: .55rem; object-fit: cover; }
+.image-input { position: relative; display: grid !important; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; min-height: 5.35rem; gap: .7rem; padding: .6rem; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border)); border-radius: .85rem; background: linear-gradient(135deg, color-mix(in srgb, var(--nav-active) 70%, var(--surface)), var(--surface)); box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 8%, transparent); }
+.image-input:hover { border-color: var(--primary); background: linear-gradient(135deg, var(--nav-active), var(--surface)); }
+.image-input-preview-frame { display: grid; flex: 0 0 auto; place-items: center; overflow: hidden; border: 2px solid var(--surface); background: var(--surface-muted); box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 15%, transparent); }
+.image-input-preview-profile { width: 3.8rem; height: 3.8rem; border-radius: 50%; }
+.image-input-preview-banner { width: 7rem; height: 3.8rem; border-radius: .65rem; }
+.image-input-preview { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.image-input-placeholder { display: grid; width: 100%; height: 100%; place-items: center; color: var(--primary); }
+.image-input-copy { display: grid; min-width: 0; gap: .25rem; }
+.image-input-copy strong { overflow: hidden; color: var(--text); font-size: .75rem; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.image-input-copy small { overflow: hidden; color: var(--muted); font-size: .66rem; text-overflow: ellipsis; white-space: nowrap; }
+.image-input-action { display: grid; width: 1.9rem; height: 1.9rem; place-items: center; border: 1px solid var(--border); border-radius: .6rem; background: var(--surface); color: var(--primary); }
+.image-input input { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; cursor: pointer; opacity: 0; }
+.account-image-progress { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .65rem; }
+.account-image-progress > div { height: .45rem; overflow: hidden; border-radius: 999px; background: var(--surface-muted); }
+.account-image-progress > div > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--primary), var(--primary-strong)); transition: width 180ms ease; }
+.account-image-progress small { color: var(--primary-strong); font-size: .67rem; font-weight: 800; white-space: nowrap; }
 .user-row { position: relative; overflow: hidden; }
 .user-row-avatar { overflow: hidden; }
 .user-row-avatar img { width: 100%; height: 100%; object-fit: cover; }

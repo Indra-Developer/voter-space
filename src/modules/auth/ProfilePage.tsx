@@ -1,5 +1,5 @@
 import { Camera, Download, LoaderCircle, Mail, MapPinned, Phone, ShieldCheck, Trash2, Upload, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import { joinClasses, uiClasses } from '../app-shell/ui'
 import type { AppLanguage } from '../app-shell/types'
 import type { AppSession } from './types'
@@ -27,7 +27,10 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
   const scope = profile.role === 'superAdmin' ? null : profile.scope
   const [profileFile, setProfileFile] = useState<File>()
   const [bannerFile, setBannerFile] = useState<File>()
+  const [profilePreviewUrl, setProfilePreviewUrl] = useState(session.profilePhotoUrl)
+  const [bannerPreviewUrl, setBannerPreviewUrl] = useState(session.bannerUrl)
   const [mediaSaving, setMediaSaving] = useState(false)
+  const [mediaProgress, setMediaProgress] = useState({ profile: 0, banner: 0 })
   const [mediaMessage, setMediaMessage] = useState<string>()
   const [mediaError, setMediaError] = useState<string>()
   const [wardOptions, setWardOptions] = useState<string[]>([])
@@ -37,6 +40,9 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
   const [deleteWorking, setDeleteWorking] = useState(false)
   const [deleteMessage, setDeleteMessage] = useState<string>()
   const [deleteError, setDeleteError] = useState<string>()
+
+  useEffect(() => () => { if (profilePreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(profilePreviewUrl) }, [profilePreviewUrl])
+  useEffect(() => () => { if (bannerPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(bannerPreviewUrl) }, [bannerPreviewUrl])
 
   useEffect(() => {
     if (profile.role !== 'superAdmin') return
@@ -52,10 +58,11 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
     setMediaSaving(true)
     setMediaMessage(undefined)
     setMediaError(undefined)
+    setMediaProgress({ profile: profileFile ? 0 : 100, banner: bannerFile ? 0 : 100 })
     try {
       const [profilePhotoPath, bannerPath] = await Promise.all([
-        profileFile ? uploadAccountImage(profileFile, 'profile') : Promise.resolve(undefined),
-        bannerFile ? uploadAccountImage(bannerFile, 'banner') : Promise.resolve(undefined),
+        profileFile ? uploadAccountImage(profileFile, 'profile', (progress) => setMediaProgress((current) => ({ ...current, profile: progress }))) : Promise.resolve(undefined),
+        bannerFile ? uploadAccountImage(bannerFile, 'banner', (progress) => setMediaProgress((current) => ({ ...current, banner: progress }))) : Promise.resolve(undefined),
       ])
       await updateOwnProfileMedia({ profilePhotoPath, bannerPath })
       setProfileFile(undefined)
@@ -88,7 +95,7 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
 
   return (
     <section className="profile-page space-y-4 font-sans text-copy">
-      <header className="page-intro"><p>{t.label}</p><h2>{t.title}</h2></header>
+      <header className="page-intro profile-page-heading"><p>{t.label}</p></header>
       <article className={joinClasses('profile-page-card', uiClasses.card)}>
         <div className="profile-page-banner">
           {session.bannerUrl ? <img alt={`${profile.fullName} ${t.banner}`} src={session.bannerUrl} /> : null}
@@ -109,11 +116,12 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
       {profile.role === 'superAdmin' ? <section className={joinClasses('profile-media-editor', uiClasses.card, 'grid gap-4 p-4')}>
         <header><div><p>{t.mediaTitle}</p><h3>{t.mediaHint}</h3></div><Camera size={20} /></header>
         <div className="profile-media-input-grid">
-          <label className="profile-media-input"><span>{t.profilePhoto}</span><small>{profileFile?.name ?? (session.profilePhotoUrl ? t.currentImage : t.chooseImage)}</small><input accept="image/png,image/jpeg,image/webp" onChange={(event) => setProfileFile(event.target.files?.[0])} type="file" /></label>
-          <label className="profile-media-input"><span>{t.banner}</span><small>{bannerFile?.name ?? (session.bannerUrl ? t.currentImage : t.chooseImage)}</small><input accept="image/png,image/jpeg,image/webp" onChange={(event) => setBannerFile(event.target.files?.[0])} type="file" /></label>
+          <ProfileMediaInput chooseImage={t.chooseImage} currentImage={t.currentImage} file={profileFile} label={t.profilePhoto} onChange={(event) => { const file = event.target.files?.[0]; setProfileFile(file); if (file) setProfilePreviewUrl(URL.createObjectURL(file)) }} previewUrl={profilePreviewUrl} variant="profile" />
+          <ProfileMediaInput chooseImage={t.chooseImage} currentImage={t.currentImage} file={bannerFile} label={t.banner} onChange={(event) => { const file = event.target.files?.[0]; setBannerFile(file); if (file) setBannerPreviewUrl(URL.createObjectURL(file)) }} previewUrl={bannerPreviewUrl} variant="banner" />
         </div>
         {mediaMessage ? <p className="profile-media-message">{mediaMessage}</p> : null}
         {mediaError ? <p className="form-alert form-alert-error">{mediaError}</p> : null}
+        {mediaSaving ? <div aria-live="polite" className="profile-media-progress"><div><span style={{ width: `${Math.round(((profileFile ? mediaProgress.profile : 100) + (bannerFile ? mediaProgress.banner : 100)) / (Number(Boolean(profileFile)) + Number(Boolean(bannerFile))))}%` }} /></div><small>{t.savingMedia} {Math.round(((profileFile ? mediaProgress.profile : 100) + (bannerFile ? mediaProgress.banner : 100)) / (Number(Boolean(profileFile)) + Number(Boolean(bannerFile))))}%</small></div> : null}
         <button className={joinClasses('primary-button', uiClasses.button, uiClasses.primaryButton, 'w-fit')} disabled={mediaSaving || (!profileFile && !bannerFile)} onClick={() => void saveMedia()} type="button">{mediaSaving ? <LoaderCircle className="animate-spin" size={15} /> : <Upload size={15} />}{mediaSaving ? t.savingMedia : t.saveMedia}</button>
       </section> : null}
 
@@ -134,4 +142,13 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
 
 function Permission({ icon: Icon, label, visible }: { icon: typeof Upload; label: string; visible: boolean }) {
   return <span className={visible ? 'is-enabled' : ''}><Icon size={16} />{label}</span>
+}
+
+function ProfileMediaInput({ chooseImage, currentImage, file, label, onChange, previewUrl, variant }: { chooseImage: string; currentImage: string; file?: File; label: string; onChange: (event: ChangeEvent<HTMLInputElement>) => void; previewUrl?: string; variant: 'profile' | 'banner' }) {
+  return <label className={joinClasses('profile-media-input', `profile-media-input-${variant}`)}>
+    <span className={joinClasses('profile-media-preview', `profile-media-preview-${variant}`)}>{previewUrl ? <img alt={label} src={previewUrl} /> : <span><Camera size={20} /></span>}</span>
+    <span className="profile-media-input-copy"><strong>{label}</strong><small>{file?.name ?? (previewUrl ? currentImage : chooseImage)}</small></span>
+    <span className="profile-media-input-action"><Camera size={16} /></span>
+    <input accept="image/png,image/jpeg,image/webp" onChange={onChange} type="file" />
+  </label>
 }

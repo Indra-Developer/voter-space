@@ -265,6 +265,7 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [imageProgress, setImageProgress] = useState({ profile: 0, banner: 0 })
   const [error, setError] = useState<string>()
   const isAdminAccount = values.role === 'admin'
   const parentScope = useMemo(() => {
@@ -303,11 +304,12 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
     }
 
     setIsSaving(true)
+    setImageProgress({ profile: profileFile ? 0 : 100, banner: bannerFile ? 0 : 100 })
     try {
       if (isEditing && values.uid) {
         const [profilePhotoPath, bannerPath] = await Promise.all([
-          profileFile ? uploadAccountImage(profileFile, 'profile') : Promise.resolve(values.profilePhotoPath),
-          bannerFile ? uploadAccountImage(bannerFile, 'banner') : Promise.resolve(values.bannerPath),
+          profileFile ? uploadAccountImage(profileFile, 'profile', (progress) => setImageProgress((current) => ({ ...current, profile: progress }))) : Promise.resolve(values.profilePhotoPath),
+          bannerFile ? uploadAccountImage(bannerFile, 'banner', (progress) => setImageProgress((current) => ({ ...current, banner: progress }))) : Promise.resolve(values.bannerPath),
         ])
         const payload = { ...values, profilePhotoPath, bannerPath: isAdminAccount ? bannerPath : undefined }
         await updateAccount({ ...payload, uid: values.uid, password: password || undefined })
@@ -316,8 +318,8 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
         const created = await createAccount({ ...values, profilePhotoPath: undefined, bannerPath: undefined, password })
         try {
           const [profilePhotoPath, bannerPath] = await Promise.all([
-            profileFile ? uploadAccountImage(profileFile, 'profile') : Promise.resolve(undefined),
-            isAdminAccount && bannerFile ? uploadAccountImage(bannerFile, 'banner') : Promise.resolve(undefined),
+            profileFile ? uploadAccountImage(profileFile, 'profile', (progress) => setImageProgress((current) => ({ ...current, profile: progress }))) : Promise.resolve(undefined),
+            isAdminAccount && bannerFile ? uploadAccountImage(bannerFile, 'banner', (progress) => setImageProgress((current) => ({ ...current, banner: progress }))) : Promise.resolve(undefined),
           ])
           if (profilePhotoPath || bannerPath) {
             await updateAccount({ ...values, uid: created.data.uid, profilePhotoPath, bannerPath, password: undefined })
@@ -353,9 +355,10 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
       </div>
 
       <div className="image-inputs grid gap-3 tablet:grid-cols-2">
-        <ImageInput file={profileFile} label={t.profilePhoto} onChange={changeImage(setProfileFile)} previewUrl={initialUser?.profilePhotoUrl} />
-        {isAdminAccount ? <ImageInput file={bannerFile} label={t.banner} onChange={changeImage(setBannerFile)} previewUrl={initialUser?.bannerUrl} /> : null}
+        <ImageInput file={profileFile} label={t.profilePhoto} onChange={changeImage(setProfileFile)} previewUrl={initialUser?.profilePhotoUrl} variant="profile" />
+        {isAdminAccount ? <ImageInput file={bannerFile} label={t.banner} onChange={changeImage(setBannerFile)} previewUrl={initialUser?.bannerUrl} variant="banner" /> : null}
       </div>
+      {isSaving && (profileFile || bannerFile) ? <div aria-live="polite" className="account-image-progress"><div><span style={{ width: `${Math.round(((profileFile ? imageProgress.profile : 100) + (bannerFile ? imageProgress.banner : 100)) / (Number(Boolean(profileFile)) + Number(Boolean(bannerFile))))}%` }} /></div><small>Uploading images… {Math.round(((profileFile ? imageProgress.profile : 100) + (bannerFile ? imageProgress.banner : 100)) / (Number(Boolean(profileFile)) + Number(Boolean(bannerFile))))}%</small></div> : null}
 
         {isAdminAccount ? (
         <fieldset className={joinClasses('account-scope', uiClasses.card, 'grid gap-3 p-4')}><legend>{t.wardAccess} & {t.boothAccess}</legend><div className="account-form-grid grid gap-3 tablet:grid-cols-2"><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.wardAccess} options={availableWardOptions} selected={values.scope.wardIds} onChange={(wardIds) => setField('scope', { ...values.scope, wardIds })} placeholder={t.wardAccess} /><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.boothAccess} options={availableBoothOptions} selected={values.scope.boothIds} onChange={(boothIds) => setField('scope', { ...values.scope, boothIds })} placeholder={t.boothAccess} /><small>{t.commaHelp}</small></div></fieldset>
@@ -374,8 +377,16 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
   )
 }
 
-function ImageInput({ file, label, onChange, previewUrl }: { file?: File; label: string; onChange: (event: ChangeEvent<HTMLInputElement>) => void; previewUrl?: string }) {
-  return <label className={joinClasses('image-input', uiClasses.card, 'cursor-pointer')}>{previewUrl ? <img alt="" className="image-input-preview" src={previewUrl} /> : <span className={joinClasses('image-input-icon', uiClasses.iconBadge)}><Camera size={18} /></span>}<span><strong>{label}</strong><small>{file?.name ?? (previewUrl ? 'Current image' : 'Optional image')}</small></span><input accept="image/png,image/jpeg,image/webp" onChange={onChange} type="file" /></label>
+function ImageInput({ file, label, onChange, previewUrl, variant }: { file?: File; label: string; onChange: (event: ChangeEvent<HTMLInputElement>) => void; previewUrl?: string; variant: 'profile' | 'banner' }) {
+  const filePreviewUrl = useMemo(() => file ? URL.createObjectURL(file) : undefined, [file])
+  useEffect(() => () => { if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl) }, [filePreviewUrl])
+  const imageUrl = filePreviewUrl ?? previewUrl
+  return <label className={joinClasses('image-input', `image-input-${variant}`, uiClasses.card, 'cursor-pointer')}>
+    <span className={joinClasses('image-input-preview-frame', `image-input-preview-${variant}`)}>{imageUrl ? <img alt={label} className="image-input-preview" src={imageUrl} /> : <span className="image-input-placeholder"><Camera size={18} /></span>}</span>
+    <span className="image-input-copy"><strong>{label}</strong><small>{file?.name ?? (previewUrl ? 'Current image' : 'Optional image')}</small></span>
+    <span className="image-input-action"><Camera size={15} /></span>
+    <input accept="image/png,image/jpeg,image/webp" onChange={onChange} type="file" />
+  </label>
 }
 
 function CheckBox({ checked, label, onChange }: { checked: boolean; label: string; onChange: (checked: boolean) => void }) {

@@ -1,7 +1,7 @@
 import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage'
 import { auth, db, firebaseConfigured, functions, storage } from '../../lib/firebase'
 import { cachedRequest, clearRequestCache } from '../../lib/request-cache'
 import type { AppSession, LoginRole, UserProfile } from './types'
@@ -185,7 +185,7 @@ export async function signOutUser() {
   clearRequestCache()
 }
 
-export async function uploadAccountImage(file: File, kind: 'profile' | 'banner') {
+export async function uploadAccountImage(file: File, kind: 'profile' | 'banner', onProgress?: (progress: number) => void) {
   const client = requireFirebase()
   const user = client.auth.currentUser
   if (!user) throw new Error('Please sign in again before uploading an image.')
@@ -193,7 +193,13 @@ export async function uploadAccountImage(file: File, kind: 'profile' | 'banner')
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-').slice(-80)
   const requestId = crypto.randomUUID()
   const path = `user-media/${user.uid}/${requestId}/${kind}-${safeName}`
-  await uploadBytes(ref(client.storage, path), file, { contentType: file.type })
+  await new Promise<void>((resolve, reject) => {
+    const task = uploadBytesResumable(ref(client.storage, path), file, { contentType: file.type })
+    task.on('state_changed', (snapshot) => {
+      onProgress?.(snapshot.totalBytes ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100) : 0)
+    }, reject, resolve)
+  })
+  onProgress?.(100)
   return path
 }
 
