@@ -240,6 +240,7 @@ type ImportRowRecord = {
 }
 type CreatePdfImportInput = { originalFileName?: unknown; wardId?: unknown; boothId?: unknown; area?: unknown; division?: unknown; uploadHash?: unknown }
 type PdfRowUpdateInput = Partial<ImportRowRecord> & { sourcePdfId?: unknown; rowId?: unknown }
+type PdfMetadataUpdateInput = { sourcePdfId?: unknown; wardId?: unknown; boothId?: unknown; area?: unknown }
 
 const region = 'asia-south1'
 // Storage event functions must run in the same location as their bucket.
@@ -852,7 +853,7 @@ export const cleanupVoterExports = onSchedule({ region, memory: '256MiB', timeou
 
 export const getVoterFilterOptions = onCall({ region }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
-  const metadataRef = db.doc('metadata/voterFilterOptions')
+  const metadataRef = db.doc(voterFilterMetadataPath)
   const snapshot = await metadataRef.get()
   let metadata = readVoterFilterMetadata(snapshot.data())
   const storedData = snapshot.data()
@@ -862,7 +863,7 @@ export const getVoterFilterOptions = onCall({ region }, async (request) => {
   return filterOptionsForCaller(metadata, caller.record)
 })
 
-const voterFilterMetadataPath = 'metadata/voterOptions'
+const voterFilterMetadataPath = 'metadata/voterFilterOptions'
 const unknownFilterScope = '__unknown__'
 
 function emptyVoterFilterBucket(): VoterFilterBucket {
@@ -958,14 +959,24 @@ async function markVoterFilterMetadataDirty() {
 }
 
 async function rebuildVoterFilterMetadata(metadataRef: FirebaseFirestore.DocumentReference) {
-  const snapshot = await db.collection('voters').select('wardId', 'boothId', 'area', 'division', 'sourcePdfName', 'sourcePdfId', 'uploadedByName', 'uploadedBy').get()
+  const [voterSnapshot, sourceSnapshot] = await Promise.all([
+    db.collection('voters').select('wardId', 'boothId', 'area', 'division', 'sourcePdfName', 'sourcePdfId', 'uploadedByName', 'uploadedBy').get(),
+    db.collection('sourcePdfs').select('wardId', 'boothId', 'area', 'areas', 'division', 'divisions', 'originalFileName', 'uploadedByName').get(),
+  ])
   const metadata: VoterFilterMetadata = { byWard: {}, needsRebuild: false }
-  snapshot.docs.forEach((item) => {
+  voterSnapshot.docs.forEach((item) => {
     const record = voterFromFirestore(item.id, item.data())
     if (!record.wardId || !record.boothId) return
     const ward = metadata.byWard[record.wardId] ?? {}
     ward[record.boothId] = mergeVoterFilterBucket(ward[record.boothId] ?? emptyVoterFilterBucket(), filterBucketFromVoter(record))
     metadata.byWard[record.wardId] = ward
+  })
+  sourceSnapshot.docs.forEach((item) => {
+    const source = item.data() as SourcePdfRecord
+    if (!source.wardId || !source.boothId) return
+    const ward = metadata.byWard[source.wardId] ?? {}
+    ward[source.boothId] = mergeVoterFilterBucket(ward[source.boothId] ?? emptyVoterFilterBucket(), filterBucketFromSource(source))
+    metadata.byWard[source.wardId] = ward
   })
   await metadataRef.set({ byWard: metadata.byWard, needsRebuild: false, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
   return metadata
@@ -974,6 +985,7 @@ async function rebuildVoterFilterMetadata(metadataRef: FirebaseFirestore.Documen
 function filterOptionsForCaller(metadata: VoterFilterMetadata, user: UserRecord) {
   const wards: string[] = []
   const booths: string[] = []
+  const boothsByWard: Record<string, string[]> = {}
   const areas: string[] = []
   const divisions: string[] = []
   const sourcePdfs: string[] = []
@@ -982,21 +994,25 @@ function filterOptionsForCaller(metadata: VoterFilterMetadata, user: UserRecord)
   Object.entries(metadata.byWard).forEach(([wardId, rawBooths]) => {
     if (!wardId || wardId === unknownFilterScope) return
     if (user.role !== 'superAdmin' && !user.scope.wardIds.includes(wardId)) return
+    const visibleBooths: string[] = []
     Object.entries(rawBooths).forEach(([boothId, bucket]) => {
       if (!boothId || boothId === unknownFilterScope) return
       if (user.role !== 'superAdmin' && user.scope.boothIds.length > 0 && !user.scope.boothIds.includes(boothId)) return
       wards.push(wardId)
       booths.push(boothId)
+      visibleBooths.push(boothId)
       areas.push(...bucket.areas)
       divisions.push(...bucket.divisions)
       sourcePdfs.push(...bucket.sourcePdfs)
       uploaders.push(...bucket.uploaders)
     })
+    boothsByWard[wardId] = uniqueSorted(visibleBooths)
   })
 
   return {
     wards: uniqueSorted(wards),
     booths: uniqueSorted(booths),
+    boothsByWard,
     areas: uniqueSorted(areas),
     divisions: uniqueSorted(divisions),
     sourcePdfs: uniqueSorted(sourcePdfs),
@@ -1407,6 +1423,7 @@ export const createPdfImport = onCall({ region }, async (request) => {
     transaction.set(sourceRef, { ...cleanUndefined(source), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
   })
   if (duplicate && existingSource) return { id: sourceRef.id, storagePath: existingSource.storagePath, duplicate: true, status: existingSource.status }
+  await mergeVoterFilterMetadataForSource(source)
   await writeAudit(caller, 'pdf_import_created', sourceRef.id, originalFileName, { wardId: input.wardId, boothId: input.boothId })
   await scheduleDashboardStatsRefresh('pdf-created')
   return { id: sourceRef.id, storagePath, duplicate: false, status: source.status }
@@ -1425,6 +1442,67 @@ export const listPdfImports = onCall({ region }, async (request) => {
     .filter((source) => canViewPdfImport(caller.record, source))
     .map(sourceForClient)
   return { imports, nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1]?.id : undefined, hasMore: snapshot.size === pageSize }
+})
+
+export const updatePdfImportMetadata = onCall({ region, timeoutSeconds: 120 }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  const input = readPdfImportMetadataUpdate(request.data)
+  const source = await getPdfImport(input.sourcePdfId)
+  assertCanManagePdfImport(caller.record, source)
+  if (['uploaded', 'queued', 'processing', 'approvalQueued', 'applying'].includes(source.status)) {
+    throw new HttpsError('failed-precondition', 'Wait until PDF processing finishes before changing its scope.')
+  }
+  if (caller.record.role !== 'superAdmin' && !isInsideVoterScope(caller.record, input.wardId, input.boothId)) {
+    throw new HttpsError('permission-denied', 'The new ward or booth is outside your allowed scope.')
+  }
+
+  const sourceRef = db.doc(`sourcePdfs/${input.sourcePdfId}`)
+  const sourceUpdate: Record<string, unknown> = {
+    wardId: input.wardId,
+    boothId: input.boothId,
+    area: input.area,
+    areas: input.area ? [input.area] : [],
+    updatedAt: FieldValue.serverTimestamp(),
+  }
+  if (source.coverRows) sourceUpdate.coverRows = source.coverRows.map((row) => ({ ...row, area: input.area || row.area }))
+  await sourceRef.update(sourceUpdate)
+
+  const rowSnapshot = await sourceRef.collection('rows').get()
+  for (const group of splitInto(rowSnapshot.docs, 350)) {
+    const batch = db.batch()
+    group.forEach((row) => batch.update(row.ref, {
+      wardId: input.wardId,
+      boothId: input.boothId,
+      area: input.area,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedByName: caller.record.fullName,
+    }))
+    await batch.commit()
+  }
+
+  const voterSnapshot = await db.collection('voters').where('sourcePdfId', '==', input.sourcePdfId).get()
+  for (const group of splitInto(voterSnapshot.docs, 250)) {
+    const batch = db.batch()
+    group.forEach((voterSnapshotItem) => {
+      const voter = voterFromFirestore(voterSnapshotItem.id, voterSnapshotItem.data())
+      batch.update(voterSnapshotItem.ref, {
+        wardId: input.wardId,
+        boothId: input.boothId,
+        area: input.area,
+        ...voterNormalizedFields({ doorNumber: voter.doorNumber, voterId: voter.voterId, area: input.area, division: voter.division }),
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: caller.uid,
+        updatedByName: caller.record.fullName,
+      })
+      batch.set(voterSnapshotItem.ref.collection('sourcePdfs').doc(input.sourcePdfId), { sourcePdfId: input.sourcePdfId, wardId: input.wardId, boothId: input.boothId }, { merge: true })
+    })
+    await batch.commit()
+  }
+
+  await markVoterFilterMetadataDirty()
+  await writeAudit(caller, 'pdf_import_metadata_updated', input.sourcePdfId, source.originalFileName, { previousWardId: source.wardId, previousBoothId: source.boothId, wardId: input.wardId, boothId: input.boothId, area: input.area })
+  await scheduleDashboardStatsRefresh('pdf-metadata-updated')
+  return { sourcePdfId: input.sourcePdfId }
 })
 
 export const cancelPdfImport = onCall({ region }, async (request) => {
@@ -2620,6 +2698,17 @@ function sourceForClient(source: SourcePdfRecord & { id: string }) {
 
 function importRowForClient(id: string, row: ImportRowRecord) {
   return { id, ...row, updatedAt: dateAsIso(row.updatedAt) }
+}
+
+function readPdfImportMetadataUpdate(value: unknown) {
+  if (!value || typeof value !== 'object') throw new HttpsError('invalid-argument', 'Invalid PDF metadata.')
+  const input = value as PdfMetadataUpdateInput
+  return {
+    sourcePdfId: requiredString(input.sourcePdfId, 'Source PDF id'),
+    wardId: requiredString(input.wardId, 'Ward'),
+    boothId: requiredString(input.boothId, 'Booth'),
+    area: plainString(input.area),
+  }
 }
 
 function readPdfRowUpdate(value: unknown) {

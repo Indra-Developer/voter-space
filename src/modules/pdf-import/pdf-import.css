@@ -37,12 +37,13 @@
   background: var(--surface);
 }
 
-.pdf-drop-card { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; }
-.pdf-drop-card > div:nth-child(2) { min-width: 0; }
+.pdf-drop-card { display: grid; justify-items: center; gap: 0.75rem; padding: 1rem; text-align: center; }
+.pdf-drop-card > div:nth-child(2) { width: 100%; min-width: 0; }
 .pdf-drop-card strong { color: var(--text); font-size: 0.86rem; }
 .pdf-drop-card p { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.72rem; line-height: 1.5; }
 .pdf-drop-icon { display: inline-grid; width: 2.8rem; height: 2.8rem; flex: 0 0 auto; place-items: center; border-radius: 0.75rem; background: var(--surface-muted); color: var(--primary); }
-.pdf-drop-card .pdf-primary-button { margin-left: auto; white-space: nowrap; }
+.pdf-drop-card > .pdf-primary-button,
+.pdf-drop-card > label.pdf-primary-button { justify-self: center; margin-inline: auto; white-space: nowrap; }
 .pdf-primary-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 .pdf-safety-notes { display: grid; gap: 0.35rem; padding: 0.75rem 0.85rem; border-radius: 0.75rem; background: var(--surface-muted); }
@@ -84,6 +85,14 @@
 .pdf-uploaded { display: inline-flex; align-items: center; gap: 0.3rem; margin: 0.55rem 0 0; color: var(--primary); font-size: 0.67rem; font-weight: 700; }
 .pdf-uploaded { color: #17683e; }
 .pdf-queue-card footer { justify-content: flex-end; min-height: 1.5rem; margin-top: 0.3rem; }
+.pdf-queue-card footer,
+.pdf-source-card footer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; justify-content: stretch; gap: .45rem; }
+.pdf-queue-card footer > button,
+.pdf-source-card footer > button,
+.pdf-queue-card footer > span { min-width: 0; width: 100%; overflow: hidden; padding-inline: .4rem; font-size: .65rem; text-overflow: ellipsis; white-space: nowrap; }
+.pdf-queue-card footer > span { justify-content: center; }
+.pdf-queue-card footer > :last-child:nth-child(3),
+.pdf-source-card footer > :last-child:nth-child(3) { grid-column: 1 / -1; }
 
 .pdf-review-section { display: grid; gap: 0.75rem; }
 .pdf-section-heading { align-items: flex-end; flex-wrap: wrap; }
@@ -123,6 +132,28 @@
 .pdf-source-stats { display: flex; flex-wrap: wrap; gap: 0.35rem 0.8rem; margin-top: 0.65rem; }
 .pdf-source-stats span { color: var(--muted); font-size: 0.68rem; }
 .pdf-source-card footer { justify-content: flex-end; margin-top: 0.4rem; }
+.pdf-source-card-skeleton { min-height: 10rem; }
+.pdf-source-card-skeleton header,
+.pdf-source-card-skeleton footer,
+.pdf-skeleton-metadata,
+.pdf-skeleton-stats { display: grid; gap: .5rem; }
+.pdf-source-card-skeleton header { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.pdf-skeleton-file,
+.pdf-skeleton-status,
+.pdf-skeleton-metadata span,
+.pdf-skeleton-stats span,
+.pdf-skeleton-progress,
+.pdf-source-card-skeleton footer span { display: block; border-radius: .45rem; background: linear-gradient(100deg, var(--surface-muted) 30%, var(--nav-active) 45%, var(--surface-muted) 60%); background-size: 220% 100%; animation: pdf-skeleton-shimmer 1.2s ease-in-out infinite; }
+.pdf-skeleton-file { width: min(12rem, 72%); height: .9rem; }
+.pdf-skeleton-status { width: 4.6rem; height: 1.5rem; border-radius: 999px; }
+.pdf-skeleton-metadata { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pdf-skeleton-metadata span { height: 2.6rem; }
+.pdf-skeleton-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pdf-skeleton-stats span { height: .65rem; }
+.pdf-skeleton-progress { height: .35rem; border-radius: 999px; }
+.pdf-source-card-skeleton footer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pdf-source-card-skeleton footer span { height: 2rem; }
+@keyframes pdf-skeleton-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 
 @media (min-width: 640px) {
   .pdf-metadata-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -132,8 +163,8 @@
 @media (min-width: 1024px) { .pdf-review-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 
 @media (max-width: 520px) {
-  .pdf-drop-card { align-items: flex-start; flex-direction: column; }
-  .pdf-drop-card .pdf-primary-button { margin-left: 0; }
+  .pdf-drop-card { align-items: center; flex-direction: initial; }
+  .pdf-drop-card .pdf-primary-button { margin-inline: auto; }
   .pdf-metadata-grid,
   .pdf-review-grid { grid-template-columns: 1fr; }
   .pdf-approval-bar { align-items: stretch; flex-direction: column; }

@@ -14,11 +14,13 @@ export type DailyTask = {
   rowCount: number
   kind: 'retryPdf' | 'reviewImport' | 'approveImport' | 'reviewVoters' | 'processing'
   priority: 'high' | 'normal'
-  action: 'library' | 'register'
+  action: 'upload' | 'register'
 }
+
+type DailyTaskResponse = Omit<DailyTask, 'action'> & { action: 'library' | 'upload' | 'register' }
 
 export async function loadDailyTasks() {
   if (!functions) throw new Error('Firebase is not configured.')
-  const call = httpsCallable<Record<string, never>, { tasks: DailyTask[] }>(functions, 'listDailyTasks')
-  return (await call({})).data.tasks
+  const call = httpsCallable<Record<string, never>, { tasks: DailyTaskResponse[] }>(functions, 'listDailyTasks')
+  return (await call({})).data.tasks.map(({ action, ...task }) => ({ ...task, action: action === 'library' ? 'upload' : action }))
 }

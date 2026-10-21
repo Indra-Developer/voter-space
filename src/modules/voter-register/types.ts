@@ -53,6 +53,7 @@ export const emptyVoterFilters: VoterFilters = {
 export type VoterFilterOptions = {
   wards: string[]
   booths: string[]
+  boothsByWard?: Record<string, string[]>
   areas: string[]
   divisions: string[]
   sourcePdfs: string[]

@@ -1,5 +1,5 @@
-import { Camera, Check, CheckCircle2, ChevronDown, Pencil, Plus, ShieldCheck, UserRound, XCircle } from 'lucide-react'
-import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore'
+import { Camera, Check, CheckCircle2, ChevronDown, Pencil, Plus, ShieldCheck, UserRound, Users, XCircle } from 'lucide-react'
+import { collection, getCountFromServer, onSnapshot, orderBy, query, where, type Query } from 'firebase/firestore'
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { db } from '../../lib/firebase'
 import type { AppLanguage } from '../app-shell/types'
@@ -10,6 +10,8 @@ import { emptyPermissions, type AccountFormValues, type AppSession, type UserPro
 import { loadVoterFilterOptions } from '../voter-register/voter-service'
 
 type DirectoryUser = UserProfile & { uid: string; profilePhotoUrl?: string; bannerUrl?: string }
+type UserMetricKey = 'accounts' | 'admins' | 'members' | 'active'
+type UserMetricValues = Partial<Record<UserMetricKey, number>>
 
 type UserManagementPageProps = {
   language: AppLanguage
@@ -18,7 +20,7 @@ type UserManagementPageProps = {
 
 const pageCopy = {
   te: {
-    label: 'ఖాతాల నిర్వహణ', title: 'వినియోగదారుల నిర్వహణ', description: 'మీ పాత్రకు అనుగుణంగా ఖాతాలను సృష్టించండి మరియు నిర్వహించండి.',
+    accountsMetric: 'ఖాతాలు', adminsMetric: 'అడ్మిన్లు', membersMetric: 'సబ్-మెంబర్లు', assignedMetric: 'మీ సభ్యులు', activeMetric: 'యాక్టివ్ ఖాతాలు',
     create: 'కొత్త ఖాతా', edit: 'ఖాతా సవరించండి', fullName: 'పూర్తి పేరు', mobile: 'మొబైల్ నంబర్', email: 'లాగిన్ ఇమెయిల్',
     role: 'పాత్ర', admin: 'అడ్మిన్', subMember: 'సబ్-మెంబర్', status: 'ఖాతా స్థితి', active: 'యాక్టివ్', disabled: 'డిసేబుల్',
     profilePhoto: 'ప్రొఫైల్ ఫోటో', banner: 'అడ్మిన్ బ్యానర్', parentAdmin: 'పేరెంట్ అడ్మిన్', wardAccess: 'అనుమతించిన వార్డులు', boothAccess: 'అనుమతించిన బూత్‌లు',
@@ -29,7 +31,7 @@ const pageCopy = {
     commaHelp: 'డేటాబేస్‌లో ఉన్న వార్డులు మరియు బూత్‌లను ఇక్కడ ఎంచుకోండి.', selectOneOrMore: 'ఒకటి లేదా అంతకంటే ఎక్కువ ఎంచుకోండి', noValues: 'ఇంకా విలువలు అందుబాటులో లేవు', noAdmins: 'ముందుగా ఒక అడ్మిన్ ఖాతాను సృష్టించండి.', imageWarning: 'ఖాతా సృష్టించబడింది. చిత్రం సేవ్ కాలేదు; ఈ ఖాతాను సవరించి మళ్లీ చిత్రాన్ని ఎంచుకోండి.',
   },
   en: {
-    label: 'Account management', title: 'User management', description: 'Create and manage accounts within your role.',
+    accountsMetric: 'Accounts', adminsMetric: 'Admins', membersMetric: 'Sub-members', assignedMetric: 'Your members', activeMetric: 'Active accounts',
     create: 'New account', edit: 'Edit account', fullName: 'Full name', mobile: 'Mobile number', email: 'Login email',
     role: 'Role', admin: 'Admin', subMember: 'Sub-member', status: 'Account status', active: 'Active', disabled: 'Disabled',
     profilePhoto: 'Profile photo', banner: 'Admin banner', parentAdmin: 'Parent Admin', wardAccess: 'Allowed wards', boothAccess: 'Allowed booths',
@@ -45,10 +47,12 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
   const [users, setUsers] = useState<DirectoryUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [directoryError, setDirectoryError] = useState<string>()
+  const [metricValues, setMetricValues] = useState<UserMetricValues>({})
   const [editingUser, setEditingUser] = useState<DirectoryUser>()
   const [showForm, setShowForm] = useState(false)
   const [notice, setNotice] = useState<string>()
   const [scopeOptions, setScopeOptions] = useState({ wards: [] as string[], booths: [] as string[] })
+  const snapshotVersion = useRef(0)
   const t = pageCopy[language]
   const isSuperAdmin = session.profile.role === 'superAdmin'
 
@@ -68,13 +72,18 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
     const unsubscribe = onSnapshot(
       userQuery,
       (snapshot) => {
+        const version = ++snapshotVersion.current
+        // Firestore can emit an empty cached snapshot before the server result.
+        // Keep the loading state until a confirmed result arrives so the empty
+        // message does not flash before the users are rendered.
+        if (snapshot.metadata.fromCache && snapshot.empty) return
         const profiles = snapshot.docs.map((item) => ({ uid: item.id, ...(item.data() as UserProfile) }))
         void Promise.all(profiles.map(async (profile) => ({
           ...profile,
           profilePhotoUrl: await resolveStorageFileUrl(profile.profilePhotoPath),
           bannerUrl: await resolveStorageFileUrl(profile.bannerPath),
         }))).then((resolved) => {
-          if (!active) return
+          if (!active || version !== snapshotVersion.current) return
           setUsers(resolved)
           setDirectoryError(undefined)
           setLoadingUsers(false)
@@ -86,6 +95,34 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
       },
     )
     return () => { active = false; unsubscribe() }
+  }, [isSuperAdmin, session.uid])
+
+  useEffect(() => {
+    if (!db) return
+    let active = true
+    const usersCollection = collection(db, 'users')
+    const accountQuery = isSuperAdmin
+      ? query(usersCollection, where('role', 'in', ['admin', 'subMember']))
+      : query(usersCollection, where('parentAdminId', '==', session.uid))
+    const memberQuery = isSuperAdmin
+      ? query(usersCollection, where('role', '==', 'subMember'))
+      : query(usersCollection, where('parentAdminId', '==', session.uid))
+    const metricQueries: Array<[UserMetricKey, Query]> = [
+      ['accounts', accountQuery],
+      ['members', memberQuery],
+      ['active', query(usersCollection, where('status', '==', 'active'))],
+    ]
+    if (isSuperAdmin) metricQueries.push(['admins', query(usersCollection, where('role', '==', 'admin'))])
+
+    void Promise.all(metricQueries.map(async ([key, metricQuery]) => {
+      try {
+        const result = await getCountFromServer(metricQuery)
+        if (active) setMetricValues((current) => ({ ...current, [key]: result.data().count }))
+      } catch {
+        if (active) setMetricValues((current) => ({ ...current, [key]: 0 }))
+      }
+    }))
+    return () => { active = false }
   }, [isSuperAdmin, session.uid])
 
   useEffect(() => {
@@ -131,35 +168,47 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
 
   return (
     <section className="user-management grid gap-4 font-sans text-copy">
-      <header className="page-intro user-management-intro flex items-start justify-between gap-4">
-        <div>
-          <p>{t.label}</p><h2>{t.title}</h2><span>{t.description}</span>
-        </div>
+      <header className="user-management-intro flex justify-end">
         <button className={joinClasses('primary-button', uiClasses.button, uiClasses.primaryButton)} onClick={startCreate} type="button"><Plus size={17} />{t.create}</button>
       </header>
+
+      <UserMetrics isSuperAdmin={isSuperAdmin} language={language} values={metricValues} />
 
       {!isSuperAdmin ? <p className="form-alert form-alert-info">{t.ownMembers}</p> : null}
       {notice ? <p className="form-alert form-alert-info">{notice}</p> : null}
       {directoryError ? <p className="form-alert form-alert-error">{directoryError}</p> : null}
 
       {showForm ? (
-        <AccountForm
-          adminOptions={adminOptions}
-          initialUser={editingUser}
-          key={editingUser?.uid ?? 'new'}
-          language={language}
-          onCancel={() => { setShowForm(false); setEditingUser(undefined) }}
-          onComplete={(message) => { setNotice(message); setShowForm(false); setEditingUser(undefined) }}
-          session={session}
-          scopeOptions={scopeOptions}
-        />
+        <div
+          className="user-management-form-backdrop fixed inset-0 z-[80] grid place-items-center bg-slate-950/55 p-3 backdrop-blur-sm"
+          onMouseDown={() => { setShowForm(false); setEditingUser(undefined) }}
+          role="presentation"
+        >
+          <section
+            aria-labelledby="account-form-title"
+            aria-modal="true"
+            className="user-management-form-modal w-full max-w-3xl max-h-[calc(100svh-1.5rem)] overflow-y-auto"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <AccountForm
+              adminOptions={adminOptions}
+              initialUser={editingUser}
+              key={editingUser?.uid ?? 'new'}
+              language={language}
+              onCancel={() => { setShowForm(false); setEditingUser(undefined) }}
+              onComplete={(message) => { setNotice(message); setShowForm(false); setEditingUser(undefined) }}
+              session={session}
+              scopeOptions={scopeOptions}
+            />
+          </section>
+        </div>
       ) : null}
 
       <div className={joinClasses('user-list-card', uiClasses.card, 'overflow-hidden')}>
-        {loadingUsers ? <p aria-live="polite" className="user-list-loading"><span aria-hidden="true" className="loading-dots">•••</span>{language === 'te' ? 'వినియోగదారుల వివరాలు లోడ్ అవుతున్నాయి…' : 'Loading user accounts…'}</p> : editableUsers.length === 0 ? <p className="user-list-empty">{t.noUsers}</p> : null}
+        {loadingUsers ? <UserListSkeletons /> : editableUsers.length === 0 ? <p className="user-list-empty">{t.noUsers}</p> : null}
         {editableUsers.map((user) => (
             <article className="user-row bg-surface" key={user.uid}>
-            {user.bannerUrl ? <img alt="" className="user-row-banner" src={user.bannerUrl} /> : null}
             <span className="user-row-avatar">{user.profilePhotoUrl ? <img alt={user.fullName} src={user.profilePhotoUrl} /> : <UserRound size={20} />}</span>
             <div className="user-row-main"><strong>{user.fullName}</strong><span>{user.email} · {user.mobile}</span></div>
             <div className="user-row-details"><span className={`status-pill status-${user.status}`}>{user.status === 'active' ? t.active : t.disabled}</span><span>{user.role === 'admin' ? t.admin : t.subMember}</span><span>{user.deviceLimit ?? 1} {(user.deviceLimit ?? 1) === 1 ? t.device : t.devices}</span></div>
@@ -172,6 +221,28 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
       </div>
     </section>
   )
+}
+
+function UserMetrics({ isSuperAdmin, language, values }: { isSuperAdmin: boolean; language: AppLanguage; values: UserMetricValues }) {
+  const t = pageCopy[language]
+  const metrics = [
+    { key: 'accounts' as const, label: t.accountsMetric, icon: Users },
+    ...(isSuperAdmin ? [{ key: 'admins' as const, label: t.adminsMetric, icon: ShieldCheck }] : []),
+    { key: 'members' as const, label: isSuperAdmin ? t.membersMetric : t.assignedMetric, icon: UserRound },
+    { key: 'active' as const, label: t.activeMetric, icon: CheckCircle2 },
+  ]
+
+  return <section aria-label={language === 'te' ? 'ఖాతాల గణాంకాలు' : 'Account metrics'} className="user-metrics grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+    {metrics.map((metric) => {
+      const Icon = metric.icon
+      const value = values[metric.key]
+      return <article className="user-metric-card" key={metric.key}><span className="user-metric-icon"><Icon aria-hidden="true" size={17} /></span><div className="min-w-0"><span>{metric.label}</span>{value === undefined ? <span aria-hidden="true" className="metric-skeleton" /> : <strong>{value.toLocaleString()}</strong>}</div></article>
+    })}
+  </section>
+}
+
+function UserListSkeletons() {
+  return <div aria-busy="true" aria-label="Loading user accounts" className="user-list-skeletons">{['one', 'two', 'three'].map((key) => <div className="user-row user-row-skeleton" key={key}><span className="skeleton-circle" /><div className="skeleton-copy"><span /><span /></div><div className="skeleton-pills"><span /><span /></div><div className="skeleton-actions"><span /><span /></div></div>)}</div>
 }
 
 type AccountFormProps = {
@@ -268,7 +339,7 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
 
   return (
     <form className={joinClasses('account-form', uiClasses.card, 'grid gap-4 p-4')} onSubmit={submit}>
-      <div className="account-form-heading flex items-center justify-between gap-4"><div><span>{isEditing ? t.edit : t.create}</span><h3>{isEditing ? initialUser?.fullName : t.create}</h3></div><ShieldCheck size={22} /></div>
+      <div className="account-form-heading flex items-center justify-between gap-4"><div><span>{isEditing ? t.edit : t.create}</span><h3 id="account-form-title">{isEditing ? initialUser?.fullName : t.create}</h3></div><ShieldCheck size={22} /></div>
       {error ? <p className="form-alert form-alert-error">{error}</p> : null}
       <div className="account-form-grid">
         {isSuperAdmin && !isEditing ? <label><span>{t.role}</span><select className={uiClasses.select} onChange={(event) => setField('role', event.target.value as AccountFormValues['role'])} value={values.role}><option value="admin">{t.admin}</option><option value="subMember">{t.subMember}</option></select></label> : null}

@@ -17,7 +17,6 @@ const DashboardPage = lazy(() => import('./modules/dashboard/DashboardPage').the
 
 const VoterRegisterPage = lazy(() => import('./modules/voter-register/VoterRegisterPage').then((module) => ({ default: module.VoterRegisterPage })))
 const PdfImportPage = lazy(() => import('./modules/pdf-import/PdfImportPage').then((module) => ({ default: module.PdfImportPage })))
-const PdfLibraryPage = lazy(() => import('./modules/pdf-library/PdfLibraryPage').then((module) => ({ default: module.PdfLibraryPage })))
 
 const languageStorageKey = 'voter-space-language'
 const themeStorageKey = 'voter-space-theme'
@@ -80,7 +79,6 @@ function App() {
   const isAudit = activeNavigation === 'audit'
   const isVoterRegister = activeNavigation === 'register'
   const isPdfUpload = activeNavigation === 'upload'
-  const isPdfLibrary = activeNavigation === 'library'
   const navigateTo = (key: NavigationKey, search = '') => {
     const path = pathForNavigation(key)
     const normalizedSearch = search && !search.startsWith('?') ? `?${search}` : search
@@ -116,7 +114,7 @@ function App() {
       theme={theme}
       >
         <Suspense fallback={<AppBootstrapScreen title={t.nav[activeNavigation]} />}>
-          {isUserManagement ? <UserManagementPage language={language} session={session} /> : isUserDirectory ? <UserDirectoryPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isVoterRegister ? <VoterRegisterPage language={language} session={session} /> : isPdfUpload ? <PdfImportPage language={language} session={session} /> : isPdfLibrary ? <PdfLibraryPage language={language} session={session} /> : isDashboard ? <DashboardPage language={language} onNavigate={navigateTo} session={session} /> : <>
+          {isUserManagement ? <UserManagementPage language={language} session={session} /> : isUserDirectory ? <UserDirectoryPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isVoterRegister ? <VoterRegisterPage language={language} session={session} /> : isPdfUpload ? <PdfImportPage language={language} session={session} /> : isDashboard ? <DashboardPage language={language} onNavigate={navigateTo} session={session} /> : <>
             <section className="page-intro">
               <p>{t.page.section}</p>
               <h2>{isDashboard ? t.page.dashboardTitle : t.nav[activeNavigation]}</h2>
@@ -159,7 +157,7 @@ function isRouteAllowed(key: NavigationKey, role: AppSessionRole, permissions: {
     if (key === 'upload') return permissions.upload
     return true
   }
-  return ['dashboard', 'register', 'library', 'settings'].includes(key)
+  return ['dashboard', 'register', 'settings'].includes(key)
 }
 
 type AppSessionRole = 'superAdmin' | 'admin' | 'subMember'

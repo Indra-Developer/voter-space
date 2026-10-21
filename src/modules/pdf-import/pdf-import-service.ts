@@ -18,6 +18,7 @@ export async function createPdfImport(file: File, details: PdfImportDetails, upl
   const call = httpsCallable<PdfImportDetails & { originalFileName: string; uploadHash: string }, { id: string; storagePath: string; duplicate?: boolean; status?: string }>(requireFunctions(), 'createPdfImport')
   const result = await call({ ...details, originalFileName: file.name, uploadHash })
   invalidatePdfImportCache()
+  invalidateRequestCache('voter-filter-options:')
   invalidateRequestCache('dashboard-summary:')
   invalidateRequestCache('dashboard-metric:')
   invalidateRequestCache('audit-logs:')
@@ -130,6 +131,20 @@ export async function retryPdfImport(sourcePdfId: string) {
   invalidateRequestCache('dashboard-summary:')
   invalidateRequestCache('dashboard-metric:')
   invalidateRequestCache('audit-logs:')
+}
+
+export async function updatePdfImportMetadata(sourcePdfId: string, metadata: PdfImportDetails) {
+  const call = httpsCallable<PdfImportDetails & { sourcePdfId: string }, { sourcePdfId: string }>(requireFunctions(), 'updatePdfImportMetadata')
+  const result = await call({ sourcePdfId, ...metadata })
+  invalidatePdfImportCache()
+  invalidateRequestCache('voter-page:')
+  invalidateRequestCache('voter-count:')
+  invalidateRequestCache('voter-all:')
+  invalidateRequestCache('voter-filter-options:')
+  invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('dashboard-metric:')
+  invalidateRequestCache('audit-logs:')
+  return result.data
 }
 
 export type UploadTaskHandle = UploadTask

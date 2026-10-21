@@ -1,8 +1,6 @@
 import {
   Activity,
   BookOpen,
-  FileText,
-  Files,
   LayoutDashboard,
   Settings,
   Upload,
@@ -21,13 +19,10 @@ export const navigationItems: NavigationItem[] = [
   { key: 'dashboard', icon: LayoutDashboard },
   { key: 'register', icon: BookOpen },
   { key: 'upload', icon: Upload },
-  { key: 'library', icon: Files },
   { key: 'users', icon: Users },
   { key: 'directory', icon: UsersRound },
   { key: 'audit', icon: Activity },
   { key: 'settings', icon: Settings },
 ]
 
-export const mobileNavigationKeys = ['dashboard', 'register', 'upload', 'library', 'settings'] as const satisfies readonly NavigationKey[]
-
-export const pdfIcon = FileText
+export const mobileNavigationKeys = ['dashboard', 'register', 'upload', 'users', 'settings'] as const satisfies readonly NavigationKey[]

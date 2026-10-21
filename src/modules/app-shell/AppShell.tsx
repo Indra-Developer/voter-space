@@ -41,6 +41,7 @@ export function AppShell({
   const [profileOpen, setProfileOpen] = useState(false)
   const [themeOpen, setThemeOpen] = useState(false)
   const t = copy[language]
+  const isRegisterPage = activeNavigation === 'register'
   const visibleNavigation = navigationItems.filter(({ key }) => isNavigationAllowed(key, profile?.role, permissions))
   const visibleMobileNavigation = mobileNavigationKeys.filter((key) => visibleNavigation.some((item) => item.key === key))
 
@@ -111,13 +112,13 @@ export function AppShell({
       ) : null}
 
       <main className="shell-main">
-        <header className={joinClasses('shell-header sticky top-0 z-20 border-b border-border bg-surface/90 backdrop-blur-md', activeNavigation === 'register' && 'shell-header-register')}>
-          <div className="shell-header-inner">
+        <header className={joinClasses('shell-header sticky top-0 z-20 border-b border-border bg-surface/90 backdrop-blur-md', isRegisterPage && 'max-[639px]:!shadow-[0_4px_18px_color-mix(in_srgb,var(--primary)_8%,transparent)]')}>
+          <div className={joinClasses('shell-header-inner', isRegisterPage && 'max-[639px]:!min-h-[4.25rem] max-[639px]:!gap-2 max-[639px]:!px-3')}>
             {showBackButton ? <button aria-label={t.actions.back} className={joinClasses('icon-button shell-back-button', uiClasses.iconButton)} onClick={onBack} type="button"><ArrowLeft className="shell-back-icon" size={19} /><span className="shell-back-label">{t.actions.back}</span></button> : null}
-            <button className={joinClasses('icon-button shell-menu-button', uiClasses.iconButton)} aria-label={t.actions.openMenu} onClick={() => setMobileMenuOpen(true)} type="button">
+            <button className={joinClasses('icon-button shell-menu-button', uiClasses.iconButton, isRegisterPage && 'max-[639px]:!size-10 max-[639px]:!rounded-xl')} aria-label={t.actions.openMenu} onClick={() => setMobileMenuOpen(true)} type="button">
               <Menu size={21} />
             </button>
-            <div className="shell-header-title">
+            <div className={joinClasses('shell-header-title', isRegisterPage && 'min-w-0 flex-1 max-[639px]:[&>p]:!text-[0.58rem] max-[639px]:[&>h1]:!text-[1rem] max-[639px]:[&>h1]:!font-extrabold')}>
               <p>{t.page.section}</p>
               <h1>{t.nav[activeNavigation]}</h1>
             </div>
@@ -272,5 +273,5 @@ function isNavigationAllowed(key: NavigationKey, role: ShellProfile['role'], per
     if (key === 'upload') return permissions?.upload ?? false
     return true
   }
-  return ['dashboard', 'register', 'library', 'settings'].includes(key)
+  return ['dashboard', 'register', 'settings'].includes(key)
 }

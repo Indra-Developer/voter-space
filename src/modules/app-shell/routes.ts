@@ -4,7 +4,6 @@ export const navigationPaths: Record<NavigationKey, string> = {
   dashboard: '/dashboard',
   register: '/voter-register',
   upload: '/pdf-upload',
-  library: '/pdf-library',
   users: '/user-management',
   directory: '/user-directory',
   audit: '/audit-logs',

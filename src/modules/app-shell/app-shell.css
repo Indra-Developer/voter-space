@@ -489,7 +489,7 @@
 
 button,
 select {
-  font: inherit;
+  font-family: inherit;
 }
 
 button:focus-visible,
