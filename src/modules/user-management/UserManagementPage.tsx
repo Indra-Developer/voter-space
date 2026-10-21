@@ -12,6 +12,11 @@ import { loadVoterFilterOptions } from '../voter-register/voter-service'
 type DirectoryUser = UserProfile & { uid: string; profilePhotoUrl?: string; bannerUrl?: string }
 type UserMetricKey = 'accounts' | 'admins' | 'members' | 'active'
 type UserMetricValues = Partial<Record<UserMetricKey, number>>
+type ScopeOptions = {
+  wards: string[]
+  booths: string[]
+  boothsByWard: Record<string, string[]>
+}
 
 type UserManagementPageProps = {
   language: AppLanguage
@@ -51,7 +56,7 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
   const [editingUser, setEditingUser] = useState<DirectoryUser>()
   const [showForm, setShowForm] = useState(false)
   const [notice, setNotice] = useState<string>()
-  const [scopeOptions, setScopeOptions] = useState({ wards: [] as string[], booths: [] as string[] })
+  const [scopeOptions, setScopeOptions] = useState<ScopeOptions>({ wards: [], booths: [], boothsByWard: {} })
   const snapshotVersion = useRef(0)
   const t = pageCopy[language]
   const isSuperAdmin = session.profile.role === 'superAdmin'
@@ -128,9 +133,9 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
   useEffect(() => {
     let active = true
     void loadVoterFilterOptions().then((options) => {
-      if (active) setScopeOptions({ wards: options.wards, booths: options.booths })
+      if (active) setScopeOptions({ wards: options.wards, booths: options.booths, boothsByWard: options.boothsByWard ?? {} })
     }).catch(() => {
-      if (active) setScopeOptions({ wards: [], booths: [] })
+      if (active) setScopeOptions({ wards: [], booths: [], boothsByWard: {} })
     })
     return () => { active = false }
   }, [session.uid])
@@ -139,7 +144,7 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
   const editableUsers = isSuperAdmin ? users.filter((user) => user.uid !== session.uid) : users
 
   const refreshScopeOptions = () => {
-    void loadVoterFilterOptions().then((options) => setScopeOptions({ wards: options.wards, booths: options.booths })).catch(() => setScopeOptions({ wards: [], booths: [] }))
+    void loadVoterFilterOptions().then((options) => setScopeOptions({ wards: options.wards, booths: options.booths, boothsByWard: options.boothsByWard ?? {} })).catch(() => setScopeOptions({ wards: [], booths: [], boothsByWard: {} }))
   }
 
   const startCreate = () => {
@@ -252,7 +257,7 @@ type AccountFormProps = {
   onCancel: () => void
   onComplete: (message: string) => void
   session: AppSession
-  scopeOptions: { wards: string[]; booths: string[] }
+  scopeOptions: ScopeOptions
 }
 
 function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete, session, scopeOptions }: AccountFormProps) {
@@ -274,10 +279,22 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
     return adminOptions.find((admin) => admin.uid === values.parentAdminId)?.scope
   }, [adminOptions, isAdminAccount, session.profile.scope, session.uid, values.parentAdminId])
   const availableWardOptions = useMemo(() => uniqueOptions(isAdminAccount ? scopeOptions.wards : parentScope?.wardIds ?? [], values.scope.wardIds), [isAdminAccount, parentScope?.wardIds, scopeOptions.wards, values.scope.wardIds])
-  const availableBoothOptions = useMemo(() => uniqueOptions(isAdminAccount ? scopeOptions.booths : parentScope?.boothIds ?? [], values.scope.boothIds), [isAdminAccount, parentScope?.boothIds, scopeOptions.booths, values.scope.boothIds])
+  const availableBoothOptions = useMemo(() => {
+    const allowedBooths = isAdminAccount ? scopeOptions.booths : parentScope?.boothIds ?? []
+    if (!values.scope.wardIds.length) return uniqueOptions(allowedBooths, values.scope.boothIds)
+
+    const relatedBooths = values.scope.wardIds.flatMap((ward) => scopeOptions.boothsByWard[ward] ?? [])
+    return uniqueOptions(allowedBooths.filter((booth) => relatedBooths.includes(booth)), values.scope.boothIds)
+  }, [isAdminAccount, parentScope?.boothIds, scopeOptions.booths, scopeOptions.boothsByWard, values.scope.boothIds, values.scope.wardIds])
 
   const setField = <Key extends keyof AccountFormValues>(key: Key, value: AccountFormValues[Key]) => setValues((current) => ({ ...current, [key]: value }))
   const setPermission = (key: keyof AccountFormValues['permissions'], checked: boolean) => setValues((current) => ({ ...current, permissions: { ...current.permissions, [key]: checked } }))
+  const handleWardChange = (wardIds: string[]) => {
+    const allowedBooths = isAdminAccount ? scopeOptions.booths : parentScope?.boothIds ?? []
+    const relatedBooths = wardIds.length ? wardIds.flatMap((ward) => scopeOptions.boothsByWard[ward] ?? []) : allowedBooths
+    const boothIds = values.scope.boothIds.filter((booth) => relatedBooths.includes(booth))
+    setField('scope', { ...values.scope, wardIds, boothIds })
+  }
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -361,11 +378,11 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
       {isSaving && (profileFile || bannerFile) ? <div aria-live="polite" className="account-image-progress"><div><span style={{ width: `${Math.round(((profileFile ? imageProgress.profile : 100) + (bannerFile ? imageProgress.banner : 100)) / (Number(Boolean(profileFile)) + Number(Boolean(bannerFile))))}%` }} /></div><small>Uploading images… {Math.round(((profileFile ? imageProgress.profile : 100) + (bannerFile ? imageProgress.banner : 100)) / (Number(Boolean(profileFile)) + Number(Boolean(bannerFile))))}%</small></div> : null}
 
         {isAdminAccount ? (
-        <fieldset className={joinClasses('account-scope', uiClasses.card, 'grid gap-3 p-4')}><legend>{t.wardAccess} & {t.boothAccess}</legend><div className="account-form-grid grid gap-3 tablet:grid-cols-2"><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.wardAccess} options={availableWardOptions} selected={values.scope.wardIds} onChange={(wardIds) => setField('scope', { ...values.scope, wardIds })} placeholder={t.wardAccess} /><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.boothAccess} options={availableBoothOptions} selected={values.scope.boothIds} onChange={(boothIds) => setField('scope', { ...values.scope, boothIds })} placeholder={t.boothAccess} /><small>{t.commaHelp}</small></div></fieldset>
+        <fieldset className={joinClasses('account-scope', uiClasses.card, 'grid gap-3 p-4')}><legend>{t.wardAccess} & {t.boothAccess}</legend><div className="account-form-grid grid gap-3 tablet:grid-cols-2"><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.wardAccess} options={availableWardOptions} selected={values.scope.wardIds} onChange={handleWardChange} placeholder={t.wardAccess} /><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.boothAccess} options={availableBoothOptions} selected={values.scope.boothIds} onChange={(boothIds) => setField('scope', { ...values.scope, boothIds })} placeholder={t.boothAccess} /><small>{t.commaHelp}</small></div></fieldset>
       ) : (
         <fieldset className={joinClasses('account-scope', uiClasses.card, 'grid gap-3 p-4')}><legend>{t.parentAdmin}</legend><div className="account-form-grid grid gap-3 tablet:grid-cols-2">
           {isSuperAdmin ? <label><span>{t.parentAdmin}</span><select className={uiClasses.select} onChange={(event) => setValues((current) => ({ ...current, parentAdminId: event.target.value, scope: { wardIds: [], boothIds: [] } }))} required value={values.parentAdminId ?? ''}><option value="">{adminOptions.length ? 'Select Admin' : t.noAdmins}</option>{adminOptions.map((admin) => <option key={admin.uid} value={admin.uid}>{admin.fullName}</option>)}</select></label> : null}
-          <ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.assignedWard} options={availableWardOptions} selected={values.scope.wardIds} onChange={(wardIds) => setField('scope', { ...values.scope, wardIds })} placeholder={t.assignedWard} />
+          <ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.assignedWard} options={availableWardOptions} selected={values.scope.wardIds} onChange={handleWardChange} placeholder={t.assignedWard} />
           <ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.assignedBooth} options={availableBoothOptions} selected={values.scope.boothIds} onChange={(boothIds) => setField('scope', { ...values.scope, boothIds })} placeholder={t.assignedBooth} />
         </div></fieldset>
       )}
