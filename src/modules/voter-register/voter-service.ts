@@ -132,6 +132,7 @@ export function invalidateVoterDataCache() {
   invalidateRequestCache('voter-all:')
   invalidateRequestCache('voter-filter-options:')
   invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('dashboard-metric:')
   invalidateRequestCache('audit-logs:')
 }
 

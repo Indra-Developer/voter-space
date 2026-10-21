@@ -122,3 +122,150 @@
   .login-form { grid-template-columns: 1fr; }
   .login-form .primary-button { grid-column: auto; }
 }
+
+/* Profile media: keep the fixed banner ratio while making the identity area feel like a polished profile card. */
+.profile-page-card {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  border-radius: 1.25rem;
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.profile-page-banner {
+  position: relative;
+  isolation: isolate;
+  aspect-ratio: 1600 / 340;
+  overflow: hidden;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 88%, #063d64), var(--primary-strong));
+}
+
+.profile-page-banner::before {
+  position: absolute;
+  z-index: 1;
+  top: -55%;
+  right: -4%;
+  width: 14rem;
+  height: 14rem;
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+}
+
+.profile-page-banner::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(3, 27, 70, .25), transparent 45%, rgba(3, 27, 70, .1));
+  content: '';
+  pointer-events: none;
+}
+
+.profile-page-banner img {
+  position: relative;
+  z-index: 0;
+  object-position: center;
+}
+
+.profile-page-banner-mark {
+  position: absolute;
+  z-index: 2;
+  top: .8rem;
+  left: 1rem;
+  border: 1px solid rgba(255, 255, 255, .32);
+  border-radius: 999px;
+  background: rgba(3, 27, 70, .42);
+  color: #fff;
+  padding: .28rem .55rem;
+  font-size: .58rem;
+  font-weight: 850;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+
+.profile-page-main {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--nav-active) 35%, var(--surface)), var(--surface));
+  padding: 1rem 1rem 1.15rem;
+}
+
+.profile-page-photo-frame {
+  flex: 0 0 auto;
+  padding: .28rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 38%, var(--border));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--nav-active) 70%, var(--surface));
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.profile-page-photo {
+  display: block;
+  width: 5.5rem;
+  height: 5.5rem;
+  margin: 0;
+  border: .28rem solid var(--surface);
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(3, 27, 70, .18);
+}
+
+.profile-page-photo-placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--surface-muted);
+  color: var(--primary);
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.profile-page-name {
+  display: grid;
+  min-width: 0;
+  gap: .2rem;
+}
+
+.profile-page-name small {
+  color: var(--primary);
+  font-size: .61rem;
+  font-weight: 850;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.profile-page-name h3 {
+  font-size: 1.15rem;
+}
+
+.profile-page-name span {
+  margin-top: .05rem;
+  color: var(--primary-strong);
+  font-weight: 800;
+}
+
+@media (max-width: 620px) {
+  .profile-page-banner-mark {
+    top: .6rem;
+    left: .65rem;
+    padding: .22rem .42rem;
+    font-size: .5rem;
+  }
+
+  .profile-page-main {
+    gap: .7rem;
+    padding: .85rem .75rem 1rem;
+  }
+
+  .profile-page-photo {
+    width: 4.7rem;
+    height: 4.7rem;
+  }
+
+  .profile-page-name h3 {
+    font-size: 1rem;
+  }
+}

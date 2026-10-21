@@ -1,8 +1,8 @@
 .pdf-library-page { display: grid; gap: .9rem; }
-.pdf-library-intro, .audit-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 0; }
+.pdf-library-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 0; }
 .pdf-library-secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 2.1rem; padding: .4rem .65rem; border: 1px solid var(--border); border-radius: .55rem; background: var(--surface); color: var(--primary); cursor: pointer; font: inherit; font-size: .75rem; font-weight: 700; }
 .pdf-library-secondary-button:hover { border-color: var(--primary); background: var(--nav-active); }
-.pdf-library-filter-card, .pdf-library-report, .pdf-library-row, .daily-task-card { border: 1px solid var(--border); border-radius: .9rem; background: var(--surface); box-shadow: 0 3px 12px rgba(15,55,33,.025); }
+.pdf-library-filter-card, .pdf-library-report, .pdf-library-row { border: 1px solid var(--border); border-radius: .9rem; background: var(--surface); box-shadow: 0 3px 12px rgba(15,55,33,.025); }
 .pdf-library-filter-card { padding: .85rem; }
 .pdf-library-filter-title { display: flex; align-items: center; gap: .45rem; margin-bottom: .75rem; color: var(--text); font-size: .84rem; }
 .pdf-library-filter-title svg { color: var(--primary); }
@@ -44,8 +44,8 @@
 .pdf-library-report > div:first-child { display: grid; gap: .15rem; }
 .pdf-library-report strong { font-size: .8rem; }
 .pdf-library-report > div:last-child, .pdf-library-actions { display: flex; flex-wrap: wrap; gap: .35rem; }
-.pdf-library-report button, .pdf-library-actions button, .daily-task-card > button { display: inline-flex; align-items: center; justify-content: center; gap: .32rem; min-height: 2rem; padding: .34rem .55rem; border: 1px solid var(--border); border-radius: .55rem; background: var(--surface); color: var(--primary); cursor: pointer; font-size: .7rem; font-weight: 750; }
-.pdf-library-actions button.is-primary, .daily-task-card > button { border-color: var(--primary); background: var(--primary); color: var(--primary-contrast); }
+.pdf-library-report button, .pdf-library-actions button { display: inline-flex; align-items: center; justify-content: center; gap: .32rem; min-height: 2rem; padding: .34rem .55rem; border: 1px solid var(--border); border-radius: .55rem; background: var(--surface); color: var(--primary); cursor: pointer; font-size: .7rem; font-weight: 750; }
+.pdf-library-actions button.is-primary { border-color: var(--primary); background: var(--primary); color: var(--primary-contrast); }
 .pdf-library-actions button:disabled { cursor: wait; opacity: .7; }
 .pdf-library-list { display: grid; gap: .65rem; }
 .pdf-library-row { display: grid; gap: .7rem; padding: .8rem; }

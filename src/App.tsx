@@ -60,11 +60,11 @@ function App() {
   }, [language])
 
   if (sessionState.status === 'loading') {
-    return <main className="auth-page"><PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} /></main>
+    return <AppBootstrapScreen title={t.nav[activeNavigation]} />
   }
 
   if (sessionState.status === 'signedOut') {
-    return <Suspense fallback={<main className="auth-page"><PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} /></main>}><LoginPage language={language} message={sessionState.message} onLanguageChange={setLanguage} /></Suspense>
+    return <Suspense fallback={<AppBootstrapScreen title={t.nav.dashboard} />}><LoginPage language={language} message={sessionState.message} onLanguageChange={setLanguage} /></Suspense>
   }
 
   if (location.pathname === '/login') return <Navigate replace to={pathForNavigation('dashboard')} />
@@ -96,7 +96,7 @@ function App() {
   }
 
   return (
-    <Suspense fallback={<main className="auth-page"><PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} /></main>}>
+    <Suspense fallback={<AppBootstrapScreen title={t.nav[activeNavigation]} />}>
       <AppShell
       activeNavigation={activeNavigation}
       language={language}
@@ -115,7 +115,7 @@ function App() {
       }}
       theme={theme}
       >
-        <Suspense fallback={<PageState kind="loading" title={t.states.loading.title} description={t.states.loading.description} />}>
+        <Suspense fallback={<AppBootstrapScreen title={t.nav[activeNavigation]} />}>
           {isUserManagement ? <UserManagementPage language={language} session={session} /> : isUserDirectory ? <UserDirectoryPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isVoterRegister ? <VoterRegisterPage language={language} session={session} /> : isPdfUpload ? <PdfImportPage language={language} session={session} /> : isPdfLibrary ? <PdfLibraryPage language={language} session={session} /> : isDashboard ? <DashboardPage language={language} onNavigate={navigateTo} session={session} /> : <>
             <section className="page-intro">
               <p>{t.page.section}</p>
@@ -131,6 +131,25 @@ function App() {
 }
 
 export default App
+
+function AppBootstrapScreen({ title }: { title: string }) {
+  return <main aria-busy="true" className="app-bootstrap-screen">
+    <aside className="app-bootstrap-sidebar" aria-hidden="true">
+      <div className="app-bootstrap-brand"><span className="app-bootstrap-logo" /><span className="app-bootstrap-line app-bootstrap-line-brand" /></div>
+      <div className="app-bootstrap-nav">{[1, 2, 3, 4, 5, 6].map((item) => <span className="app-bootstrap-line" key={item} />)}</div>
+    </aside>
+    <section className="app-bootstrap-main">
+      <header className="app-bootstrap-header" aria-hidden="true"><span className="app-bootstrap-menu" /><div className="app-bootstrap-header-lines"><span className="app-bootstrap-line app-bootstrap-line-short" /><span className="app-bootstrap-line app-bootstrap-line-title" /></div><span className="app-bootstrap-profile" /></header>
+      <div className="app-bootstrap-content">
+        <p className="app-bootstrap-overline">Voter Space</p>
+        <h1>{title}</h1>
+        <span className="app-bootstrap-line app-bootstrap-line-description" />
+        <div className="app-bootstrap-stat-grid" aria-hidden="true">{[1, 2, 3, 4, 5, 6].map((item) => <div className="app-bootstrap-stat" key={item}><span className="app-bootstrap-stat-icon" /><span className="app-bootstrap-stat-value" /><span className="app-bootstrap-stat-label" /></div>)}</div>
+        <div className="app-bootstrap-panel-grid" aria-hidden="true"><div className="app-bootstrap-panel" /><div className="app-bootstrap-panel" /></div>
+      </div>
+    </section>
+  </main>
+}
 
 function isRouteAllowed(key: NavigationKey, role: AppSessionRole, permissions: { upload: boolean; audit: boolean }) {
   if (role === 'superAdmin') return true

@@ -19,6 +19,7 @@ export async function createPdfImport(file: File, details: PdfImportDetails, upl
   const result = await call({ ...details, originalFileName: file.name, uploadHash })
   invalidatePdfImportCache()
   invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('dashboard-metric:')
   invalidateRequestCache('audit-logs:')
   return result.data
 }
@@ -76,6 +77,7 @@ export async function cancelPdfImport(sourcePdfId: string) {
   await call({ sourcePdfId })
   invalidatePdfImportCache()
   invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('dashboard-metric:')
   invalidateRequestCache('audit-logs:')
 }
 
@@ -84,6 +86,7 @@ export async function deletePdfImport(sourcePdfId: string) {
   await call({ sourcePdfId })
   invalidatePdfImportCache()
   invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('dashboard-metric:')
   invalidateRequestCache('audit-logs:')
 }
 
@@ -107,6 +110,7 @@ export async function requestPdfImportApproval(sourcePdfId: string) {
   await call({ sourcePdfId })
   invalidatePdfImportCache()
   invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('dashboard-metric:')
   invalidateRequestCache('audit-logs:')
 }
 
@@ -115,6 +119,7 @@ export async function approvePdfImport(sourcePdfId: string) {
   await call({ sourcePdfId })
   invalidatePdfImportCache()
   invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('dashboard-metric:')
   invalidateRequestCache('audit-logs:')
 }
 
@@ -123,6 +128,7 @@ export async function retryPdfImport(sourcePdfId: string) {
   await call({ sourcePdfId })
   invalidatePdfImportCache()
   invalidateRequestCache('dashboard-summary:')
+  invalidateRequestCache('dashboard-metric:')
   invalidateRequestCache('audit-logs:')
 }
 

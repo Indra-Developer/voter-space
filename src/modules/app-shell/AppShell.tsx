@@ -6,6 +6,7 @@ import { copy } from './copy'
 import { mobileNavigationKeys, navigationItems } from './navigation'
 import type { AppLanguage, AppTheme, NavigationKey, ShellProfile } from './types'
 import type { UserPermissions } from '../auth/types'
+import { joinClasses, uiClasses } from './ui'
 
 type AppShellProps = {
   activeNavigation: NavigationKey
@@ -66,7 +67,7 @@ export function AppShell({
         const isActive = activeNavigation === key
         return (
           <button
-            className={`shell-nav-item ${isActive ? 'is-active' : ''}`}
+            className={joinClasses('shell-nav-item', uiClasses.menuItem, isActive && 'is-active')}
             key={key}
             onClick={() => chooseNavigation(key)}
             type="button"
@@ -81,8 +82,8 @@ export function AppShell({
   )
 
   return (
-    <div className="app-shell">
-      <aside className="shell-sidebar shell-sidebar-desktop">
+    <div className="app-shell min-h-svh bg-page font-sans text-copy">
+      <aside className="shell-sidebar shell-sidebar-desktop bg-surface">
         <Brand language={language} />
         {renderNavigation()}
         <ProfileSummary language={language} profile={profile} />
@@ -92,14 +93,14 @@ export function AppShell({
         <>
           <button
             aria-label={t.actions.closeMenu}
-            className="shell-backdrop"
+            className="shell-backdrop bg-black/45"
             onClick={() => setMobileMenuOpen(false)}
             type="button"
           />
-          <aside className="shell-sidebar shell-sidebar-mobile">
+          <aside className="shell-sidebar shell-sidebar-mobile bg-surface shadow-float">
             <div className="shell-mobile-drawer-heading">
               <Brand language={language} compact />
-              <button className="icon-button" aria-label={t.actions.closeMenu} onClick={() => setMobileMenuOpen(false)} type="button">
+              <button className={joinClasses('icon-button', uiClasses.iconButton)} aria-label={t.actions.closeMenu} onClick={() => setMobileMenuOpen(false)} type="button">
                 <X size={20} />
               </button>
             </div>
@@ -110,10 +111,10 @@ export function AppShell({
       ) : null}
 
       <main className="shell-main">
-        <header className="shell-header">
+        <header className={joinClasses('shell-header sticky top-0 z-20 border-b border-border bg-surface/90 backdrop-blur-md', activeNavigation === 'register' && 'shell-header-register')}>
           <div className="shell-header-inner">
-            {showBackButton ? <button aria-label={t.actions.back} className="icon-button shell-back-button" onClick={onBack} type="button"><ArrowLeft className="shell-back-icon" size={19} /><span className="shell-back-label">{t.actions.back}</span></button> : null}
-            <button className="icon-button shell-menu-button" aria-label={t.actions.openMenu} onClick={() => setMobileMenuOpen(true)} type="button">
+            {showBackButton ? <button aria-label={t.actions.back} className={joinClasses('icon-button shell-back-button', uiClasses.iconButton)} onClick={onBack} type="button"><ArrowLeft className="shell-back-icon" size={19} /><span className="shell-back-label">{t.actions.back}</span></button> : null}
+            <button className={joinClasses('icon-button shell-menu-button', uiClasses.iconButton)} aria-label={t.actions.openMenu} onClick={() => setMobileMenuOpen(true)} type="button">
               <Menu size={21} />
             </button>
             <div className="shell-header-title">
@@ -124,7 +125,7 @@ export function AppShell({
             <div className="shell-header-actions">
               <label className="language-select">
                 <span className="sr-only">{t.actions.language}</span>
-                <select value={language} onChange={(event) => onLanguageChange(event.target.value as AppLanguage)}>
+                <select className={uiClasses.select} value={language} onChange={(event) => onLanguageChange(event.target.value as AppLanguage)}>
                   <option value="te">తెలుగు</option>
                   <option value="en">English</option>
                 </select>
@@ -134,7 +135,7 @@ export function AppShell({
                 <button
                   aria-expanded={themeOpen}
                   aria-label={t.actions.theme}
-                  className="icon-button"
+                  className={joinClasses('icon-button', uiClasses.iconButton)}
                   onClick={() => {
                     setThemeOpen((open) => !open)
                     setProfileOpen(false)
@@ -144,10 +145,10 @@ export function AppShell({
                   <Palette size={19} />
                 </button>
                 {themeOpen ? (
-                  <div className="shell-popover theme-picker" role="menu">
+                  <div className={joinClasses('shell-popover theme-picker', uiClasses.menu)} role="menu">
                     {(Object.keys(t.themes) as AppTheme[]).map((option) => (
                       <button
-                        className={`theme-option ${theme === option ? 'is-selected' : ''}`}
+                        className={joinClasses('theme-option', uiClasses.menuItem, theme === option && 'is-selected')}
                         key={option}
                         onClick={() => {
                           onThemeChange(option)
@@ -168,7 +169,7 @@ export function AppShell({
                 <button
                   aria-expanded={profileOpen}
                   aria-label={t.actions.profile}
-                  className="profile-trigger"
+                  className={joinClasses('profile-trigger', uiClasses.button, 'min-h-9 px-1.5')}
                   onClick={() => {
                     setProfileOpen((open) => !open)
                     setThemeOpen(false)
@@ -184,16 +185,16 @@ export function AppShell({
           </div>
         </header>
 
-        <div className="shell-page">{children}</div>
+        <div className="shell-page mx-auto w-full max-w-[92rem] px-page-mobile py-4 tablet:px-page tablet:py-6">{children}</div>
       </main>
 
-      <nav className="mobile-bottom-navigation" aria-label="Mobile navigation" style={{ gridTemplateColumns: `repeat(${visibleMobileNavigation.length}, minmax(0, 1fr))` }}>
+      <nav className="mobile-bottom-navigation fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-surface/95 backdrop-blur-md" aria-label="Mobile navigation" style={{ gridTemplateColumns: `repeat(${visibleMobileNavigation.length}, minmax(0, 1fr))` }}>
         {visibleMobileNavigation.map((key) => {
           const item = visibleNavigation.find((navigationItem) => navigationItem.key === key)
           if (!item) return null
           const Icon = item.icon
           return (
-            <button className={activeNavigation === key ? 'is-active' : ''} key={key} onClick={() => chooseNavigation(key)} type="button">
+            <button className={joinClasses(uiClasses.mobileNavigationItem, activeNavigation === key && 'is-active')} key={key} onClick={() => chooseNavigation(key)} type="button">
               <Icon size={18} />
               <span>{t.mobile[key]}</span>
             </button>
@@ -258,7 +259,7 @@ function ProfileCard({ language, onSignOut, profile }: { language: AppLanguage; 
           {profile?.role ? <span>{t.roles[profile.role]}</span> : <p>{t.profile.unavailable}</p>}
         </div>
       </div>
-      {onSignOut ? <button className="profile-sign-out" onClick={onSignOut} type="button">{t.actions.signOut}</button> : null}
+      {onSignOut ? <button className={joinClasses('profile-sign-out', uiClasses.button, uiClasses.secondaryButton, 'w-[calc(100%-1.5rem)]')} onClick={onSignOut} type="button">{t.actions.signOut}</button> : null}
     </div>
   )
 }

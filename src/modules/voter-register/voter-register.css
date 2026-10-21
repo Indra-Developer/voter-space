@@ -382,3 +382,203 @@
   .voter-delete-ward-dialog-footer { flex-direction: column-reverse; }
   .voter-delete-ward-dialog-footer button { width: 100%; }
 }
+
+/* Reference register layout: spacious search, compact filters, and clear cards. */
+.voter-register-page { gap: 1.15rem; }
+.voter-register-header-actions { width: 100%; justify-content: flex-start; gap: .75rem; }
+.voter-register-header-actions > button { min-height: 3.05rem; padding: .7rem 1.1rem; border-radius: .95rem; font-size: .98rem; font-weight: 800; box-shadow: 0 4px 12px color-mix(in srgb, var(--text) 7%, transparent); }
+.voter-register-header-actions .voter-delete-ward-trigger { border-color: color-mix(in srgb, #ef6a67 55%, var(--border)); background: color-mix(in srgb, #fff1f0 76%, var(--surface)); color: #c72d2d; }
+.voter-register-header-actions .voter-delete-ward-trigger:hover { border-color: #d43a37; background: #fff0ef; }
+.voter-register-header-actions .voter-register-refresh-button { border-color: color-mix(in srgb, var(--primary) 22%, var(--border)); background: color-mix(in srgb, var(--surface-muted) 72%, var(--surface)); color: var(--primary-strong); }
+.voter-register-header-actions .voter-register-refresh-button:hover { border-color: var(--primary); background: var(--nav-active); }
+.voter-filter-card { gap: 1rem; padding: 1rem; border-radius: 1.2rem; box-shadow: 0 10px 28px color-mix(in srgb, var(--primary) 10%, transparent); }
+.voter-filter-title { margin-bottom: 0; }
+.voter-filter-title > div { font-size: 1.2rem; font-weight: 850; }
+.voter-filter-title svg { width: 1.7rem; height: 1.7rem; }
+.voter-filter-title .voter-text-button { font-size: .95rem; font-weight: 850; }
+.voter-search-field { position: relative; display: block; }
+.voter-search-field input { min-height: 3.65rem !important; padding-left: 3.35rem !important; border-width: 1px !important; border-color: color-mix(in srgb, var(--primary) 25%, var(--border)) !important; border-radius: 1rem !important; background: color-mix(in srgb, var(--surface-muted) 38%, var(--surface)) !important; box-shadow: inset 0 1px 2px color-mix(in srgb, var(--text) 7%, transparent), 0 3px 10px color-mix(in srgb, var(--primary) 6%, transparent) !important; font-size: 1rem !important; }
+.voter-search-field input:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent) !important; }
+.voter-search-field-icon { position: absolute; top: 50%; left: 1rem; z-index: 1; color: var(--muted); pointer-events: none; transform: translateY(-50%); }
+.voter-filter-section-title { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.voter-filter-section-title > div { display: flex; align-items: center; gap: .7rem; min-width: 0; }
+.voter-filter-section-title > div > svg { flex: 0 0 auto; width: 1.7rem; height: 1.7rem; padding: .28rem; border-radius: .55rem; background: var(--nav-active); color: var(--primary); }
+.voter-filter-section-title > div > span { display: grid; gap: .12rem; min-width: 0; }
+.voter-filter-section-title strong { color: var(--text); font-size: 1.12rem; }
+.voter-filter-section-title small { color: var(--muted); font-size: .82rem; }
+.voter-filter-section-title .voter-more-filters-button { display: inline-flex; grid-template-columns: none; width: auto; min-width: 10rem; min-height: 3rem; padding: .65rem .8rem; border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border)); border-bottom-width: 1px; border-radius: .9rem; background: color-mix(in srgb, var(--surface-muted) 70%, var(--surface)); box-shadow: none; color: var(--primary-strong); }
+.voter-filter-section-title .voter-more-filters-button > strong { color: inherit; font-size: .92rem; }
+.voter-filter-section-title .voter-more-filters-button > svg { color: inherit; }
+.voter-filter-button-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem; margin-top: 0; }
+.voter-native-filter { gap: .3rem; }
+.voter-native-filter > span, .voter-native-date-filter > span { font-size: .88rem; font-weight: 850; }
+.voter-native-filter-control { position: relative; min-width: 0; }
+.voter-native-filter-control > span { position: absolute; top: 50%; left: .85rem; z-index: 1; display: inline-grid; color: var(--muted); pointer-events: none; transform: translateY(-50%); }
+.voter-native-filter-control select { min-height: 3.2rem; padding-left: 3rem !important; border-width: 1px; border-bottom-width: 1px; border-radius: .95rem; background: var(--surface); font-size: .98rem; }
+.voter-native-filter.has-value .voter-native-filter-control > span { color: var(--primary); }
+.voter-filter-extra-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .7rem; padding-top: .8rem; border-top: 1px solid var(--border); }
+.voter-filter-extra-grid .voter-native-filter-control select { padding-left: .8rem !important; }
+.voter-results-toolbar { align-items: flex-end; gap: .85rem; }
+.voter-results-toolbar > div:first-child { gap: .2rem; }
+.voter-results-toolbar strong { font-size: 1.25rem; font-weight: 850; }
+.voter-results-toolbar span, .voter-export-hint { font-size: .9rem; }
+.voter-toolbar-actions { align-items: center; gap: .65rem; }
+.voter-view-toggle { padding: .2rem; border-radius: .95rem; }
+.voter-view-toggle button { min-height: 2.75rem; padding: .45rem .8rem; border-radius: .75rem; font-size: .88rem; }
+.voter-view-toggle button.is-active { background: var(--primary); color: var(--primary-contrast); }
+.voter-export-buttons { gap: .65rem; }
+.voter-export-buttons button { min-height: 3rem; padding: .65rem 1rem; border-radius: .9rem; font-size: .9rem; font-weight: 850; }
+.voter-export-buttons .voter-export-excel { border-color: #b7e4cf; background: #f4fffa; color: #16865f; }
+.voter-export-buttons .voter-export-excel:hover { border-color: #16865f; background: #e4f8ed; }
+.voter-export-buttons .voter-export-pdf { border-color: #f1c6c6; background: #fff8f8; color: #d43030; }
+.voter-export-buttons .voter-export-pdf:hover { border-color: #d43030; background: #ffeded; }
+.voter-export-buttons .voter-export-csv { border-color: #bdd8fb; background: #f6faff; color: #1c61b8; }
+.voter-export-buttons .voter-export-csv:hover { border-color: #1c61b8; background: #eaf3ff; }
+.voter-export-hint { margin: -.2rem 0 0; }
+.voter-record-card { border-color: color-mix(in srgb, var(--primary) 24%, var(--border)); border-radius: 1.15rem; box-shadow: 0 8px 20px color-mix(in srgb, var(--primary) 12%, transparent); }
+.voter-record-card-main { min-height: 14rem; padding: .85rem; background: linear-gradient(155deg, color-mix(in srgb, var(--surface-muted) 62%, var(--surface)), var(--surface) 68%); }
+.voter-record-card-main:hover { background: linear-gradient(155deg, var(--nav-active), var(--surface) 70%); }
+.voter-profile-card-top { align-items: center; min-height: 2.35rem; margin: -.05rem -.05rem 0; padding: .45rem .6rem; border-radius: .7rem; background: color-mix(in srgb, var(--nav-active) 72%, var(--surface)); color: var(--primary-strong); font-size: .75rem; }
+.voter-profile-card-top span:last-child { padding: .25rem .5rem; border-radius: 999px; background: color-mix(in srgb, var(--primary) 10%, var(--surface)); color: var(--primary-strong); font-size: .7rem; }
+.voter-record-card-heading { min-height: 2.8rem; margin-top: .8rem; }
+.voter-record-card h3 { min-height: 2.8rem; font-size: 1.05rem; line-height: 1.4; }
+.voter-record-card-fields { gap: .55rem; margin-top: .8rem; }
+.voter-record-card-fields div, .voter-record-card-area { padding: .55rem .6rem; border-color: color-mix(in srgb, var(--primary) 15%, var(--border)); border-radius: .75rem; background: color-mix(in srgb, var(--surface-muted) 52%, var(--surface)); }
+.voter-record-card-fields dt, .voter-record-card-area span { font-size: .72rem; }
+.voter-record-card-fields dd, .voter-record-card-area strong { margin-top: .2rem; font-size: .88rem; }
+.voter-record-card-area { margin-top: .55rem; }
+.voter-profile-card-open { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .8rem; color: var(--primary-strong); font-size: .95rem; font-weight: 850; }
+.voter-profile-card-open > svg { display: inline-grid; width: 2.2rem; height: 2.2rem; padding: .48rem; border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--border)); border-radius: 50%; background: var(--surface); }
+
+@media (max-width: 639px) {
+  .voter-register-page { gap: 1rem; }
+  .voter-register-page { padding-bottom: calc(1.25rem + env(safe-area-inset-bottom)); scroll-padding-bottom: 7rem; }
+  .voter-register-header-actions > button { min-height: 3.25rem; padding-inline: 1rem; }
+  .voter-filter-card { padding: 1rem; }
+  .voter-filter-section-title { align-items: flex-start; }
+  .voter-filter-section-title > div > span { max-width: 12rem; }
+  .voter-filter-section-title small { font-size: .74rem; line-height: 1.35; }
+  .voter-filter-section-title .voter-more-filters-button { min-width: 8.8rem; min-height: 2.8rem; }
+  .voter-filter-button-row { gap: .55rem; }
+  .voter-native-filter-control select { min-height: 3rem; padding-left: 2.55rem !important; font-size: .84rem; }
+  .voter-native-filter-control > span { left: .65rem; }
+  .voter-results-toolbar { align-items: stretch; }
+  .voter-results-toolbar > div:first-child { width: 100%; }
+  .voter-toolbar-actions { width: 100%; display: grid; gap: .65rem; }
+  .voter-view-toggle, .voter-export-buttons { width: 100%; }
+  .voter-view-toggle button, .voter-export-buttons button { flex: 1; }
+  .voter-export-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .voter-export-buttons button { padding-inline: .45rem; font-size: .78rem; }
+  .voter-record-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+  .voter-record-card-main { min-height: 13.8rem; padding: .65rem; }
+  .voter-profile-card-top { padding: .35rem .42rem; font-size: .62rem; }
+  .voter-profile-card-top span:last-child { padding: .2rem .35rem; font-size: .58rem; }
+  .voter-record-card-heading { min-height: 2.45rem; margin-top: .55rem; }
+  .voter-record-card h3 { min-height: 2.45rem; font-size: .84rem; }
+  .voter-record-card-fields { gap: .35rem; margin-top: .55rem; }
+  .voter-record-card-fields div, .voter-record-card-area { padding: .38rem .42rem; border-radius: .6rem; }
+  .voter-record-card-fields dt, .voter-record-card-area span { font-size: .58rem; }
+  .voter-record-card-fields dd, .voter-record-card-area strong { font-size: .68rem; }
+  .voter-profile-card-open { margin-top: .55rem; font-size: .74rem; }
+  .voter-profile-card-open > svg { width: 1.8rem; height: 1.8rem; padding: .35rem; }
+}
+
+@media (max-width: 380px) {
+  .voter-record-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .voter-profile-card-top { font-size: .56rem; }
+  .voter-record-card h3 { font-size: .78rem; }
+}
+
+/* Mobile reference layout: keep the same hierarchy and proportions as the approved design. */
+@media (max-width: 639px) {
+  .shell-header-register .shell-header-inner { min-height: 4.8rem; gap: .55rem; padding: .7rem .8rem; }
+  .shell-header-register .shell-menu-button { width: 3.15rem; height: 3.15rem; border-radius: .9rem; }
+  .shell-header-register .shell-menu-button svg { width: 1.7rem; height: 1.7rem; }
+  .shell-header-register .shell-header-title p { margin-bottom: .1rem; font-size: .58rem; letter-spacing: .12em; }
+  .shell-header-register .shell-header-title h1 { font-size: 1.08rem; font-weight: 850; }
+  .shell-header-register .shell-header-actions { gap: .25rem; }
+  .shell-header-register .language-select select { height: 3.15rem; max-width: 5.25rem; padding-inline: .45rem; border-radius: .85rem; font-size: .8rem; }
+  .shell-header-register .icon-button { width: 3.15rem; height: 3.15rem; border-radius: .85rem; }
+  .shell-header-register .profile-trigger { width: 3.65rem; height: 3.15rem; }
+  .shell-header-register .profile-avatar { width: 2.35rem; height: 2.35rem; }
+  .shell-header-register .profile-trigger-arrow { width: 1rem; height: 1rem; }
+
+  .voter-register-page { gap: 1rem; }
+  .voter-register-intro { margin-bottom: 0; }
+  .voter-register-header-actions { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr) minmax(0, .86fr); gap: .7rem; }
+  .voter-register-header-actions > button { min-height: 3.05rem; padding: .65rem .8rem; border-radius: .95rem; font-size: .9rem; }
+
+  .voter-search-card,
+  .voter-filter-card { gap: 1rem; padding: 1rem; border-radius: 1.25rem; box-shadow: 0 10px 25px color-mix(in srgb, var(--primary) 10%, transparent); }
+  .voter-search-card .voter-filter-title { margin-bottom: 0; }
+  .voter-search-card .voter-filter-title > div { gap: .55rem; }
+  .voter-search-card .voter-filter-title > div > svg { width: 1.65rem; height: 1.65rem; }
+  .voter-search-card .voter-filter-title > div > strong { font-size: 1.08rem; font-weight: 850; }
+  .voter-search-card .voter-text-button { padding: .35rem .1rem; font-size: .78rem; }
+  .voter-search-field input { min-height: 3.55rem !important; padding-left: 3.1rem !important; border-radius: .95rem !important; font-size: .86rem !important; }
+  .voter-search-field-icon { left: .9rem; width: 1.35rem; height: 1.35rem; }
+
+  .voter-filter-card { gap: .9rem; }
+  .voter-filter-section-title { align-items: center; gap: .55rem; }
+  .voter-filter-section-title > div { gap: .5rem; }
+  .voter-filter-section-title > div > svg { width: 1.55rem; height: 1.55rem; padding: .25rem; border-radius: .5rem; }
+  .voter-filter-section-title > div > span { gap: .05rem; }
+  .voter-filter-section-title strong { font-size: 1rem; font-weight: 850; }
+  .voter-filter-section-title small { max-width: 9.6rem; font-size: .63rem; line-height: 1.25; }
+  .voter-filter-section-title .voter-more-filters-button { min-width: 7.8rem; min-height: 2.75rem; padding: .45rem .55rem; border-radius: .85rem; }
+  .voter-filter-section-title .voter-more-filters-button > svg:first-child { width: 1rem; height: 1rem; }
+  .voter-filter-section-title .voter-more-filters-button > strong { font-size: .72rem; }
+  .voter-filter-section-title .voter-more-filters-button > svg:last-child { width: .9rem; height: .9rem; }
+  .voter-filter-button-row { gap: .55rem; }
+  .voter-native-filter { gap: .25rem; }
+  .voter-native-filter > span, .voter-native-date-filter > span { font-size: .72rem; }
+  .voter-native-filter-control > span { left: .65rem; }
+  .voter-native-filter-control > span svg { width: 1rem; height: 1rem; }
+  .voter-native-filter-control select { min-height: 3rem; padding-left: 2.15rem !important; border-radius: .8rem; font-size: .75rem; }
+
+  .voter-results-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .65rem; }
+  .voter-results-toolbar > div:first-child { width: auto; min-width: 0; }
+  .voter-results-toolbar strong { font-size: 1.08rem; font-weight: 850; }
+  .voter-results-toolbar span { font-size: .68rem; line-height: 1.3; }
+  .voter-toolbar-actions { display: contents; }
+  .voter-results-toolbar { grid-template-columns: minmax(0, 1fr) max-content; }
+  .voter-view-toggle { grid-column: 2; grid-row: 1; width: max-content; min-width: max-content; gap: .15rem; padding: .18rem; border-radius: .85rem; }
+  .voter-view-toggle button { flex: 0 0 auto !important; min-height: 2.65rem; padding: .4rem .55rem; border-radius: .7rem; font-size: .68rem; white-space: nowrap; }
+  .voter-view-toggle button svg { width: 1rem; height: 1rem; }
+  .voter-export-buttons { display: grid; grid-column: 1 / -1; grid-row: 2; width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem; }
+  .voter-export-buttons button { min-height: 2.75rem; padding: .45rem .35rem; border-radius: .8rem; font-size: .72rem; }
+  .voter-export-buttons button svg { width: 1rem; height: 1rem; }
+  .voter-export-hint { margin: -.15rem 0 0; font-size: .7rem; line-height: 1.35; }
+
+  .voter-record-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+  .voter-record-card { border-radius: 1rem; box-shadow: 0 7px 17px color-mix(in srgb, var(--primary) 13%, transparent); }
+  .voter-record-card-main { min-height: 12rem; padding: .65rem; }
+  .voter-profile-card-top { min-height: 1.85rem; margin: 0; padding: .35rem .42rem; border-radius: .65rem; font-size: .6rem; }
+  .voter-profile-card-top span:last-child { padding: .2rem .3rem; font-size: .56rem; }
+  .voter-record-card-heading { min-height: 2.35rem; margin-top: .5rem; }
+  .voter-record-card h3 { min-height: 2.35rem; font-size: .88rem; line-height: 1.35; }
+  .voter-record-card-fields { gap: .35rem; margin-top: .5rem; }
+  .voter-record-card-fields div, .voter-record-card-area { padding: .38rem .42rem; border-radius: .65rem; }
+  .voter-record-card-fields dt, .voter-record-card-area span { overflow: hidden; font-size: clamp(.45rem, 2.1vw, .72rem); letter-spacing: -.025em; text-overflow: ellipsis; white-space: nowrap; }
+  .voter-record-card-fields dd, .voter-record-card-area strong { margin-top: .12rem; overflow: hidden; font-size: clamp(.42rem, 2.8vw, .88rem); letter-spacing: -.04em; text-overflow: clip; white-space: nowrap; }
+  .voter-record-card-area { margin-top: .4rem; }
+  .voter-profile-card-open { margin-top: .55rem; font-size: .8rem; }
+  .voter-profile-card-open > svg { width: 1.9rem; height: 1.9rem; padding: .35rem; }
+}
+
+@media (max-width: 380px) {
+  .shell-header-register .shell-header-inner { padding-inline: .6rem; }
+  .shell-header-register .shell-menu-button,
+  .shell-header-register .icon-button { width: 2.75rem; height: 2.75rem; }
+  .shell-header-register .profile-trigger { width: 3.2rem; height: 2.75rem; }
+  .shell-header-register .profile-avatar { width: 2rem; height: 2rem; }
+  .shell-header-register .language-select select { max-width: 4.6rem; height: 2.75rem; font-size: .72rem; }
+  .voter-search-card,
+  .voter-filter-card { padding: .8rem; }
+  .voter-filter-section-title small { max-width: 8rem; font-size: .58rem; }
+  .voter-filter-section-title .voter-more-filters-button { min-width: 7rem; }
+  .voter-record-card-main { padding: .55rem; }
+  .voter-record-card h3 { font-size: .84rem; }
+  .voter-record-card-fields dt, .voter-record-card-area span { font-size: clamp(.45rem, 2.1vw, .68rem); }
+  .voter-record-card-fields dd, .voter-record-card-area strong { font-size: clamp(.42rem, 2.8vw, .78rem); }
+}

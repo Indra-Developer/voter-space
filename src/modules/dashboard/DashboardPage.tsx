@@ -1,10 +1,11 @@
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock3, Database, FileText, Gauge, Layers3, MapPinned, RefreshCcw, ShieldCheck, UploadCloud, UsersRound } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock3, Database, FileText, Layers3, MapPinned, RefreshCcw, ShieldCheck, UploadCloud, UsersRound } from 'lucide-react'
 import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { AppSession } from '../auth/types'
+import { joinClasses, uiClasses } from '../app-shell/ui'
 import type { AppLanguage, NavigationKey } from '../app-shell/types'
 import { loadAuditLogs, type AuditEntry } from '../audit-logs/audit-log-service'
 import './dashboard.css'
-import { loadDashboardSummary, type DashboardRecentUpload, type DashboardSummary } from './dashboard-service'
+import { dashboardMetricNames, loadDashboardMetric, type DashboardMetric, type DashboardMetricResult, type DashboardRecentUpload } from './dashboard-service'
 
 type DashboardPageProps = {
   language: AppLanguage
@@ -12,10 +13,18 @@ type DashboardPageProps = {
   onNavigate: (key: NavigationKey, search?: string) => void
 }
 
-type DashboardData = {
-  summary: DashboardSummary
-  pdfs: DashboardRecentUpload[]
-  activity: AuditEntry[]
+type DashboardMetrics = {
+  voterCount?: number
+  wardCount?: number
+  boothCount?: number
+  areaCount?: number
+  divisionCount?: number
+  sourcePdfCount?: number
+  completedPdfCount?: number
+  processingPdfCount?: number
+  attentionCount?: number
+  sourceStatusCounts?: Record<string, number>
+  recentUploads?: DashboardRecentUpload[]
 }
 
 const copy = {
@@ -51,22 +60,41 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
   const t = copy[language]
   const scope = { wardIds: session.profile.scope?.wardIds ?? [], boothIds: session.profile.scope?.boothIds ?? [] }
   const permissions = session.profile.permissions ?? { upload: false, edit: false, download: false, audit: false }
-  const [data, setData] = useState<DashboardData>()
-  const [loading, setLoading] = useState(true)
+  const [metrics, setMetrics] = useState<DashboardMetrics>({})
+  const [metricLoading, setMetricLoading] = useState<Partial<Record<DashboardMetric, boolean>>>({})
+  const [activity, setActivity] = useState<AuditEntry[]>([])
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [activityError, setActivityError] = useState(false)
   const [hasError, setHasError] = useState(false)
 
   const reload = useCallback(async (force = false) => {
-    setLoading(true)
     setHasError(false)
-    const [summary, activity] = await Promise.allSettled([
-      loadDashboardSummary({ force }),
-      session.profile.role === 'superAdmin' || permissions.audit ? loadAuditLogs({ force }) : Promise.resolve({ entries: [] }),
-    ])
-    const summaryData = summary.status === 'fulfilled' ? summary.value : undefined
-    const activityData = activity.status === 'fulfilled' ? activity.value.entries : []
-    if (summaryData) setData({ summary: summaryData, pdfs: summaryData.recentUploads, activity: activityData })
-    setHasError([summary, activity].some((result) => result.status === 'rejected'))
-    setLoading(false)
+    setMetricLoading(Object.fromEntries(dashboardMetricNames.map((metric) => [metric, true])) as Partial<Record<DashboardMetric, boolean>>)
+    setActivityError(false)
+    const metricRequests = dashboardMetricNames.map(async (metric) => {
+      try {
+        const result = await loadDashboardMetric(metric, { force })
+        setMetrics((current) => applyMetricResult(current, result))
+      } catch {
+        setHasError(true)
+      } finally {
+        setMetricLoading((current) => ({ ...current, [metric]: false }))
+      }
+    })
+
+    const canReadActivity = session.profile.role === 'superAdmin' || permissions.audit
+    setActivityLoading(canReadActivity)
+    const activityRequest = canReadActivity ? loadAuditLogs({ force }) : Promise.resolve({ entries: [] as AuditEntry[] })
+    const activityTask = activityRequest.then((result) => {
+      setActivity(result.entries)
+    }).catch(() => {
+      setActivityError(true)
+      setHasError(true)
+    }).finally(() => {
+      setActivityLoading(false)
+    })
+
+    await Promise.all([...metricRequests, activityTask])
   }, [permissions.audit, session.profile.role])
 
   useEffect(() => {
@@ -75,86 +103,112 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
   }, [reload])
 
   const roleLabel = roleName(session.profile.role, t)
-  const pdfs = data?.pdfs ?? []
-  const statusCounts = data?.summary.sourceStatusCounts ?? {}
-  const activePdfs = data?.summary.processingPdfCount ?? countStatuses(statusCounts, ['queued', 'processing', 'approvalQueued', 'applying'])
+  const pdfs = metrics.recentUploads ?? []
+  const statusCounts = metrics.sourceStatusCounts ?? {}
+  const activePdfs = metrics.processingPdfCount
   const reviewPdfs = countStatuses(statusCounts, ['review', 'awaitingApproval', 'completedWithReview'])
   const failedPdfs = countStatuses(statusCounts, ['failed'])
-  const completedPdfs = data?.summary.completedPdfCount ?? countStatuses(statusCounts, ['completed', 'completedWithReview'])
-  const needsAttention = reviewPdfs + failedPdfs
-  const stats = data ? [
-    { icon: <UsersRound size={19} />, value: formatCount(data.summary.voterCount), label: t.voters, hint: t.voterHint, tone: 'blue', target: 'register' as const, search: '' },
-    { icon: <MapPinned size={19} />, value: data.summary.wardCount, label: t.wards, hint: t.wardsHint, tone: 'green', target: 'register' as const, search: '' },
-    { icon: <Layers3 size={19} />, value: data.summary.boothCount, label: t.booths, hint: t.boothsHint, tone: 'purple', target: 'register' as const, search: '' },
-    { icon: <FileText size={19} />, value: data.summary.sourcePdfCount, label: t.pdfs, hint: t.pdfHint, tone: 'orange', target: 'library' as const, search: '' },
-    { icon: <Clock3 size={19} />, value: activePdfs, label: t.processing, hint: t.processingHint, tone: 'sky', target: 'library' as const, search: '?view=processing' },
-    { icon: <AlertTriangle size={19} />, value: needsAttention, label: t.attention, hint: t.attentionHint, tone: 'red', target: 'library' as const, search: '?view=attention' },
-  ] : []
+  const completedPdfs = metrics.completedPdfCount
+  const needsAttention = metrics.attentionCount
+  const loading = Object.values(metricLoading).some(Boolean) || activityLoading
+  const stats = [
+    { metric: 'voterCount' as const, icon: <UsersRound size={19} />, value: metrics.voterCount, label: t.voters, hint: t.voterHint, tone: 'blue', target: 'register' as const, search: '' },
+    { metric: 'wardCount' as const, icon: <MapPinned size={19} />, value: metrics.wardCount, label: t.wards, hint: t.wardsHint, tone: 'green', target: 'register' as const, search: '' },
+    { metric: 'boothCount' as const, icon: <Layers3 size={19} />, value: metrics.boothCount, label: t.booths, hint: t.boothsHint, tone: 'purple', target: 'register' as const, search: '' },
+    { metric: 'sourcePdfCount' as const, icon: <FileText size={19} />, value: metrics.sourcePdfCount, label: t.pdfs, hint: t.pdfHint, tone: 'orange', target: 'library' as const, search: '' },
+    { metric: 'processingPdfCount' as const, icon: <Clock3 size={19} />, value: activePdfs, label: t.processing, hint: t.processingHint, tone: 'sky', target: 'library' as const, search: '?view=processing' },
+    { metric: 'attentionCount' as const, icon: <AlertTriangle size={19} />, value: needsAttention, label: t.attention, hint: t.attentionHint, tone: 'red', target: 'library' as const, search: '?view=attention' },
+  ]
+  const coverageTotal = metrics.areaCount !== undefined && metrics.divisionCount !== undefined ? metrics.areaCount + metrics.divisionCount : undefined
+  const sourcePdfCount = metrics.sourcePdfCount
+  const isMetricLoading = (metric: DashboardMetric) => metricLoading[metric] === true
 
-  return <section className="dashboard-page">
-    <section className="dashboard-profile-hero dashboard-clickable-panel" aria-label={t.access} onClick={() => onNavigate('settings')} onKeyDown={(event) => activateWithKeyboard(event, () => onNavigate('settings'))} role="button" tabIndex={0}>
-      <div className="dashboard-profile-banner">
-        {session.bannerUrl ? <img alt="" className="dashboard-profile-banner-image" onError={(event) => { event.currentTarget.style.display = 'none' }} src={session.bannerUrl} /> : null}
+  return <section className="dashboard-page grid gap-4 font-sans text-copy">
+    <section className={joinClasses('dashboard-profile-hero dashboard-clickable-panel', uiClasses.card, 'cursor-pointer overflow-hidden transition hover:-translate-y-0.5')} aria-label={t.access} onClick={() => onNavigate('settings')} onKeyDown={(event) => activateWithKeyboard(event, () => onNavigate('settings'))} role="button" tabIndex={0}>
+      <div className="dashboard-profile-banner aspect-[1600/340] overflow-hidden">
+        {session.bannerUrl ? <img alt="" className="dashboard-profile-banner-image size-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none' }} src={session.bannerUrl} /> : null}
+        <span className="dashboard-profile-banner-mark">Voter Space</span>
       </div>
-      <div className="dashboard-profile-identity">
-        <div className="dashboard-profile-avatar">
+      <div className="dashboard-profile-identity flex items-center gap-4 bg-surface">
+        <div className="dashboard-profile-avatar shrink-0">
           <span>{initials(session.profile.fullName)}</span>
           {session.profilePhotoUrl ? <img alt={session.profile.fullName} onError={(event) => { event.currentTarget.style.display = 'none' }} src={session.profilePhotoUrl} /> : null}
         </div>
-        <div><strong>{session.profile.fullName}</strong><span>{roleLabel}</span></div>
+        <div><small>Workspace profile</small><strong>{session.profile.fullName}</strong><span>{roleLabel}</span></div>
       </div>
     </section>
-    <header className="page-intro dashboard-intro">
+    <header className="page-intro dashboard-intro flex items-start justify-between gap-4">
       <div><p>{t.label}</p><h2>{t.title}</h2><span>{t.description}</span></div>
-      <button className="voter-secondary-button" disabled={loading} onClick={() => void reload(true)} type="button"><RefreshCcw className={loading ? 'animate-spin' : undefined} size={15} />{t.refresh}</button>
+      <button aria-label={t.refresh} className={joinClasses('dashboard-refresh-button', uiClasses.button, uiClasses.secondaryButton, 'shrink-0 rounded-full')} disabled={loading} onClick={() => void reload(true)} type="button"><RefreshCcw size={16} />{t.refresh}</button>
     </header>
     {hasError ? <p className="form-alert form-alert-error">{t.partial}</p> : null}
-    {loading && !data ? <div className="dashboard-loading"><Gauge className="animate-pulse" size={21} /><span>{t.loading}</span></div> : null}
-    {loading && data ? <div aria-live="polite" className="dashboard-refreshing"><Gauge className="animate-spin" size={17} /><span>{t.refreshing}</span></div> : null}
-    {data ? <>
-      <section className="dashboard-stat-grid">{stats.map((card) => <button className={`dashboard-stat-card dashboard-stat-${card.tone}`} key={card.label} onClick={() => onNavigate(card.target, card.search)} type="button"><span className="dashboard-stat-icon">{card.icon}</span><strong>{card.value}</strong><b>{card.label}</b><small>{card.hint}</small><ArrowUpRight className="dashboard-card-arrow" size={15} /></button>)}</section>
+    <section className="dashboard-stat-grid grid grid-cols-2 gap-3 tablet:grid-cols-3 shell:grid-cols-6">{stats.map((card) => <button className={joinClasses(`dashboard-stat-card dashboard-stat-${card.tone}`, uiClasses.card, 'relative text-left transition hover:-translate-y-0.5')} key={card.label} onClick={() => onNavigate(card.target, card.search)} type="button"><span className="dashboard-stat-icon inline-grid size-9 place-items-center rounded-xl bg-nav-active text-primary-strong">{card.icon}</span><strong><MetricValue loading={isMetricLoading(card.metric)} value={card.value} /></strong><b>{card.label}</b><small>{card.hint}</small><ArrowUpRight className="dashboard-card-arrow" size={15} /></button>)}</section>
 
-      <section className="dashboard-main-grid">
-        <article className="dashboard-panel dashboard-coverage-panel dashboard-clickable-panel" onClick={() => onNavigate('register')} onKeyDown={(event) => activateWithKeyboard(event, () => onNavigate('register'))} role="button" tabIndex={0}>
-          <header><div><p>{t.coverage}</p><h3>{data.summary.areaCount + data.summary.divisionCount}</h3></div><MapPinned size={21} /></header>
+      <section className="dashboard-main-grid grid gap-3 shell:grid-cols-2">
+        <article className={joinClasses('dashboard-panel dashboard-coverage-panel dashboard-clickable-panel', uiClasses.card, 'cursor-pointer transition hover:-translate-y-0.5')} onClick={() => onNavigate('register')} onKeyDown={(event) => activateWithKeyboard(event, () => onNavigate('register'))} role="button" tabIndex={0}>
+          <header><div><p>{t.coverage}</p><h3><MetricValue loading={isMetricLoading('areaCount') || isMetricLoading('divisionCount')} value={coverageTotal} /></h3></div><MapPinned size={21} /></header>
           <span>{t.coverageHint}</span>
-          <div className="dashboard-coverage-list"><div><strong>{data.summary.areaCount}</strong><span>{t.areas}</span></div><div><strong>{data.summary.divisionCount}</strong><span>{t.divisions}</span></div><div><strong>{data.summary.sourcePdfCount}</strong><span>{t.pdfs}</span></div></div>
+          <div className="dashboard-coverage-list"><div><strong><MetricValue loading={isMetricLoading('areaCount')} value={metrics.areaCount} /></strong><span>{t.areas}</span></div><div><strong><MetricValue loading={isMetricLoading('divisionCount')} value={metrics.divisionCount} /></strong><span>{t.divisions}</span></div><div><strong><MetricValue loading={isMetricLoading('sourcePdfCount')} value={sourcePdfCount} /></strong><span>{t.pdfs}</span></div></div>
           <div className="dashboard-connected"><CheckCircle2 size={15} /><div><strong>{t.databaseReady}</strong><span>{t.databaseHint}</span></div></div>
         </article>
 
-        <article className="dashboard-panel dashboard-pdf-status-panel dashboard-clickable-panel" onClick={() => onNavigate('library')} onKeyDown={(event) => activateWithKeyboard(event, () => onNavigate('library'))} role="button" tabIndex={0}>
-          <header><div><p>{t.pdfStatus}</p><h3>{data.summary.sourcePdfCount}</h3></div><UploadCloud size={21} /></header>
+        <article className={joinClasses('dashboard-panel dashboard-pdf-status-panel dashboard-clickable-panel', uiClasses.card, 'cursor-pointer transition hover:-translate-y-0.5')} onClick={() => onNavigate('library')} onKeyDown={(event) => activateWithKeyboard(event, () => onNavigate('library'))} role="button" tabIndex={0}>
+          <header><div><p>{t.pdfStatus}</p><h3><MetricValue loading={isMetricLoading('sourcePdfCount')} value={sourcePdfCount} /></h3></div><UploadCloud size={21} /></header>
           <span>{t.pdfStatusHint}</span>
-          <div className="dashboard-progress-list"><StatusLine label={t.completed} value={completedPdfs} total={data.summary.sourcePdfCount} tone="success" /><StatusLine label={t.active} value={activePdfs} total={data.summary.sourcePdfCount} tone="primary" /><StatusLine label={t.review} value={reviewPdfs} total={data.summary.sourcePdfCount} tone="warning" /><StatusLine label={t.failed} value={failedPdfs} total={data.summary.sourcePdfCount} tone="danger" /></div>
+          <div className="dashboard-progress-list"><StatusLine label={t.completed} loading={isMetricLoading('completedPdfCount')} value={completedPdfs} total={sourcePdfCount} tone="success" /><StatusLine label={t.active} loading={isMetricLoading('processingPdfCount')} value={activePdfs} total={sourcePdfCount} tone="primary" /><StatusLine label={t.review} loading={isMetricLoading('sourceStatusCounts')} value={reviewPdfs} total={sourcePdfCount} tone="warning" /><StatusLine label={t.failed} loading={isMetricLoading('sourceStatusCounts')} value={failedPdfs} total={sourcePdfCount} tone="danger" /></div>
           <button className="dashboard-link-button" onClick={() => onNavigate('library')} type="button">{t.openLibrary}<ArrowUpRight size={15} /></button>
         </article>
       </section>
 
-      <section className="dashboard-content-grid">
-        <article className="dashboard-panel dashboard-list-panel">
-          <header><div><p>{t.recentUploads}</p><h3>{pdfs.length}</h3></div><FileText size={21} /></header>
-          {pdfs.length === 0 ? <span className="dashboard-empty-line">{t.noUploads}</span> : <div className="dashboard-item-list">{sortByDate(pdfs).slice(0, 5).map((item) => <button className="dashboard-list-item" key={item.id} onClick={() => onNavigate('library', `?source=${encodeURIComponent(item.id)}`)} type="button"><span className={`dashboard-status-dot dashboard-status-${statusTone(item.status)}`} /><div><strong>{item.originalFileName}</strong><span>{t.wards}: {item.wardId || '—'} · {t.booths}: {item.boothId || '—'}</span></div><small>{formatDate(item.createdAt || item.uploadedAt || item.updatedAt, language)}</small></button>)}</div>}
+      <section className="dashboard-content-grid grid gap-3 shell:grid-cols-2">
+        <article className={joinClasses('dashboard-panel dashboard-list-panel', uiClasses.card)}>
+          <header><div><p>{t.recentUploads}</p><h3><MetricValue loading={isMetricLoading('recentUploads')} value={metrics.recentUploads?.length} /></h3></div><FileText size={21} /></header>
+          {isMetricLoading('recentUploads') ? <DashboardPanelPlaceholder /> : pdfs.length === 0 ? <span className="dashboard-empty-line">{t.noUploads}</span> : <div className="dashboard-item-list">{sortByDate(pdfs).slice(0, 5).map((item) => <button className="dashboard-list-item" key={item.id} onClick={() => onNavigate('library', `?source=${encodeURIComponent(item.id)}`)} type="button"><span className={`dashboard-status-dot dashboard-status-${statusTone(item.status)}`} /><div><strong>{item.originalFileName}</strong><span>{t.wards}: {item.wardId || '—'} · {t.booths}: {item.boothId || '—'}</span></div><small>{formatDate(item.createdAt || item.uploadedAt || item.updatedAt, language)}</small></button>)}</div>}
           <button className="dashboard-link-button" onClick={() => onNavigate('library')} type="button">{t.openLibrary}<ArrowUpRight size={15} /></button>
         </article>
 
-        <article className="dashboard-panel dashboard-list-panel">
-          <header><div><p>{t.activity}</p><h3>{data.activity.length}</h3></div><Database size={21} /></header>
-          {data.activity.length === 0 ? <span className="dashboard-empty-line">{t.noActivity}</span> : <div className="dashboard-item-list">{data.activity.slice(0, 5).map((item) => <button className="dashboard-list-item" key={item.id} onClick={() => onNavigate('audit')} type="button"><span className="dashboard-activity-icon"><ShieldCheck size={14} /></span><div><strong>{item.targetName || item.action}</strong><span>{item.actorName} · {item.action.replaceAll('_', ' ')}</span></div><small>{formatDate(item.createdAt, language)}</small></button>)}</div>}
+        <article className={joinClasses('dashboard-panel dashboard-list-panel', uiClasses.card)}>
+          <header><div><p>{t.activity}</p><h3><MetricValue loading={activityLoading} value={activity.length} /></h3></div><Database size={21} /></header>
+          {activityLoading ? <DashboardPanelPlaceholder /> : activityError ? <span className="dashboard-empty-line">{t.partial}</span> : activity.length === 0 ? <span className="dashboard-empty-line">{t.noActivity}</span> : <div className="dashboard-item-list">{activity.slice(0, 5).map((item) => <button className="dashboard-list-item" key={item.id} onClick={() => onNavigate('audit')} type="button"><span className="dashboard-activity-icon"><ShieldCheck size={14} /></span><div><strong>{item.targetName || item.action}</strong><span>{item.actorName} · {item.action.replaceAll('_', ' ')}</span></div><small>{formatDate(item.createdAt, language)}</small></button>)}</div>}
           {(session.profile.role === 'superAdmin' || permissions.audit) ? <button className="dashboard-link-button" onClick={() => onNavigate('audit')} type="button">{t.openAudit}<ArrowUpRight size={15} /></button> : null}
         </article>
       </section>
 
-      <section className="dashboard-bottom-grid">
-        <article className="dashboard-panel dashboard-access-panel dashboard-clickable-panel" onClick={() => onNavigate('settings')} onKeyDown={(event) => activateWithKeyboard(event, () => onNavigate('settings'))} role="button" tabIndex={0}><header><div><p>{t.access}</p><h3>{roleLabel}</h3></div><ShieldCheck size={21} /></header><div className="dashboard-access-summary"><div><span>{t.allowedWards}</span><strong>{scope.wardIds.length ? scope.wardIds.join(', ') : t.allWards}</strong></div><div><span>{t.allowedBooths}</span><strong>{scope.boothIds.length ? scope.boothIds.join(', ') : t.allBooths}</strong></div></div><div className="dashboard-permission-list"><Permission label={t.uploadPermission} allowed={session.profile.role === 'superAdmin' || permissions.upload} t={t} /><Permission label={t.editPermission} allowed={session.profile.role === 'superAdmin' || permissions.edit} t={t} /><Permission label={t.downloadPermission} allowed={session.profile.role === 'superAdmin' || permissions.download} t={t} /><Permission label={t.auditPermission} allowed={session.profile.role === 'superAdmin' || permissions.audit} t={t} /></div></article>
-        <article className="dashboard-panel dashboard-quick-panel"><header><div><p>{t.quickActions}</p><h3>{t.title}</h3></div><ArrowUpRight size={21} /></header><nav className="dashboard-quick-actions" aria-label={t.quickActions}><QuickAction icon={<UsersRound size={17} />} label={t.register} onClick={() => onNavigate('register')} /><QuickAction icon={<FileText size={17} />} label={t.library} onClick={() => onNavigate('library')} />{session.profile.role !== 'subMember' && (session.profile.role === 'superAdmin' || permissions.upload) ? <QuickAction icon={<UploadCloud size={17} />} label={t.upload} onClick={() => onNavigate('upload')} /> : null}{session.profile.role === 'superAdmin' || session.profile.role === 'admin' ? <QuickAction icon={<UsersRound size={17} />} label={t.users} onClick={() => onNavigate('users')} /> : null}{session.profile.role === 'superAdmin' || permissions.audit ? <QuickAction icon={<ShieldCheck size={17} />} label={t.audit} onClick={() => onNavigate('audit')} /> : null}<QuickAction icon={<Database size={17} />} label={t.profile} onClick={() => onNavigate('settings')} /></nav></article>
+      <section className="dashboard-bottom-grid grid gap-3 shell:grid-cols-2">
+        <article className={joinClasses('dashboard-panel dashboard-access-panel dashboard-clickable-panel', uiClasses.card, 'cursor-pointer transition hover:-translate-y-0.5')} onClick={() => onNavigate('settings')} onKeyDown={(event) => activateWithKeyboard(event, () => onNavigate('settings'))} role="button" tabIndex={0}><header><div><p>{t.access}</p><h3>{roleLabel}</h3></div><ShieldCheck size={21} /></header><div className="dashboard-access-summary"><div><span>{t.allowedWards}</span><strong>{scope.wardIds.length ? scope.wardIds.join(', ') : t.allWards}</strong></div><div><span>{t.allowedBooths}</span><strong>{scope.boothIds.length ? scope.boothIds.join(', ') : t.allBooths}</strong></div></div><div className="dashboard-permission-list"><Permission label={t.uploadPermission} allowed={session.profile.role === 'superAdmin' || permissions.upload} t={t} /><Permission label={t.editPermission} allowed={session.profile.role === 'superAdmin' || permissions.edit} t={t} /><Permission label={t.downloadPermission} allowed={session.profile.role === 'superAdmin' || permissions.download} t={t} /><Permission label={t.auditPermission} allowed={session.profile.role === 'superAdmin' || permissions.audit} t={t} /></div></article>
+        <article className={joinClasses('dashboard-panel dashboard-quick-panel', uiClasses.card)}><header><div><p>{t.quickActions}</p><h3>{t.title}</h3></div><ArrowUpRight size={21} /></header><nav className="dashboard-quick-actions" aria-label={t.quickActions}><QuickAction icon={<UsersRound size={17} />} label={t.register} onClick={() => onNavigate('register')} /><QuickAction icon={<FileText size={17} />} label={t.library} onClick={() => onNavigate('library')} />{session.profile.role !== 'subMember' && (session.profile.role === 'superAdmin' || permissions.upload) ? <QuickAction icon={<UploadCloud size={17} />} label={t.upload} onClick={() => onNavigate('upload')} /> : null}{session.profile.role === 'superAdmin' || session.profile.role === 'admin' ? <QuickAction icon={<UsersRound size={17} />} label={t.users} onClick={() => onNavigate('users')} /> : null}{session.profile.role === 'superAdmin' || permissions.audit ? <QuickAction icon={<ShieldCheck size={17} />} label={t.audit} onClick={() => onNavigate('audit')} /> : null}<QuickAction icon={<Database size={17} />} label={t.profile} onClick={() => onNavigate('settings')} /></nav></article>
       </section>
-    </> : null}
   </section>
 }
 
-function StatusLine({ label, value, total, tone }: { label: string; value: number; total: number; tone: 'success' | 'primary' | 'warning' | 'danger' }) {
-  const width = total > 0 ? `${Math.round((value / total) * 100)}%` : '0%'
-  return <div className="dashboard-status-line"><div><span>{label}</span><strong>{value}</strong></div><div className="dashboard-progress-track"><span className={`dashboard-progress-fill dashboard-progress-${tone}`} style={{ width }} /></div></div>
+function StatusLine({ label, loading, value, total, tone }: { label: string; loading: boolean; value?: number; total?: number; tone: 'success' | 'primary' | 'warning' | 'danger' }) {
+  const width = value !== undefined && total !== undefined && total > 0 ? `${Math.min(100, Math.round((value / total) * 100))}%` : '0%'
+  return <div className="dashboard-status-line"><div><span>{label}</span><strong><MetricValue loading={loading} value={value} /></strong></div><div className="dashboard-progress-track"><span className={`dashboard-progress-fill dashboard-progress-${tone}`} style={{ width }} /></div></div>
+}
+
+function applyMetricResult(current: DashboardMetrics, result: DashboardMetricResult): DashboardMetrics {
+  switch (result.metric) {
+    case 'sourceStatusCounts': return { ...current, sourceStatusCounts: result.value as Record<string, number> }
+    case 'recentUploads': return { ...current, recentUploads: result.value as DashboardRecentUpload[] }
+    case 'voterCount': return { ...current, voterCount: result.value as number }
+    case 'wardCount': return { ...current, wardCount: result.value as number }
+    case 'boothCount': return { ...current, boothCount: result.value as number }
+    case 'areaCount': return { ...current, areaCount: result.value as number }
+    case 'divisionCount': return { ...current, divisionCount: result.value as number }
+    case 'sourcePdfCount': return { ...current, sourcePdfCount: result.value as number }
+    case 'completedPdfCount': return { ...current, completedPdfCount: result.value as number }
+    case 'processingPdfCount': return { ...current, processingPdfCount: result.value as number }
+    case 'attentionCount': return { ...current, attentionCount: result.value as number }
+  }
+}
+
+function MetricValue({ loading, value }: { loading: boolean; value?: number }) {
+  if (loading) return <span aria-label="Loading" className="dashboard-metric-skeleton inline-block animate-pulse rounded-md" />
+  return value === undefined ? '—' : formatCount(value)
+}
+
+function DashboardPanelPlaceholder() {
+  return <div aria-hidden="true" className="dashboard-panel-placeholder grid min-h-32 content-center gap-3"><span className="block h-3 animate-pulse rounded-md" /><span className="block h-3 w-3/4 animate-pulse rounded-md" /><span className="block h-3 w-1/2 animate-pulse rounded-md" /></div>
 }
 
 function Permission({ label, allowed, t }: { label: string; allowed: boolean; t: DashboardText }) {
@@ -162,7 +216,7 @@ function Permission({ label, allowed, t }: { label: string; allowed: boolean; t:
 }
 
 function QuickAction({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
-  return <button onClick={onClick} type="button">{icon}{label}<ArrowUpRight size={13} /></button>
+  return <button className={joinClasses(uiClasses.button, uiClasses.secondaryButton, 'min-h-10 justify-start bg-surface-muted text-xs')} onClick={onClick} type="button">{icon}{label}<ArrowUpRight className="ml-auto" size={13} /></button>
 }
 
 function roleName(role: AppSession['profile']['role'], t: DashboardText) {

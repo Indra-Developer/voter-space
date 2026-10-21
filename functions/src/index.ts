@@ -154,6 +154,7 @@ type DashboardStats = {
   recentUploads: DashboardRecentUpload[]
   updatedAt?: unknown
 }
+type DashboardMetricName = 'voterCount' | 'wardCount' | 'boothCount' | 'areaCount' | 'divisionCount' | 'sourcePdfCount' | 'completedPdfCount' | 'processingPdfCount' | 'attentionCount' | 'sourceStatusCounts' | 'recentUploads'
 type DashboardStatsDocument = {
   counts: Record<string, DashboardScopeCount>
   updatedAt?: unknown
@@ -1198,6 +1199,31 @@ function publicDashboardSummary(summary: DashboardStats, sourceStatusCounts: Rec
   }
 }
 
+const dashboardMetricNames: DashboardMetricName[] = [
+  'voterCount',
+  'wardCount',
+  'boothCount',
+  'areaCount',
+  'divisionCount',
+  'sourcePdfCount',
+  'completedPdfCount',
+  'processingPdfCount',
+  'attentionCount',
+  'sourceStatusCounts',
+  'recentUploads',
+]
+
+async function readDashboardSummaryForCaller(user: UserRecord) {
+  let summarySnapshot = await db.doc('stats/summary').get()
+  if (!summarySnapshot.exists || !summarySnapshot.data()?.sourceStatusById) {
+    await rebuildDashboardStats()
+    summarySnapshot = await db.doc('stats/summary').get()
+  }
+  const summary = summarySnapshot.data() as DashboardStats
+  const [wardSnapshot, boothSnapshot] = await Promise.all([db.doc('stats/wardCounts').get(), db.doc('stats/boothCounts').get()])
+  return summaryForCaller(summary, (wardSnapshot.data() ?? { counts: {} }) as DashboardStatsDocument, (boothSnapshot.data() ?? { counts: {} }) as DashboardStatsDocument, user)
+}
+
 export const refreshDashboardStats = onTaskDispatched<{ reason?: string }>({
   region,
   memory: '512MiB',
@@ -1219,14 +1245,27 @@ export const refreshDashboardStats = onTaskDispatched<{ reason?: string }>({
 // page open. The first call after deployment builds them for existing data.
 export const getDashboardSummary = onCall({ region, timeoutSeconds: 120, memory: '512MiB' }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
-  let summarySnapshot = await db.doc('stats/summary').get()
-  if (!summarySnapshot.exists || !summarySnapshot.data()?.sourceStatusById) {
-    await rebuildDashboardStats()
-    summarySnapshot = await db.doc('stats/summary').get()
+  return readDashboardSummaryForCaller(caller.record)
+})
+
+// Each dashboard card can request only the value it needs. The values come
+// from the small pre-calculated stats documents, so the browser never scans
+// the voters collection just to render the dashboard.
+export const getDashboardMetric = onCall({ region, timeoutSeconds: 60, memory: '256MiB' }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  const metric = (request.data as { metric?: unknown })?.metric
+  if (typeof metric !== 'string' || !dashboardMetricNames.includes(metric as DashboardMetricName)) {
+    throw new HttpsError('invalid-argument', 'Unknown dashboard metric.')
   }
-  const summary = summarySnapshot.data() as DashboardStats
-  const [wardSnapshot, boothSnapshot] = await Promise.all([db.doc('stats/wardCounts').get(), db.doc('stats/boothCounts').get()])
-  return summaryForCaller(summary, (wardSnapshot.data() ?? { counts: {} }) as DashboardStatsDocument, (boothSnapshot.data() ?? { counts: {} }) as DashboardStatsDocument, caller.record)
+
+  const summary = await readDashboardSummaryForCaller(caller.record)
+  const metricName = metric as DashboardMetricName
+  if (metricName === 'attentionCount') {
+    const reviewCount = countStatuses(summary.sourceStatusCounts, ['review', 'awaitingApproval', 'completedWithReview'])
+    const failedCount = countStatuses(summary.sourceStatusCounts, ['failed'])
+    return { metric: metricName, value: reviewCount + failedCount }
+  }
+  return { metric: metricName, value: summary[metricName] }
 })
 
 export const updateVoterRecord = onCall({ region }, async (request) => {

@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import logoAsset from '../../assets/voter-space-logo.jpg'
 import './auth.css'
 import { firebaseConfigured } from '../../lib/firebase'
+import { joinClasses, uiClasses } from '../app-shell/ui'
 import type { AppLanguage } from '../app-shell/types'
 import { isDeviceLimitError, readableFirebaseError, signInForRole } from './firebase-auth'
 import type { LoginRole } from './types'
@@ -118,7 +119,7 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
   }
 
   return (
-    <main className="auth-page">
+    <main className="auth-page min-h-svh bg-page font-sans text-copy">
       <div className="auth-shell">
         <aside className="auth-showcase">
           <div className="auth-showcase-top"><span>{t.workspace}</span><ShieldCheck size={18} /></div>
@@ -128,9 +129,9 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
         </aside>
 
         <section className="auth-panel">
-          <header className="auth-heading">
+          <header className="auth-heading flex items-center justify-between gap-4">
             <div className="auth-brand"><img alt="" className="auth-brand-logo" src={logoAsset} /><strong>వోటర్ స్పేస్</strong></div>
-          <select aria-label="Language" value={language} onChange={(event) => onLanguageChange(event.target.value as AppLanguage)}>
+          <select aria-label="Language" className={uiClasses.select} value={language} onChange={(event) => onLanguageChange(event.target.value as AppLanguage)}>
             <option value="te">తెలుగు</option>
             <option value="en">English</option>
           </select>
@@ -147,12 +148,12 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
           {roles.map(({ role, icon: Icon }) => (
             <button
               aria-pressed={selectedRole === role}
-              className={selectedRole === role ? 'is-selected' : ''}
+              className={joinClasses(uiClasses.button, 'min-h-16 justify-start rounded-panel p-3', selectedRole === role && 'is-selected')}
               key={role}
               onClick={() => setSelectedRole(role)}
               type="button"
             >
-              <span className="login-role-icon"><Icon size={19} /></span>
+              <span className={joinClasses('login-role-icon', uiClasses.iconBadge, 'size-10 rounded-xl')}><Icon size={19} /></span>
               <span className="login-role-copy"><strong>{t.roles[role].title}</strong><span>{t.roles[role].description}</span></span>
               <span aria-hidden="true" className="login-role-selected">{selectedRole === role ? '✓' : ''}</span>
             </button>
@@ -166,36 +167,36 @@ export function LoginPage({ language, message, onLanguageChange }: LoginPageProp
         <form className="login-form" onSubmit={submit}>
           <label>
             <span>{t.email}</span>
-            <div className="field-with-icon"><Mail size={17} /><input autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /></div>
+            <div className="field-with-icon flex items-center rounded-lg border border-border bg-surface text-muted transition focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15"><Mail className="ml-3 shrink-0" size={17} /><input className={uiClasses.inputBare} autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} /></div>
           </label>
           <label>
             <span>{t.password}</span>
-            <div className="field-with-icon">
-              <KeyRound size={17} />
-              <input autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required type={showPassword ? 'text' : 'password'} value={password} />
-              <button aria-label="Show or hide password" onClick={() => setShowPassword((show) => !show)} type="button">
+            <div className="field-with-icon flex items-center rounded-lg border border-border bg-surface text-muted transition focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15">
+              <KeyRound className="ml-3 shrink-0" size={17} />
+              <input className={uiClasses.inputBare} autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} required type={showPassword ? 'text' : 'password'} value={password} />
+              <button aria-label="Show or hide password" className="mr-1 inline-flex size-8 items-center justify-center rounded-md text-muted transition hover:bg-nav-active hover:text-primary" onClick={() => setShowPassword((show) => !show)} type="button">
                 {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
             </div>
           </label>
-          <button className="primary-button login-submit" disabled={isSubmitting || !firebaseConfigured} type="submit">
+          <button className={joinClasses('primary-button login-submit', uiClasses.button, uiClasses.primaryButton, 'w-full')} disabled={isSubmitting || !firebaseConfigured} type="submit">
             {isSubmitting ? '…' : t.signIn}
           </button>
         </form>
           <div className="auth-login-footer"><ShieldCheck size={15} /><span>{t.secure}</span></div>
           <div className="auth-support-links">
-            <button onClick={() => setInfoPanel('about')} type="button"><Info size={15} />{t.aboutUs}</button>
-            <button onClick={() => setInfoPanel('contact')} type="button"><Phone size={15} />{t.contactUs}</button>
+            <button className={joinClasses(uiClasses.button, uiClasses.secondaryButton, 'min-h-9 px-2.5 text-xs')} onClick={() => setInfoPanel('about')} type="button"><Info size={15} />{t.aboutUs}</button>
+            <button className={joinClasses(uiClasses.button, uiClasses.secondaryButton, 'min-h-9 px-2.5 text-xs')} onClick={() => setInfoPanel('contact')} type="button"><Phone size={15} />{t.contactUs}</button>
           </div>
         </section>
       </div>
 
       {infoPanel ? (
-        <div aria-label={infoPanel === 'about' ? t.aboutTitle : t.contactTitle} className="auth-info-backdrop" onClick={() => setInfoPanel(null)} role="presentation">
-          <section aria-modal="true" className="auth-info-dialog" onClick={(event) => event.stopPropagation()} role="dialog">
+        <div aria-label={infoPanel === 'about' ? t.aboutTitle : t.contactTitle} className={joinClasses('auth-info-backdrop', uiClasses.dialogBackdrop)} onClick={() => setInfoPanel(null)} role="presentation">
+          <section aria-modal="true" className={joinClasses('auth-info-dialog', uiClasses.dialog)} onClick={(event) => event.stopPropagation()} role="dialog">
             <div className="auth-info-heading">
               <div><span>{infoPanel === 'about' ? t.aboutUs : t.contactUs}</span><h2>{infoPanel === 'about' ? t.aboutTitle : t.contactTitle}</h2></div>
-              <button aria-label={t.close} className="auth-info-close" onClick={() => setInfoPanel(null)} type="button"><X size={19} /></button>
+              <button aria-label={t.close} className={joinClasses('auth-info-close', uiClasses.iconButton)} onClick={() => setInfoPanel(null)} type="button"><X size={19} /></button>
             </div>
             <p>{infoPanel === 'about' ? t.aboutText : t.contactText}</p>
             {infoPanel === 'contact' ? (

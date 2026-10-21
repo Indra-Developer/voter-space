@@ -1,5 +1,6 @@
 import { Camera, Download, LoaderCircle, Mail, MapPinned, Phone, ShieldCheck, Upload } from 'lucide-react'
 import { useState } from 'react'
+import { joinClasses, uiClasses } from '../app-shell/ui'
 import type { AppLanguage } from '../app-shell/types'
 import type { AppSession } from './types'
 import './auth.css'
@@ -22,7 +23,6 @@ const profileCopy = {
 export function ProfilePage({ language, session }: ProfilePageProps) {
   const t = profileCopy[language]
   const profile = session.profile
-  const bannerStyle = session.bannerUrl ? { backgroundImage: `url(${session.bannerUrl})` } : undefined
   const scope = profile.role === 'superAdmin' ? null : profile.scope
   const [profileFile, setProfileFile] = useState<File>()
   const [bannerFile, setBannerFile] = useState<File>()
@@ -52,13 +52,18 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
   }
 
   return (
-    <section className="profile-page">
+    <section className="profile-page space-y-4 font-sans text-copy">
       <header className="page-intro"><p>{t.label}</p><h2>{t.title}</h2></header>
-      <article className="profile-page-card">
-        <div className="profile-page-banner" style={bannerStyle}>{session.bannerUrl ? <img alt={`${profile.fullName} ${t.banner}`} src={session.bannerUrl} /> : null}</div>
+      <article className={joinClasses('profile-page-card', uiClasses.card)}>
+        <div className="profile-page-banner">
+          {session.bannerUrl ? <img alt={`${profile.fullName} ${t.banner}`} src={session.bannerUrl} /> : null}
+          <span className="profile-page-banner-mark">Voter Space</span>
+        </div>
         <div className="profile-page-main">
-          {session.profilePhotoUrl ? <img alt={profile.fullName} className="profile-page-photo" src={session.profilePhotoUrl} /> : <span className="profile-page-photo profile-page-photo-placeholder">{profile.fullName.slice(0, 1).toUpperCase()}</span>}
-          <div className="profile-page-name"><h3>{profile.fullName}</h3><span>{t.roles[profile.role]}</span></div>
+          <div className="profile-page-photo-frame">
+            {session.profilePhotoUrl ? <img alt={profile.fullName} className="profile-page-photo" src={session.profilePhotoUrl} /> : <span className="profile-page-photo profile-page-photo-placeholder">{profile.fullName.slice(0, 1).toUpperCase()}</span>}
+          </div>
+          <div className="profile-page-name"><small>{t.label}</small><h3>{profile.fullName}</h3><span>{t.roles[profile.role]}</span></div>
         </div>
         <div className="profile-contact-grid">
           <span><Mail size={17} /><small>{t.email}</small><strong>{profile.email}</strong></span>
@@ -66,7 +71,7 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
         </div>
       </article>
 
-      {profile.role === 'superAdmin' ? <section className="profile-media-editor">
+      {profile.role === 'superAdmin' ? <section className={joinClasses('profile-media-editor', uiClasses.card, 'grid gap-4 p-4')}>
         <header><div><p>{t.mediaTitle}</p><h3>{t.mediaHint}</h3></div><Camera size={20} /></header>
         <div className="profile-media-input-grid">
           <label className="profile-media-input"><span>{t.profilePhoto}</span><small>{profileFile?.name ?? (session.profilePhotoUrl ? t.currentImage : t.chooseImage)}</small><input accept="image/png,image/jpeg,image/webp" onChange={(event) => setProfileFile(event.target.files?.[0])} type="file" /></label>
@@ -74,12 +79,12 @@ export function ProfilePage({ language, session }: ProfilePageProps) {
         </div>
         {mediaMessage ? <p className="profile-media-message">{mediaMessage}</p> : null}
         {mediaError ? <p className="form-alert form-alert-error">{mediaError}</p> : null}
-        <button className="primary-button" disabled={mediaSaving || (!profileFile && !bannerFile)} onClick={() => void saveMedia()} type="button">{mediaSaving ? <LoaderCircle className="animate-spin" size={15} /> : <Upload size={15} />}{mediaSaving ? t.savingMedia : t.saveMedia}</button>
+        <button className={joinClasses('primary-button', uiClasses.button, uiClasses.primaryButton, 'w-fit')} disabled={mediaSaving || (!profileFile && !bannerFile)} onClick={() => void saveMedia()} type="button">{mediaSaving ? <LoaderCircle className="animate-spin" size={15} /> : <Upload size={15} />}{mediaSaving ? t.savingMedia : t.saveMedia}</button>
       </section> : null}
 
       <section className="profile-detail-grid">
-        <article><h3><MapPinned size={18} />{t.access}</h3>{scope ? <div className="access-lines"><span><small>{t.wards}</small><strong>{scope.wardIds.join(', ') || t.noAccess}</strong></span><span><small>{t.booths}</small><strong>{scope.boothIds.join(', ') || t.noAccess}</strong></span></div> : <p>{t.enabled}</p>}</article>
-        <article><h3><ShieldCheck size={18} />{t.permissions}</h3><div className="permission-list"><Permission icon={Upload} label={t.upload} visible={profile.permissions.upload || profile.role === 'superAdmin'} /><Permission icon={ShieldCheck} label={t.edit} visible={profile.permissions.edit || profile.role === 'superAdmin'} /><Permission icon={Download} label={t.download} visible={profile.permissions.download || profile.role === 'superAdmin'} /></div></article>
+        <article className={joinClasses(uiClasses.card, 'p-4')}><h3><MapPinned size={18} />{t.access}</h3>{scope ? <div className="access-lines"><span><small>{t.wards}</small><strong>{scope.wardIds.join(', ') || t.noAccess}</strong></span><span><small>{t.booths}</small><strong>{scope.boothIds.join(', ') || t.noAccess}</strong></span></div> : <p>{t.enabled}</p>}</article>
+        <article className={joinClasses(uiClasses.card, 'p-4')}><h3><ShieldCheck size={18} />{t.permissions}</h3><div className="permission-list"><Permission icon={Upload} label={t.upload} visible={profile.permissions.upload || profile.role === 'superAdmin'} /><Permission icon={ShieldCheck} label={t.edit} visible={profile.permissions.edit || profile.role === 'superAdmin'} /><Permission icon={Download} label={t.download} visible={profile.permissions.download || profile.role === 'superAdmin'} /></div></article>
       </section>
     </section>
   )

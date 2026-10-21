@@ -3,6 +3,7 @@ import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestor
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { db } from '../../lib/firebase'
 import type { AppLanguage } from '../app-shell/types'
+import { joinClasses, uiClasses } from '../app-shell/ui'
 import './user-management.css'
 import { createAccount, readableFirebaseError, resolveStorageFileUrl, updateAccount, uploadAccountImage } from '../auth/firebase-auth'
 import { emptyPermissions, type AccountFormValues, type AppSession, type UserProfile } from '../auth/types'
@@ -129,12 +130,12 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
   }
 
   return (
-    <section className="user-management">
-      <header className="page-intro user-management-intro">
+    <section className="user-management grid gap-4 font-sans text-copy">
+      <header className="page-intro user-management-intro flex items-start justify-between gap-4">
         <div>
           <p>{t.label}</p><h2>{t.title}</h2><span>{t.description}</span>
         </div>
-        <button className="primary-button" onClick={startCreate} type="button"><Plus size={17} />{t.create}</button>
+        <button className={joinClasses('primary-button', uiClasses.button, uiClasses.primaryButton)} onClick={startCreate} type="button"><Plus size={17} />{t.create}</button>
       </header>
 
       {!isSuperAdmin ? <p className="form-alert form-alert-info">{t.ownMembers}</p> : null}
@@ -154,17 +155,17 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
         />
       ) : null}
 
-      <div className="user-list-card">
+      <div className={joinClasses('user-list-card', uiClasses.card, 'overflow-hidden')}>
         {loadingUsers ? <p aria-live="polite" className="user-list-loading"><span aria-hidden="true" className="loading-dots">•••</span>{language === 'te' ? 'వినియోగదారుల వివరాలు లోడ్ అవుతున్నాయి…' : 'Loading user accounts…'}</p> : editableUsers.length === 0 ? <p className="user-list-empty">{t.noUsers}</p> : null}
         {editableUsers.map((user) => (
-          <article className="user-row" key={user.uid}>
+            <article className="user-row bg-surface" key={user.uid}>
             {user.bannerUrl ? <img alt="" className="user-row-banner" src={user.bannerUrl} /> : null}
             <span className="user-row-avatar">{user.profilePhotoUrl ? <img alt={user.fullName} src={user.profilePhotoUrl} /> : <UserRound size={20} />}</span>
             <div className="user-row-main"><strong>{user.fullName}</strong><span>{user.email} · {user.mobile}</span></div>
             <div className="user-row-details"><span className={`status-pill status-${user.status}`}>{user.status === 'active' ? t.active : t.disabled}</span><span>{user.role === 'admin' ? t.admin : t.subMember}</span><span>{user.deviceLimit ?? 1} {(user.deviceLimit ?? 1) === 1 ? t.device : t.devices}</span></div>
             <div className="user-row-actions">
-              <button aria-label={t.editAccount} onClick={() => startEdit(user)} type="button"><Pencil size={16} />{t.editAccount}</button>
-              {isSuperAdmin ? <button className={user.status === 'active' ? 'danger-action' : 'success-action'} onClick={() => handleAccess(user)} type="button">{user.status === 'active' ? <XCircle size={16} /> : <CheckCircle2 size={16} />}{user.status === 'active' ? t.disable : t.enable}</button> : null}
+              <button aria-label={t.editAccount} className={joinClasses(uiClasses.button, uiClasses.secondaryButton, 'min-h-9 text-xs')} onClick={() => startEdit(user)} type="button"><Pencil size={16} />{t.editAccount}</button>
+              {isSuperAdmin ? <button className={joinClasses(user.status === 'active' ? 'danger-action' : 'success-action', uiClasses.button, user.status === 'active' ? uiClasses.dangerButton : uiClasses.primaryButton, 'min-h-9 text-xs')} onClick={() => handleAccess(user)} type="button">{user.status === 'active' ? <XCircle size={16} /> : <CheckCircle2 size={16} />}{user.status === 'active' ? t.disable : t.enable}</button> : null}
             </div>
           </article>
         ))}
@@ -266,44 +267,44 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
   const changeImage = (setter: (file: File | undefined) => void) => (event: ChangeEvent<HTMLInputElement>) => setter(event.target.files?.[0])
 
   return (
-    <form className="account-form" onSubmit={submit}>
-      <div className="account-form-heading"><div><span>{isEditing ? t.edit : t.create}</span><h3>{isEditing ? initialUser?.fullName : t.create}</h3></div><ShieldCheck size={22} /></div>
+    <form className={joinClasses('account-form', uiClasses.card, 'grid gap-4 p-4')} onSubmit={submit}>
+      <div className="account-form-heading flex items-center justify-between gap-4"><div><span>{isEditing ? t.edit : t.create}</span><h3>{isEditing ? initialUser?.fullName : t.create}</h3></div><ShieldCheck size={22} /></div>
       {error ? <p className="form-alert form-alert-error">{error}</p> : null}
       <div className="account-form-grid">
-        {isSuperAdmin && !isEditing ? <label><span>{t.role}</span><select onChange={(event) => setField('role', event.target.value as AccountFormValues['role'])} value={values.role}><option value="admin">{t.admin}</option><option value="subMember">{t.subMember}</option></select></label> : null}
-        <label><span>{t.fullName}</span><input onChange={(event) => setField('fullName', event.target.value)} required value={values.fullName} /></label>
-        <label><span>{t.mobile}</span><input inputMode="tel" onChange={(event) => setField('mobile', event.target.value)} required value={values.mobile} /></label>
-        <label><span>{t.email}</span><input disabled={isEditing && !isSuperAdmin} onChange={(event) => setField('email', event.target.value)} required type="email" value={values.email} /></label>
-        {isSuperAdmin ? <label><span>{t.status}</span><select onChange={(event) => setField('status', event.target.value as AccountFormValues['status'])} value={values.status}><option value="active">{t.active}</option><option value="disabled">{t.disabled}</option></select></label> : null}
-        <label><span>{t.deviceLimit}</span><select onChange={(event) => setField('deviceLimit', Number(event.target.value))} value={values.deviceLimit}>{[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} {count === 1 ? t.device : t.devices}</option>)}</select><small>{t.deviceLimitHelp}</small></label>
-        <label><span>{t.password}</span><input autoComplete={isEditing ? 'new-password' : 'new-password'} minLength={8} onChange={(event) => setPassword(event.target.value)} required={!isEditing} type="password" value={password} /><small>{isEditing ? t.passwordEditHelp : t.passwordHelp}</small></label>
-        <label><span>{t.confirmPassword}</span><input autoComplete="new-password" minLength={8} onChange={(event) => setConfirmPassword(event.target.value)} required={!isEditing} type="password" value={confirmPassword} /></label>
+        {isSuperAdmin && !isEditing ? <label><span>{t.role}</span><select className={uiClasses.select} onChange={(event) => setField('role', event.target.value as AccountFormValues['role'])} value={values.role}><option value="admin">{t.admin}</option><option value="subMember">{t.subMember}</option></select></label> : null}
+        <label><span>{t.fullName}</span><input className={uiClasses.input} onChange={(event) => setField('fullName', event.target.value)} required value={values.fullName} /></label>
+        <label><span>{t.mobile}</span><input className={uiClasses.input} inputMode="tel" onChange={(event) => setField('mobile', event.target.value)} required value={values.mobile} /></label>
+        <label><span>{t.email}</span><input className={uiClasses.input} disabled={isEditing && !isSuperAdmin} onChange={(event) => setField('email', event.target.value)} required type="email" value={values.email} /></label>
+        {isSuperAdmin ? <label><span>{t.status}</span><select className={uiClasses.select} onChange={(event) => setField('status', event.target.value as AccountFormValues['status'])} value={values.status}><option value="active">{t.active}</option><option value="disabled">{t.disabled}</option></select></label> : null}
+        <label><span>{t.deviceLimit}</span><select className={uiClasses.select} onChange={(event) => setField('deviceLimit', Number(event.target.value))} value={values.deviceLimit}>{[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>{count} {count === 1 ? t.device : t.devices}</option>)}</select><small>{t.deviceLimitHelp}</small></label>
+        <label><span>{t.password}</span><input className={uiClasses.input} autoComplete={isEditing ? 'new-password' : 'new-password'} minLength={8} onChange={(event) => setPassword(event.target.value)} required={!isEditing} type="password" value={password} /><small>{isEditing ? t.passwordEditHelp : t.passwordHelp}</small></label>
+        <label><span>{t.confirmPassword}</span><input className={uiClasses.input} autoComplete="new-password" minLength={8} onChange={(event) => setConfirmPassword(event.target.value)} required={!isEditing} type="password" value={confirmPassword} /></label>
       </div>
 
-      <div className="image-inputs">
+      <div className="image-inputs grid gap-3 tablet:grid-cols-2">
         <ImageInput file={profileFile} label={t.profilePhoto} onChange={changeImage(setProfileFile)} previewUrl={initialUser?.profilePhotoUrl} />
         {isAdminAccount ? <ImageInput file={bannerFile} label={t.banner} onChange={changeImage(setBannerFile)} previewUrl={initialUser?.bannerUrl} /> : null}
       </div>
 
         {isAdminAccount ? (
-        <fieldset className="account-scope"><legend>{t.wardAccess} & {t.boothAccess}</legend><div className="account-form-grid"><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.wardAccess} options={availableWardOptions} selected={values.scope.wardIds} onChange={(wardIds) => setField('scope', { ...values.scope, wardIds })} placeholder={t.wardAccess} /><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.boothAccess} options={availableBoothOptions} selected={values.scope.boothIds} onChange={(boothIds) => setField('scope', { ...values.scope, boothIds })} placeholder={t.boothAccess} /><small>{t.commaHelp}</small></div></fieldset>
+        <fieldset className={joinClasses('account-scope', uiClasses.card, 'grid gap-3 p-4')}><legend>{t.wardAccess} & {t.boothAccess}</legend><div className="account-form-grid grid gap-3 tablet:grid-cols-2"><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.wardAccess} options={availableWardOptions} selected={values.scope.wardIds} onChange={(wardIds) => setField('scope', { ...values.scope, wardIds })} placeholder={t.wardAccess} /><ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.boothAccess} options={availableBoothOptions} selected={values.scope.boothIds} onChange={(boothIds) => setField('scope', { ...values.scope, boothIds })} placeholder={t.boothAccess} /><small>{t.commaHelp}</small></div></fieldset>
       ) : (
-        <fieldset className="account-scope"><legend>{t.parentAdmin}</legend><div className="account-form-grid">
-          {isSuperAdmin ? <label><span>{t.parentAdmin}</span><select onChange={(event) => setValues((current) => ({ ...current, parentAdminId: event.target.value, scope: { wardIds: [], boothIds: [] } }))} required value={values.parentAdminId ?? ''}><option value="">{adminOptions.length ? 'Select Admin' : t.noAdmins}</option>{adminOptions.map((admin) => <option key={admin.uid} value={admin.uid}>{admin.fullName}</option>)}</select></label> : null}
+        <fieldset className={joinClasses('account-scope', uiClasses.card, 'grid gap-3 p-4')}><legend>{t.parentAdmin}</legend><div className="account-form-grid grid gap-3 tablet:grid-cols-2">
+          {isSuperAdmin ? <label><span>{t.parentAdmin}</span><select className={uiClasses.select} onChange={(event) => setValues((current) => ({ ...current, parentAdminId: event.target.value, scope: { wardIds: [], boothIds: [] } }))} required value={values.parentAdminId ?? ''}><option value="">{adminOptions.length ? 'Select Admin' : t.noAdmins}</option>{adminOptions.map((admin) => <option key={admin.uid} value={admin.uid}>{admin.fullName}</option>)}</select></label> : null}
           <ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.assignedWard} options={availableWardOptions} selected={values.scope.wardIds} onChange={(wardIds) => setField('scope', { ...values.scope, wardIds })} placeholder={t.assignedWard} />
           <ScopeMultiSelect emptyText={t.noValues} helpText={t.selectOneOrMore} label={t.assignedBooth} options={availableBoothOptions} selected={values.scope.boothIds} onChange={(boothIds) => setField('scope', { ...values.scope, boothIds })} placeholder={t.assignedBooth} />
         </div></fieldset>
       )}
 
-      {isAdminAccount ? <fieldset className="permissions-grid"><legend>{t.permissions}</legend><CheckBox checked={values.permissions.upload} label={t.upload} onChange={(checked) => setPermission('upload', checked)} /><CheckBox checked={values.permissions.edit} label={t.editPermission} onChange={(checked) => setPermission('edit', checked)} /><CheckBox checked={values.permissions.download} label={t.download} onChange={(checked) => setPermission('download', checked)} /><CheckBox checked={values.permissions.audit} label={t.audit} onChange={(checked) => setPermission('audit', checked)} /></fieldset> : null}
+      {isAdminAccount ? <fieldset className={joinClasses('permissions-grid', uiClasses.card, 'grid gap-3 p-4')}><legend>{t.permissions}</legend><CheckBox checked={values.permissions.upload} label={t.upload} onChange={(checked) => setPermission('upload', checked)} /><CheckBox checked={values.permissions.edit} label={t.editPermission} onChange={(checked) => setPermission('edit', checked)} /><CheckBox checked={values.permissions.download} label={t.download} onChange={(checked) => setPermission('download', checked)} /><CheckBox checked={values.permissions.audit} label={t.audit} onChange={(checked) => setPermission('audit', checked)} /></fieldset> : null}
 
-      <div className="account-form-actions"><button className="secondary-button" onClick={onCancel} type="button">{t.cancel}</button><button className="primary-button" disabled={isSaving} type="submit">{isSaving ? '…' : t.save}</button></div>
+      <div className="account-form-actions flex flex-wrap justify-end gap-2"><button className={joinClasses('secondary-button', uiClasses.button, uiClasses.secondaryButton)} onClick={onCancel} type="button">{t.cancel}</button><button className={joinClasses('primary-button', uiClasses.button, uiClasses.primaryButton)} disabled={isSaving} type="submit">{isSaving ? '…' : t.save}</button></div>
     </form>
   )
 }
 
 function ImageInput({ file, label, onChange, previewUrl }: { file?: File; label: string; onChange: (event: ChangeEvent<HTMLInputElement>) => void; previewUrl?: string }) {
-  return <label className="image-input">{previewUrl ? <img alt="" className="image-input-preview" src={previewUrl} /> : <span className="image-input-icon"><Camera size={18} /></span>}<span><strong>{label}</strong><small>{file?.name ?? (previewUrl ? 'Current image' : 'Optional image')}</small></span><input accept="image/png,image/jpeg,image/webp" onChange={onChange} type="file" /></label>
+  return <label className={joinClasses('image-input', uiClasses.card, 'cursor-pointer')}>{previewUrl ? <img alt="" className="image-input-preview" src={previewUrl} /> : <span className={joinClasses('image-input-icon', uiClasses.iconBadge)}><Camera size={18} /></span>}<span><strong>{label}</strong><small>{file?.name ?? (previewUrl ? 'Current image' : 'Optional image')}</small></span><input accept="image/png,image/jpeg,image/webp" onChange={onChange} type="file" /></label>
 }
 
 function CheckBox({ checked, label, onChange }: { checked: boolean; label: string; onChange: (checked: boolean) => void }) {
@@ -323,10 +324,10 @@ function ScopeMultiSelect({ emptyText, helpText, label, options, selected, onCha
   }, [])
 
   const toggleValue = (value: string) => onChange(selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value])
-  return <div className="scope-multi-select" ref={containerRef}>
+  return <div className="scope-multi-select grid min-w-0 gap-1" ref={containerRef}>
     <span className="scope-multi-select-label">{label}</span>
-    <button aria-expanded={open} className={`scope-multi-select-trigger${selected.length ? ' has-value' : ''}`} onClick={() => setOpen((current) => !current)} type="button"><span>{selected.length ? selected.join(', ') : placeholder}</span><ChevronDown size={15} /></button>
-    {open ? <div className="scope-multi-select-options" role="listbox"><div className="scope-multi-select-help">{options.length ? helpText : emptyText}</div>{options.map((option) => <label className="scope-multi-select-option" key={option}><input checked={selected.includes(option)} onChange={() => toggleValue(option)} type="checkbox" /><span>{option}</span>{selected.includes(option) ? <Check size={14} /> : null}</label>)}</div> : null}
+    <button aria-expanded={open} className={joinClasses('scope-multi-select-trigger', uiClasses.button, 'min-h-10 justify-between text-left text-sm', Boolean(selected.length) && 'has-value')} onClick={() => setOpen((current) => !current)} type="button"><span>{selected.length ? selected.join(', ') : placeholder}</span><ChevronDown size={15} /></button>
+    {open ? <div className={joinClasses('scope-multi-select-options', uiClasses.menu)} role="listbox"><div className="scope-multi-select-help">{options.length ? helpText : emptyText}</div>{options.map((option) => <label className="scope-multi-select-option" key={option}><input checked={selected.includes(option)} onChange={() => toggleValue(option)} type="checkbox" /><span>{option}</span>{selected.includes(option) ? <Check size={14} /> : null}</label>)}</div> : null}
   </div>
 }
 

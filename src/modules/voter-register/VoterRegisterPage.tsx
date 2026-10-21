@@ -1,10 +1,11 @@
-import { ArrowUp, ChevronDown, Download, Edit3, FileSpreadsheet, FileText, LoaderCircle, RefreshCcw, Search, Table2, Trash2, UsersRound, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { ArrowRight, ArrowUp, Building2, ChevronDown, Download, Edit3, FileSpreadsheet, FileText, Filter, LoaderCircle, Map as MapIcon, MapPin, RefreshCcw, Search, SlidersHorizontal, Table2, Trash2, UsersRound, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { AppSession } from '../auth/types'
 import { readableFirebaseError } from '../auth/firebase-auth'
 import type { AppLanguage } from '../app-shell/types'
 import { PageState } from '../app-shell/PageState'
+import { joinClasses, uiClasses } from '../app-shell/ui'
 import './voter-register.css'
 import { countVoters, deleteVoter, deleteVotersByWard, loadVoterCardImage, loadVoterFilterOptions, loadVoters, runVoterExport, saveVoter, ServerExportCancelledError, type VoterExportFormat } from './voter-service'
 import { emptyVoterFilters, type VoterFilterOptions, type VoterFilters, type VoterRecord } from './types'
@@ -17,7 +18,7 @@ const screenCopy = {
   en: {
     label: 'Voter data', title: 'Voter Register', description: 'Find voters, check records, and export only the records you are allowed to access.',
     search: 'Search all voter fields', searchPlaceholder: 'Name, voter ID, door number, serial, ward, booth, area, division, PDF…', searchHint: 'You can search using Telugu, English spelling, voter ID, door number, serial number, ward, booth, area, division, mobile number, or PDF name.', refresh: 'Refresh', records: 'records', individual: 'Individual records', doorWise: 'Door-wise view',
-    filters: 'Filters', clear: 'Clear all', moreFilters: 'More filters', hideFilters: 'Hide filters', name: 'Name', door: 'House number', voterId: 'Voter ID', alternateId: 'Alternate ID', mobile: 'Mobile number', serial: 'Serial number', ward: 'Ward', booth: 'Booth', area: 'Area', division: 'Division', source: 'Source PDF', uploadedFrom: 'Uploaded from', uploadedTo: 'Uploaded to', uploadedBy: 'Uploaded by', members: 'members', chooseDate: 'Choose upload dates', deleteWardOpen: 'Delete ward', deleteWardTitle: 'Delete complete ward data', deleteWardHint: 'This permanently removes the ward voters, voter card images, source PDFs, and import rows from Firestore and Storage.', selectWard: 'Select ward', typeWard: 'Type the ward number to confirm', deleteWard: 'Delete ward data', deletingWard: 'Deleting ward data…', deleteWardSuccess: 'Ward data deleted successfully.', deleteWardError: 'Ward data could not be deleted.', cancel: 'Cancel',
+    filters: 'Filters', filterHint: 'Narrow down records using the filters below.', clear: 'Clear all', moreFilters: 'More filters', hideFilters: 'Hide filters', name: 'Name', door: 'House number', voterId: 'Voter ID', alternateId: 'Alternate ID', mobile: 'Mobile number', serial: 'Serial number', ward: 'Ward', booth: 'Booth', area: 'Area', division: 'Division', source: 'Source PDF', uploadedFrom: 'Uploaded from', uploadedTo: 'Uploaded to', uploadedBy: 'Uploaded by', members: 'members', chooseDate: 'Choose upload dates', deleteWardOpen: 'Delete ward', deleteWardTitle: 'Delete complete ward data', deleteWardHint: 'This permanently removes the ward voters, voter card images, source PDFs, and import rows from Firestore and Storage.', selectWard: 'Select ward', typeWard: 'Type the ward number to confirm', deleteWard: 'Delete ward data', deletingWard: 'Deleting ward data…', deleteWardSuccess: 'Ward data deleted successfully.', deleteWardError: 'Ward data could not be deleted.', cancel: 'Cancel',
     any: 'All',
     exportExcel: 'Excel', exportPdf: 'PDF', exportCsv: 'CSV', exporting: 'Preparing export…', preparingExport: 'Preparing export…', recordsProcessed: 'Records processed', downloadReady: 'Download ready.', cancelExport: 'Cancel export', retryExport: 'Retry export', exportCancelled: 'Export cancelled.', exportError: 'The export could not be completed.', exportHint: 'Exports include every database record matching the selected filters.',
     noRecords: 'No voter records match these filters.', noData: 'No voter records have been imported yet.',
@@ -27,7 +28,7 @@ const screenCopy = {
   te: {
     label: 'ఓటర్ డేటా', title: 'ఓటర్ రిజిస్టర్', description: 'ఓటర్లను వెతకండి, రికార్డులను చూడండి, మీకు అనుమతి ఉన్న డేటాను మాత్రమే ఎగుమతి చేయండి.',
     search: 'అన్ని ఓటర్ వివరాల్లో వెతకండి', searchPlaceholder: 'పేరు, ఓటర్ ఐడి, ఇంటి నంబర్, సీరియల్, వార్డు, బూత్, ప్రాంతం, డివిజన్, PDF…', searchHint: 'తెలుగు, ఇంగ్లీష్ స్పెల్లింగ్, ఓటర్ ఐడి, ఇంటి నంబర్, సీరియల్, వార్డు, బూత్, ప్రాంతం, డివిజన్, మొబైల్ లేదా PDF పేరుతో వెతకండి.', refresh: 'రిఫ్రెష్', records: 'రికార్డులు', individual: 'ఒక్కో రికార్డు', doorWise: 'ఇంటి నంబర్ వారీగా',
-    filters: 'ఫిల్టర్లు', clear: 'అన్నీ తొలగించండి', moreFilters: 'మరిన్ని ఫిల్టర్లు', hideFilters: 'ఫిల్టర్లు దాచండి', name: 'పేరు', door: 'ఇంటి నంబర్', voterId: 'ఓటర్ ఐడి', alternateId: 'ప్రత్యామ్నాయ ఐడి', mobile: 'మొబైల్ నంబర్', serial: 'సీరియల్ నంబర్', ward: 'వార్డు', booth: 'బూత్', area: 'ప్రాంతం', division: 'డివిజన్', source: 'సోర్స్ PDF', uploadedFrom: 'అప్‌లోడ్ మొదలు', uploadedTo: 'అప్‌లోడ్ చివరి తేదీ', uploadedBy: 'అప్‌లోడ్ చేసినవారు', members: 'సభ్యులు', chooseDate: 'అప్‌లోడ్ తేదీలను ఎంచుకోండి', deleteWardOpen: 'వార్డు తొలగింపు', deleteWardTitle: 'వార్డు మొత్తం డేటాను తొలగించండి', deleteWardHint: 'ఈ చర్య వార్డు ఓటర్లు, ఓటర్ కార్డు చిత్రాలు, సోర్స్ PDFలు మరియు Firestore, Storageలోని దిగుమతి వరుసలను శాశ్వతంగా తొలగిస్తుంది.', selectWard: 'వార్డును ఎంచుకోండి', typeWard: 'నిర్ధారించడానికి వార్డు నంబర్ టైప్ చేయండి', deleteWard: 'వార్డు డేటా తొలగించండి', deletingWard: 'వార్డు డేటా తొలగిస్తోంది…', deleteWardSuccess: 'వార్డు డేటా విజయవంతంగా తొలగించబడింది.', deleteWardError: 'వార్డు డేటా తొలగించలేకపోయాము.', cancel: 'రద్దు',
+    filters: 'ఫిల్టర్లు', filterHint: 'క్రింది ఫిల్టర్లతో రికార్డులను తగ్గించండి.', clear: 'అన్నీ తొలగించండి', moreFilters: 'మరిన్ని ఫిల్టర్లు', hideFilters: 'ఫిల్టర్లు దాచండి', name: 'పేరు', door: 'ఇంటి నంబర్', voterId: 'ఓటర్ ఐడి', alternateId: 'ప్రత్యామ్నాయ ఐడి', mobile: 'మొబైల్ నంబర్', serial: 'సీరియల్ నంబర్', ward: 'వార్డు', booth: 'బూత్', area: 'ప్రాంతం', division: 'డివిజన్', source: 'సోర్స్ PDF', uploadedFrom: 'అప్‌లోడ్ మొదలు', uploadedTo: 'అప్‌లోడ్ చివరి తేదీ', uploadedBy: 'అప్‌లోడ్ చేసినవారు', members: 'సభ్యులు', chooseDate: 'అప్‌లోడ్ తేదీలను ఎంచుకోండి', deleteWardOpen: 'వార్డు తొలగింపు', deleteWardTitle: 'వార్డు మొత్తం డేటాను తొలగించండి', deleteWardHint: 'ఈ చర్య వార్డు ఓటర్లు, ఓటర్ కార్డు చిత్రాలు, సోర్స్ PDFలు మరియు Firestore, Storageలోని దిగుమతి వరుసలను శాశ్వతంగా తొలగిస్తుంది.', selectWard: 'వార్డును ఎంచుకోండి', typeWard: 'నిర్ధారించడానికి వార్డు నంబర్ టైప్ చేయండి', deleteWard: 'వార్డు డేటా తొలగించండి', deletingWard: 'వార్డు డేటా తొలగిస్తోంది…', deleteWardSuccess: 'వార్డు డేటా విజయవంతంగా తొలగించబడింది.', deleteWardError: 'వార్డు డేటా తొలగించలేకపోయాము.', cancel: 'రద్దు',
     any: 'అన్నీ',
     exportExcel: 'ఎక్సెల్', exportPdf: 'PDF', exportCsv: 'CSV', exporting: 'ఎగుమతి సిద్ధమవుతోంది…', preparingExport: 'ఎగుమతి సిద్ధమవుతోంది…', recordsProcessed: 'ప్రాసెస్ చేసిన రికార్డులు', downloadReady: 'డౌన్‌లోడ్ సిద్ధంగా ఉంది.', cancelExport: 'ఎగుమతి రద్దు', retryExport: 'ఎగుమతి మళ్లీ ప్రయత్నించండి', exportCancelled: 'ఎగుమతి రద్దు అయింది.', exportError: 'ఎగుమతిని పూర్తి చేయలేకపోయాము.', exportHint: 'ఎంచుకున్న ఫిల్టర్లకు సరిపోయే డేటాబేస్ రికార్డులన్నీ ఎగుమతి అవుతాయి.',
     noRecords: 'ఈ ఫిల్టర్లకు సరిపోయే ఓటర్ రికార్డులు లేవు.', noData: 'ఇంకా ఓటర్ రికార్డులు దిగుమతి కాలేదు.',
@@ -314,41 +315,39 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     }
   }
 
-  return <section aria-busy={records === undefined || isLoadingMore} className="voter-register-page">
-    <header className="page-intro voter-register-intro"><div className="voter-register-header-actions">{canDeleteWard ? <button aria-label={t.deleteWardOpen} className="voter-delete-ward-trigger" onClick={() => { setShowDeleteWard(true); setDeleteMessage(undefined); setDeleteError(undefined) }} type="button"><Trash2 size={14} />{t.deleteWardOpen}</button> : null}<button className="voter-secondary-button" onClick={() => void reload(filters, true)} type="button"><RefreshCcw className={isRefreshing ? 'animate-spin' : undefined} size={15} />{t.refresh}</button></div></header>
+  return <section aria-busy={records === undefined || isLoadingMore} className="voter-register-page grid gap-4 font-sans text-copy">
+    <header className="page-intro voter-register-intro flex items-start justify-between gap-4"><div className="voter-register-header-actions flex flex-wrap items-center justify-end gap-2">{canDeleteWard ? <button aria-label={t.deleteWardOpen} className={joinClasses('voter-delete-ward-trigger', uiClasses.button, 'min-h-9 text-xs')} onClick={() => { setShowDeleteWard(true); setDeleteMessage(undefined); setDeleteError(undefined) }} type="button"><Trash2 size={18} />{t.deleteWardOpen}</button> : null}<button className={joinClasses('voter-register-refresh-button', 'voter-secondary-button', uiClasses.button, uiClasses.secondaryButton, 'min-h-9 text-xs')} onClick={() => void reload(filters, true)} type="button"><RefreshCcw className={isRefreshing ? 'animate-spin' : undefined} size={18} />{t.refresh}</button></div></header>
 
-    <section className="voter-filter-card" aria-label={t.filters}>
-      <div className="voter-filter-title"><div><Search size={18} /><strong>{t.search}</strong></div><button className="voter-text-button" onClick={clearFilters} type="button">{t.clear}</button></div>
-      <div className="voter-global-search"><FilterInput label={t.search} placeholder={t.searchPlaceholder} value={filters.search} onChange={(value) => updateFilter('search', value)} /></div>
-      <div className="voter-filter-button-row" aria-label={t.moreFilters}>
-        <NativeFilterSelect label={t.ward} value={filters.wardId} options={options.wards} anyLabel={t.any} onChange={(value) => updateFilter('wardId', value)} />
-        <NativeFilterSelect label={t.booth} value={filters.boothId} options={options.booths} anyLabel={t.any} onChange={(value) => updateFilter('boothId', value)} />
-        <NativeFilterSelect label={t.area} value={filters.area} options={options.areas} anyLabel={t.any} onChange={(value) => updateFilter('area', value)} />
-        <button aria-expanded={showMoreFilters} className={`voter-filter-menu-button voter-more-filters-button${filters.division || filters.sourcePdf || filters.uploadedBy || filters.uploadedFrom || filters.uploadedTo ? ' has-value' : ''}`} onClick={() => setShowMoreFilters((current) => !current)} type="button"><span>{t.filters}</span><strong>{showMoreFilters ? t.hideFilters : t.moreFilters}</strong><ChevronDown size={14} /></button>
-        {showMoreFilters ? <>
-          <NativeFilterSelect label={t.division} value={filters.division} options={options.divisions} anyLabel={t.any} onChange={(value) => updateFilter('division', value)} />
-          <NativeFilterSelect label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} onChange={(value) => updateFilter('sourcePdf', value)} />
-          <NativeFilterSelect label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} onChange={(value) => updateFilter('uploadedBy', value)} />
-          <NativeDateFilter from={filters.uploadedFrom} to={filters.uploadedTo} onFromChange={(value) => updateFilter('uploadedFrom', value)} onToChange={(value) => updateFilter('uploadedTo', value)} t={t} />
-        </> : null}
-      </div>
+    <section className={joinClasses('voter-search-card', uiClasses.card, 'grid gap-3 p-3')} aria-label={t.search}>
+      <div className="voter-filter-title flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Search size={23} /><strong>{t.search}</strong></div><button className="voter-text-button rounded-lg px-2 py-1 text-sm font-semibold text-primary hover:bg-nav-active" onClick={clearFilters} type="button">{t.clear}</button></div>
+      <div className="voter-global-search"><FilterInput label={t.search} hideLabel placeholder={t.searchPlaceholder} value={filters.search} onChange={(value) => updateFilter('search', value)} /></div>
     </section>
 
-    {canDeleteWard && showDeleteWard ? <div className="voter-delete-ward-overlay" onMouseDown={() => { if (!deleteWorking) setShowDeleteWard(false) }} role="presentation"><section aria-modal="true" className="voter-delete-ward-card voter-delete-ward-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog"><div className="voter-delete-ward-dialog-heading"><div><strong>{t.deleteWardTitle}</strong><p>{t.deleteWardHint}</p></div><button aria-label={t.cancel} className="voter-dialog-close" disabled={deleteWorking} onClick={() => setShowDeleteWard(false)} type="button"><X size={17} /></button></div><div className="voter-delete-ward-controls"><FilterSelect label={t.selectWard} value={deleteWardId} options={options.wards} anyLabel={t.any} onChange={(value) => { setDeleteWardId(value); setDeleteConfirmation(''); setDeleteMessage(undefined); setDeleteError(undefined) }} /><label className="voter-field"><span>{t.typeWard}</span><input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} placeholder={deleteWardId || '—'} /></label></div>{deleteMessage ? <p className="voter-delete-success">{deleteMessage}</p> : null}{deleteError ? <p className="voter-delete-error">{deleteError}</p> : null}<footer className="voter-delete-ward-dialog-footer"><button className="voter-secondary-button" disabled={deleteWorking} onClick={() => setShowDeleteWard(false)} type="button">{t.cancel}</button><button className="voter-danger-button" disabled={!deleteWardId || deleteConfirmation.trim() !== deleteWardId || deleteWorking} onClick={() => void deleteWard()} type="button"><Trash2 size={15} />{deleteWorking ? t.deletingWard : t.deleteWard}</button></footer></section></div> : null}
+    <section className={joinClasses('voter-filter-card', uiClasses.card, 'grid gap-3 p-3')} aria-label={t.filters}>
+      <div className="voter-filter-section-title"><div><Filter size={22} /><span><strong>{t.filters}</strong><small>{t.filterHint}</small></span></div><button aria-expanded={showMoreFilters} className={joinClasses('voter-filter-menu-button voter-more-filters-button', uiClasses.button, 'min-h-10 justify-between text-left text-xs', Boolean(filters.division || filters.sourcePdf || filters.uploadedBy || filters.uploadedFrom || filters.uploadedTo) && 'has-value')} onClick={() => setShowMoreFilters((current) => !current)} type="button"><SlidersHorizontal size={18} /><strong>{showMoreFilters ? t.hideFilters : t.moreFilters}</strong><ChevronDown size={16} /></button></div>
+      <div className="voter-filter-button-row" aria-label={t.moreFilters}>
+        <NativeFilterSelect icon={<MapPin size={20} />} label={t.ward} value={filters.wardId} options={options.wards} anyLabel={t.any} onChange={(value) => updateFilter('wardId', value)} />
+        <NativeFilterSelect icon={<Building2 size={20} />} label={t.booth} value={filters.boothId} options={options.booths} anyLabel={t.any} onChange={(value) => updateFilter('boothId', value)} />
+        <NativeFilterSelect icon={<MapIcon size={20} />} label={t.area} value={filters.area} options={options.areas} anyLabel={t.any} onChange={(value) => updateFilter('area', value)} />
+      </div>
+      {showMoreFilters ? <div className="voter-filter-extra-grid"><NativeFilterSelect label={t.division} value={filters.division} options={options.divisions} anyLabel={t.any} onChange={(value) => updateFilter('division', value)} /><NativeFilterSelect label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} onChange={(value) => updateFilter('sourcePdf', value)} /><NativeFilterSelect label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} onChange={(value) => updateFilter('uploadedBy', value)} /><NativeDateFilter from={filters.uploadedFrom} to={filters.uploadedTo} onFromChange={(value) => updateFilter('uploadedFrom', value)} onToChange={(value) => updateFilter('uploadedTo', value)} t={t} /></div> : null}
+    </section>
+
+    {canDeleteWard && showDeleteWard ? <div className="voter-delete-ward-overlay grid place-items-center p-4" onMouseDown={() => { if (!deleteWorking) setShowDeleteWard(false) }} role="presentation"><section aria-modal="true" className={joinClasses('voter-delete-ward-card voter-delete-ward-dialog', uiClasses.dialog, 'max-w-xl')} onMouseDown={(event) => event.stopPropagation()} role="dialog"><div className="voter-delete-ward-dialog-heading"><div><strong>{t.deleteWardTitle}</strong><p>{t.deleteWardHint}</p></div><button aria-label={t.cancel} className={uiClasses.iconButton} disabled={deleteWorking} onClick={() => setShowDeleteWard(false)} type="button"><X size={17} /></button></div><div className="voter-delete-ward-controls"><FilterSelect label={t.selectWard} value={deleteWardId} options={options.wards} anyLabel={t.any} onChange={(value) => { setDeleteWardId(value); setDeleteConfirmation(''); setDeleteMessage(undefined); setDeleteError(undefined) }} /><label className="voter-field"><span>{t.typeWard}</span><input className={uiClasses.input} value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} placeholder={deleteWardId || '—'} /></label></div>{deleteMessage ? <p className="voter-delete-success">{deleteMessage}</p> : null}{deleteError ? <p className="voter-delete-error">{deleteError}</p> : null}<footer className="voter-delete-ward-dialog-footer"><button className={joinClasses('voter-secondary-button', uiClasses.button, uiClasses.secondaryButton)} disabled={deleteWorking} onClick={() => setShowDeleteWard(false)} type="button">{t.cancel}</button><button className={joinClasses('voter-danger-button', uiClasses.button, uiClasses.dangerButton)} disabled={!deleteWardId || deleteConfirmation.trim() !== deleteWardId || deleteWorking} onClick={() => void deleteWard()} type="button"><Trash2 size={15} />{deleteWorking ? t.deletingWard : t.deleteWard}</button></footer></section></div> : null}
 
     {records === undefined && !loadError ? <VoterRegisterSkeleton /> : null}
     {loadError ? <PageState kind="error" title={t.error} description={loadError} actionLabel={t.retry} onAction={() => void reload(filters, true)} /> : null}
     {records !== undefined && !loadError ? <>
-      <section className="voter-results-toolbar">
+      <section className="voter-results-toolbar flex flex-wrap items-center justify-between gap-3">
         <div><strong>{filteredRecords.length} {t.records}</strong><span>{canEdit ? t.editAccess : t.readOnly}</span></div>
         <div className="voter-toolbar-actions">
-          <div className="voter-view-toggle" aria-label="Record view"><button className={view === 'individual' ? 'is-active' : ''} onClick={() => setViewMode('individual')} type="button"><Table2 size={15} />{t.individual}</button><button className={view === 'door' ? 'is-active' : ''} onClick={() => setViewMode('door')} type="button"><UsersRound size={15} />{t.doorWise}</button></div>
-          {canDownload ? <div className="voter-export-buttons"><button disabled={Boolean(exportingFormat)} onClick={() => void exportRecords('excel')} type="button">{exportingFormat === 'excel' ? <LoaderCircle className="animate-spin" size={15} /> : <FileSpreadsheet size={15} />}{exportingFormat === 'excel' ? `${t.exporting} ${exportProgress}%` : t.exportExcel}</button><button disabled={Boolean(exportingFormat)} onClick={() => void exportRecords('pdf')} type="button">{exportingFormat === 'pdf' ? <LoaderCircle className="animate-spin" size={15} /> : <FileText size={15} />}{exportingFormat === 'pdf' ? `${t.exporting} ${exportProgress}%` : t.exportPdf}</button><button disabled={Boolean(exportingFormat)} onClick={() => void exportRecords('csv')} type="button">{exportingFormat === 'csv' ? <LoaderCircle className="animate-spin" size={15} /> : <Download size={15} />}{exportingFormat === 'csv' ? `${t.exporting} ${exportProgress}%` : t.exportCsv}</button></div> : null}
+          <div className="voter-view-toggle flex flex-wrap gap-2" aria-label="Record view"><button className={joinClasses(uiClasses.button, 'min-h-9 text-xs', view === 'individual' ? 'is-active border-primary bg-nav-active text-primary-strong' : uiClasses.secondaryButton)} onClick={() => setViewMode('individual')} type="button"><Table2 size={15} />{t.individual}</button><button className={joinClasses(uiClasses.button, 'min-h-9 text-xs', view === 'door' ? 'is-active border-primary bg-nav-active text-primary-strong' : uiClasses.secondaryButton)} onClick={() => setViewMode('door')} type="button"><UsersRound size={15} />{t.doorWise}</button></div>
+          {canDownload ? <div className="voter-export-buttons flex flex-wrap gap-2"><button className={joinClasses('voter-export-excel', uiClasses.button, uiClasses.secondaryButton, 'min-h-9 text-xs')} disabled={Boolean(exportingFormat)} onClick={() => void exportRecords('excel')} type="button">{exportingFormat === 'excel' ? <LoaderCircle className="animate-spin" size={15} /> : <FileSpreadsheet size={18} />}{exportingFormat === 'excel' ? `${t.exporting} ${exportProgress}%` : t.exportExcel}</button><button className={joinClasses('voter-export-pdf', uiClasses.button, uiClasses.secondaryButton, 'min-h-9 text-xs')} disabled={Boolean(exportingFormat)} onClick={() => void exportRecords('pdf')} type="button">{exportingFormat === 'pdf' ? <LoaderCircle className="animate-spin" size={15} /> : <FileText size={18} />}{exportingFormat === 'pdf' ? `${t.exporting} ${exportProgress}%` : t.exportPdf}</button><button className={joinClasses('voter-export-csv', uiClasses.button, uiClasses.secondaryButton, 'min-h-9 text-xs')} disabled={Boolean(exportingFormat)} onClick={() => void exportRecords('csv')} type="button">{exportingFormat === 'csv' ? <LoaderCircle className="animate-spin" size={15} /> : <Download size={18} />}{exportingFormat === 'csv' ? `${t.exporting} ${exportProgress}%` : t.exportCsv}</button></div> : null}
         </div>
       </section>
       {voterNotice ? <p className="voter-delete-success">{voterNotice}</p> : null}
       {exportReady ? <p className="voter-export-ready" role="status">{t.downloadReady}</p> : null}
-      {exportingFormat ? <div aria-live="polite" className="voter-export-progress"><progress max="100" value={exportProgress} /><span>{t.preparingExport} {exportCounts.total ? `${t.recordsProcessed}: ${exportCounts.processed} ${t.of} ${exportCounts.total}` : `${exportProgress}%`}</span><button className="voter-text-button" onClick={cancelExport} type="button">{t.cancelExport}</button></div> : null}
+      {exportingFormat ? <div aria-live="polite" className={joinClasses('voter-export-progress', uiClasses.card, 'flex flex-wrap items-center gap-3 p-3')}><progress max="100" value={exportProgress} /><span>{t.preparingExport} {exportCounts.total ? `${t.recordsProcessed}: ${exportCounts.processed} ${t.of} ${exportCounts.total}` : `${exportProgress}%`}</span><button className="voter-text-button rounded-lg px-2 py-1 text-sm font-semibold text-primary hover:bg-nav-active" onClick={cancelExport} type="button">{t.cancelExport}</button></div> : null}
       {exportError ? <div className="form-alert form-alert-error voter-export-error"><span>{exportError}</span>{failedExportFormat ? <button className="voter-text-button" onClick={() => void exportRecords(failedExportFormat)} type="button">{t.retryExport}</button> : null}</div> : null}
       {canDownload ? <p className="voter-export-hint">{t.exportHint}</p> : null}
       {records.length === 0 && isCounting ? <PageState kind="loading" title={t.counting} description="" /> : records.length === 0 ? <PageState kind="empty" title={hasActiveVoterFilters(filters) ? t.noRecords : t.noData} description="" /> : filteredRecords.length === 0 ? <PageState kind="empty" title={t.noRecords} description="" /> : view === 'individual' ? <IndividualRecords records={filteredRecords} onOpen={openRecord} onEdit={canEdit ? (record) => openRecord(record, true) : undefined} t={t} /> : <DoorWiseRecords groups={doorGroups} onDoorClose={() => setRegisterState({ door: null })} onDoorOpen={(door) => setRegisterState({ view: 'door', door })} selectedDoor={selectedDoor} onOpen={openRecord} onEdit={canEdit ? (record) => openRecord(record, true) : undefined} t={t} />}
@@ -357,17 +356,17 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
       </div> : null}
     </> : null}
     {activeRecord ? <VoterDialog key={activeRecord.id} canDelete={canDeleteVoter} canEdit={canEdit} language={language} onClose={closeRecord} onDelete={removeVoter} onSave={save} record={activeRecord} startEditing={editing} t={t} /> : null}
-    {showGoTop ? <button aria-label={t.goTop} className="voter-go-top-button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} type="button"><ArrowUp size={16} /><span>{t.goTop}</span></button> : null}
+    {showGoTop ? <button aria-label={t.goTop} className={joinClasses('voter-go-top-button', uiClasses.button, uiClasses.primaryButton)} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} type="button"><ArrowUp size={16} /><span>{t.goTop}</span></button> : null}
   </section>
 }
 
 function VoterRegisterSkeleton() {
-  return <section aria-label="Loading voter records" className="voter-loading-skeleton" aria-busy="true">
-    {Array.from({ length: 6 }, (_, index) => <article className="voter-loading-skeleton-card" key={index}>
-      <span className="voter-loading-skeleton-line voter-loading-skeleton-line-short" />
-      <span className="voter-loading-skeleton-line voter-loading-skeleton-line-title" />
-      <span className="voter-loading-skeleton-line" />
-      <span className="voter-loading-skeleton-line voter-loading-skeleton-line-short" />
+  return <section aria-label="Loading voter records" className="voter-loading-skeleton grid gap-3 tablet:grid-cols-2 shell:grid-cols-3" aria-busy="true">
+    {Array.from({ length: 6 }, (_, index) => <article className={joinClasses('voter-loading-skeleton-card', uiClasses.card, 'grid gap-3 p-4')} key={index}>
+      <span className="voter-loading-skeleton-line voter-loading-skeleton-line-short block animate-pulse rounded bg-surface-muted" />
+      <span className="voter-loading-skeleton-line voter-loading-skeleton-line-title block animate-pulse rounded bg-surface-muted" />
+      <span className="voter-loading-skeleton-line block animate-pulse rounded bg-surface-muted" />
+      <span className="voter-loading-skeleton-line voter-loading-skeleton-line-short block animate-pulse rounded bg-surface-muted" />
     </article>)}
   </section>
 }
@@ -378,17 +377,17 @@ function IndividualRecords({ records, onOpen, onEdit, t }: { records: VoterRecor
     counts.set(key, (counts.get(key) ?? 0) + 1)
     return counts
   }, new Map<string, number>())
-  return <div className="voter-card-grid voter-record-card-grid">{records.map((record) => {
+  return <div className="voter-card-grid voter-record-card-grid grid gap-3 tablet:grid-cols-2 shell:grid-cols-3">{records.map((record) => {
     const doorNumber = record.doorNumber || '—'
-    return <article className="voter-profile-card voter-record-card" key={record.id}>
-      <button className="voter-profile-card-main voter-record-card-main" onClick={() => onOpen(record)} type="button">
+    return <article className={joinClasses('voter-profile-card voter-record-card', uiClasses.card, 'overflow-hidden')} key={record.id}>
+      <button className="voter-profile-card-main voter-record-card-main w-full text-left transition hover:bg-nav-active" onClick={() => onOpen(record)} type="button">
         <div className="voter-profile-card-top"><span>{t.ward} {record.wardId || '—'} · {t.booth} {record.boothId || '—'}</span><span className="voter-house-count">{doorCounts.get(doorNumber)} {t.members}</span></div>
         <div className="voter-record-card-heading"><h3>{record.fullName || '—'}</h3></div>
         <dl className="voter-record-card-fields"><div><dt>{t.voterId}</dt><dd>{displayOfficialVoterId(record)}</dd></div><div><dt>{t.door}</dt><dd>{doorNumber}</dd></div></dl>
         <div className="voter-record-card-area"><span>{t.area}</span><strong>{record.area || record.division || '—'}</strong></div>
-        <span className="voter-profile-card-open">{t.view}</span>
+        <span className="voter-profile-card-open"><span>{t.view}</span><ArrowRight size={18} /></span>
       </button>
-      {onEdit ? <button className="voter-profile-card-edit" onClick={() => onEdit(record)} type="button"><Edit3 size={14} />{t.edit}</button> : null}
+      {onEdit ? <button className={joinClasses('voter-profile-card-edit', uiClasses.button, uiClasses.secondaryButton, 'min-h-8 text-xs')} onClick={() => onEdit(record)} type="button"><Edit3 size={14} />{t.edit}</button> : null}
     </article>
   })}</div>
 }
@@ -397,7 +396,7 @@ function DoorWiseRecords({ groups, selectedDoor, onDoorOpen, onDoorClose, onOpen
   const activeGroup = groups.find(([doorNumber]) => doorNumber === selectedDoor)
 
   return <>
-    <div className="door-wise-grid">{groups.map(([doorNumber, records]) => <article className="door-wise-card" key={doorNumber}>
+    <div className="door-wise-grid grid gap-3 tablet:grid-cols-2 shell:grid-cols-3">{groups.map(([doorNumber, records]) => <article className={joinClasses('door-wise-card', uiClasses.card, 'overflow-hidden')} key={doorNumber}>
       <button aria-haspopup="dialog" className="door-wise-summary" onClick={() => onDoorOpen(doorNumber)} type="button">
         <span className="door-wise-summary-label">{t.door}</span>
         <strong className="door-wise-summary-number">{doorNumber || '—'}</strong>
@@ -405,20 +404,20 @@ function DoorWiseRecords({ groups, selectedDoor, onDoorOpen, onDoorClose, onOpen
         <ChevronDown size={16} />
       </button>
     </article>)}</div>
-    {activeGroup ? <div className="door-members-backdrop" onMouseDown={onDoorClose} role="presentation">
-      <section aria-modal="true" aria-labelledby="door-members-title" className="door-members-dialog" onMouseDown={(event) => event.stopPropagation()} role="dialog">
+    {activeGroup ? <div className="door-members-backdrop grid place-items-center p-3" onMouseDown={onDoorClose} role="presentation">
+      <section aria-modal="true" aria-labelledby="door-members-title" className={joinClasses('door-members-dialog', uiClasses.dialog, 'max-h-[90svh] max-w-2xl overflow-hidden p-0')} onMouseDown={(event) => event.stopPropagation()} role="dialog">
         <header className="door-members-dialog-header">
           <div>
             <p>{t.door}</p>
             <h2 id="door-members-title">{activeGroup[0] || '—'}</h2>
             <span>{activeGroup[1].length} {t.members}</span>
           </div>
-          <button aria-label={t.close} className="voter-dialog-close" onClick={onDoorClose} type="button"><X size={19} /></button>
+          <button aria-label={t.close} className={uiClasses.iconButton} onClick={onDoorClose} type="button"><X size={19} /></button>
         </header>
         <div className="door-members-dialog-list">
           {activeGroup[1].map((record) => <div className="door-voter-row" key={record.id}>
             <div className="door-voter-info"><div><strong>{record.fullName}</strong><span>{t.voterId}: {record.voterId} · {t.serial}: {record.serialNumber}</span></div></div>
-            <div><button className="voter-row-button" onClick={() => onOpen(record)} type="button">{t.view}</button>{onEdit ? <button aria-label={`${t.edit} ${record.fullName}`} className="voter-icon-action" onClick={() => onEdit(record)} type="button"><Edit3 size={14} /></button> : null}</div>
+            <div className="flex items-center gap-2"><button className={joinClasses('voter-row-button', uiClasses.button, uiClasses.secondaryButton, 'min-h-8 text-xs')} onClick={() => onOpen(record)} type="button">{t.view}</button>{onEdit ? <button aria-label={`${t.edit} ${record.fullName}`} className={joinClasses('voter-icon-action', uiClasses.iconButton, 'size-8')} onClick={() => onEdit(record)} type="button"><Edit3 size={14} /></button> : null}</div>
           </div>)}
         </div>
       </section>
@@ -437,10 +436,16 @@ function VoterDialog({ canDelete, canEdit, language, onClose, onDelete, onSave, 
   const [cardImageState, setCardImageState] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [cardRetryKey, setCardRetryKey] = useState(0)
   const readOnly = !editing
+  const beginEditing = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setEditing(true)
+  }
   const update = <Key extends keyof VoterRecord>(key: Key, value: VoterRecord[Key]) => setDraft((current) => ({ ...current, [key]: value }))
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!editing) return
+    event.stopPropagation()
+    if (!editing || saving) return
     setSaving(true); setError(false)
     try { await onSave(draft) } catch { setError(true); setSaving(false) }
   }
@@ -477,9 +482,9 @@ function VoterDialog({ canDelete, canEdit, language, onClose, onDelete, onSave, 
   const previewCardPosition = cardImage?.cardPosition ?? record.cardPosition
   const previewFailed = cardImageState === 'error'
 
-  return <div aria-modal="true" className="voter-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }} role="dialog"><form className="voter-dialog" onMouseDown={(event) => event.stopPropagation()} onSubmit={submit}><header><div><p>{t.details}</p><h2>{record.fullName}</h2></div><button aria-label={t.close} className="voter-dialog-close" onClick={onClose} type="button"><X size={19} /></button></header><div className="voter-dialog-body">
+  return <div aria-modal="true" className="voter-dialog-backdrop grid place-items-end p-3" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }} role="dialog"><form className={joinClasses('voter-dialog', uiClasses.dialog, 'flex max-h-[92svh] max-w-3xl flex-col overflow-hidden p-0')} onMouseDown={(event) => event.stopPropagation()} onSubmit={submit}><header><div><p>{t.details}</p><h2>{record.fullName}</h2></div><button aria-label={t.close} className={uiClasses.iconButton} onClick={onClose} type="button"><X size={19} /></button></header><div className="voter-dialog-body">
     {error ? <p className="form-alert form-alert-error">{t.saveError}</p> : null}
-    <section className="voter-original-card"><div className="voter-original-card-heading"><strong>{t.originalCard}</strong><div className="voter-card-reference"><span><b>{t.pageNumber}</b> {previewPage ?? '—'}</span><span><b>{t.cardPosition}</b> {previewCardPosition ?? '—'}</span></div></div><div className="voter-original-card-media">{cardImageState === 'loaded' && cardImage ? <img alt={`${t.originalCard} - ${record.fullName}`} decoding="async" onError={() => { setCardImage(undefined); setCardImageState('error') }} src={cardImage.url} /> : <div className={`voter-card-placeholder${previewFailed ? ' is-error' : ''}`}><p>{previewFailed ? (record.voterCardImagePath ? t.cardError : t.cardUnavailable) : t.cardLoading}</p>{previewFailed ? <button className="voter-secondary-button" onClick={() => { setCardImage(undefined); setCardImageState('loading'); setCardRetryKey((current) => current + 1) }} type="button"><RefreshCcw size={14} />{t.cardRetry}</button> : <LoaderCircle className="animate-spin" size={18} />}</div>}</div></section>
+    <section className={joinClasses('voter-original-card', uiClasses.card, 'overflow-hidden')}><div className="voter-original-card-heading"><strong>{t.originalCard}</strong><div className="voter-card-reference"><span><b>{t.pageNumber}</b> {previewPage ?? '—'}</span><span><b>{t.cardPosition}</b> {previewCardPosition ?? '—'}</span></div></div><div className="voter-original-card-media">{cardImageState === 'loaded' && cardImage ? <img alt={`${t.originalCard} - ${record.fullName}`} decoding="async" onError={() => { setCardImage(undefined); setCardImageState('error') }} src={cardImage.url} /> : <div className={`voter-card-placeholder${previewFailed ? ' is-error' : ''}`}><p>{previewFailed ? (record.voterCardImagePath ? t.cardError : t.cardUnavailable) : t.cardLoading}</p>{previewFailed ? <button className={joinClasses('voter-secondary-button', uiClasses.button, uiClasses.secondaryButton)} onClick={() => { setCardImage(undefined); setCardImageState('loading'); setCardRetryKey((current) => current + 1) }} type="button"><RefreshCcw size={14} />{t.cardRetry}</button> : <LoaderCircle className="animate-spin" size={18} />}</div>}</div></section>
     <div className="voter-editor-grid">
       <EditorField disabled={readOnly} label={t.name} value={draft.fullName} onChange={(value) => update('fullName', value)} />
       <EditorField disabled={readOnly} label={t.relativeName} value={draft.relativeName} onChange={(value) => update('relativeName', value)} />
@@ -501,27 +506,27 @@ function VoterDialog({ canDelete, canEdit, language, onClose, onDelete, onSave, 
     <dl className="voter-readonly-data"><div><dt>{t.sourcePdf}</dt><dd>{record.sourcePdfName || record.sourcePdfId || '—'}</dd></div><div><dt>{t.pageNumber}</dt><dd>{previewPage ?? '—'}</dd></div><div><dt>{t.cardPosition}</dt><dd>{previewCardPosition ?? '—'}</dd></div><div><dt>{t.uploaded}</dt><dd>{formatDate(record.uploadedAt, language)} · {record.uploadedBy || '—'}</dd></div></dl>
     <details className="voter-ocr-text"><summary>{t.rawOcrText}</summary><pre>{record.rawText || t.missingVoterId}</pre></details>
     {deleteError ? <p className="form-alert form-alert-error">{t.deleteVoterError}</p> : null}
-  </div><footer>{editing ? <><button className="voter-secondary-button" onClick={() => setEditing(false)} type="button">{t.close}</button><button className="voter-primary-button" disabled={saving} type="submit">{saving ? <LoaderCircle className="animate-spin" size={15} /> : <Edit3 size={15} />}{saving ? t.saving : t.save}</button></> : <>{canDelete ? <button className="voter-danger-button" disabled={deleting} onClick={() => void remove()} type="button"><Trash2 size={14} />{deleting ? t.deletingVoter : t.deleteVoter}</button> : null}{canEdit ? <button className="voter-primary-button" disabled={deleting} onClick={() => setEditing(true)} type="button"><Edit3 size={15} />{t.edit}</button> : null}<button className="voter-secondary-button" disabled={deleting} onClick={onClose} type="button">{t.close}</button></>}</footer></form></div>
+  </div><footer>{editing ? <><button className={joinClasses('voter-secondary-button', uiClasses.button, uiClasses.secondaryButton)} onClick={() => setEditing(false)} type="button">{t.close}</button><button className={joinClasses('voter-primary-button', uiClasses.button, uiClasses.primaryButton)} disabled={saving} type="submit">{saving ? <LoaderCircle className="animate-spin" size={15} /> : <Edit3 size={15} />}{saving ? t.saving : t.save}</button></> : <>{canDelete ? <button className={joinClasses('voter-danger-button', uiClasses.button, uiClasses.dangerButton)} disabled={deleting} onClick={() => void remove()} type="button"><Trash2 size={14} />{deleting ? t.deletingVoter : t.deleteVoter}</button> : null}{canEdit ? <button className={joinClasses('voter-primary-button', uiClasses.button, uiClasses.primaryButton)} disabled={deleting} formNoValidate onClick={beginEditing} type="button"><Edit3 size={15} />{t.edit}</button> : null}<button className={joinClasses('voter-secondary-button', uiClasses.button, uiClasses.secondaryButton)} disabled={deleting} onClick={onClose} type="button">{t.close}</button></>}</footer></form></div>
 }
 
-function FilterInput({ label, type = 'search', placeholder, value, onChange }: { label: string; type?: 'search' | 'date'; placeholder?: string; value: string; onChange: (value: string) => void }) {
-  return <label className="voter-field"><span>{label}</span><input placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} /></label>
+function FilterInput({ hideLabel = false, label, type = 'search', placeholder, value, onChange }: { hideLabel?: boolean; label: string; type?: 'search' | 'date'; placeholder?: string; value: string; onChange: (value: string) => void }) {
+  return <label className={joinClasses('voter-field', hideLabel && 'voter-search-field')}><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><Search aria-hidden="true" className={hideLabel ? 'voter-search-field-icon' : 'hidden'} size={25} /><input className={uiClasses.input} onFocus={(event) => { if (hideLabel) window.setTimeout(() => event.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' }), 180) }} placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} /></label>
 }
 
-function NativeFilterSelect({ label, value, options, anyLabel, onChange }: { label: string; value: string; options: string[]; anyLabel: string; onChange: (value: string) => void }) {
-  return <label className={`voter-native-filter${value ? ' has-value' : ''}`}><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}><option value="">{anyLabel}</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+function NativeFilterSelect({ icon, label, value, options, anyLabel, onChange }: { icon?: ReactNode; label: string; value: string; options: string[]; anyLabel: string; onChange: (value: string) => void }) {
+  return <label className={`voter-native-filter${value ? ' has-value' : ''}`}><span>{label}</span><div className="voter-native-filter-control">{icon ? <span aria-hidden="true">{icon}</span> : null}<select className={uiClasses.select} value={value} onChange={(event) => onChange(event.target.value)}><option value="">{anyLabel}</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></div></label>
 }
 
 function NativeDateFilter({ from, to, onFromChange, onToChange, t }: { from: string; to: string; onFromChange: (value: string) => void; onToChange: (value: string) => void; t: ScreenText }) {
-  return <div className={`voter-native-date-filter${from || to ? ' has-value' : ''}`}><span>{t.chooseDate}</span><div><input aria-label={t.uploadedFrom} type="date" value={from} onChange={(event) => onFromChange(event.target.value)} /><input aria-label={t.uploadedTo} type="date" value={to} onChange={(event) => onToChange(event.target.value)} /></div></div>
+  return <div className={`voter-native-date-filter${from || to ? ' has-value' : ''}`}><span>{t.chooseDate}</span><div><input className={joinClasses(uiClasses.input, 'min-h-10 px-2 text-xs')} aria-label={t.uploadedFrom} type="date" value={from} onChange={(event) => onFromChange(event.target.value)} /><input className={joinClasses(uiClasses.input, 'min-h-10 px-2 text-xs')} aria-label={t.uploadedTo} type="date" value={to} onChange={(event) => onToChange(event.target.value)} /></div></div>
 }
 
 function FilterSelect({ label, value, options, anyLabel, onChange }: { label: string; value: string; options: string[]; anyLabel: string; onChange: (value: string) => void }) {
-  return <label className="voter-field"><span>{label}</span><select value={value} onChange={(event) => onChange(event.target.value)}><option value="">{anyLabel}</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+  return <label className="voter-field"><span>{label}</span><select className={uiClasses.select} value={value} onChange={(event) => onChange(event.target.value)}><option value="">{anyLabel}</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
 }
 
 function EditorField({ disabled, label, placeholder, value, onChange }: { disabled: boolean; label: string; placeholder?: string; value: string; onChange: (value: string) => void }) {
-  return <label className="voter-field"><span>{label}</span><input disabled={disabled} placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} /></label>
+  return <label className="voter-field"><span>{label}</span><input className={uiClasses.input} disabled={disabled} placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} /></label>
 }
 
 function groupByDoor(records: VoterRecord[]) {
