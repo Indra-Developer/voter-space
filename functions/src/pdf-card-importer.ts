@@ -261,12 +261,21 @@ export function detectCardRects(imageData: { data: Uint8ClampedArray }, width: n
     })
     if (!overlaps) selected.push(rect)
   }
-  const strictCards = selected.sort((first, second) => Math.abs(first.y - second.y) < 5 ? first.x - second.x : first.y - second.y)
+  const strictCards = selected
+    .filter(isLikelyVoterCardRect)
+    .sort((first, second) => Math.abs(first.y - second.y) < 5 ? first.x - second.x : first.y - second.y)
   // The two official voter-list PDFs use the same three-column grid but one
   // uses lighter, thinner borders. Keep the precise detector first, then use
   // a tolerant border detector when a PDF has been rasterised differently.
-  const tolerantCards = detectLightBorderCardRects(imageData, width, height)
-  const gridCards = detectGridCardRects(imageData, width, height)
+  const tolerantCards = detectLightBorderCardRects(imageData, width, height).filter(isLikelyVoterCardRect)
+  const gridCards = detectGridCardRects(imageData, width, height).filter(isLikelyVoterCardRect)
+  // Some photo-card PDFs lose one or more horizontal borders during
+  // rasterisation. In that case border detection can return only a handful
+  // of cards even though the page still has a complete, regular 3-column
+  // grid. Reconstruct the missing grid cells from the long border
+  // projections before OCR so a voter is never silently skipped.
+  const projectedCards = detectProjectedGridCardRects(imageData, width, height)
+  if (projectedCards.length > Math.max(strictCards.length, tolerantCards.length, gridCards.length)) return projectedCards
   if (gridCards.length > Math.max(strictCards.length, tolerantCards.length)) return gridCards
   return tolerantCards.length > strictCards.length ? tolerantCards : strictCards
 }
@@ -437,6 +446,117 @@ function removeOverlappingCards(cards: CardRect[]) {
     if (!overlaps) selected.push(card)
   }
   return selected
+}
+
+function detectProjectedGridCardRects(imageData: { data: Uint8ClampedArray }, width: number, height: number): CardRect[] {
+  const pixels = imageData.data
+  const dark = (x: number, y: number) => {
+    const safeX = Math.max(0, Math.min(width - 1, x))
+    const safeY = Math.max(0, Math.min(height - 1, y))
+    const offset = (safeY * width + safeX) * 4
+    return pixels[offset] < 220 && pixels[offset + 1] < 220 && pixels[offset + 2] < 220
+  }
+
+  const horizontalScores = Array.from({ length: height }, (_, y) => {
+    let score = 0
+    for (let x = 0; x < width; x += 1) if (dark(x, y)) score += 1
+    return score
+  })
+  const verticalScores = Array.from({ length: width }, (_, x) => {
+    let score = 0
+    for (let y = 0; y < height; y += 1) if (dark(x, y)) score += 1
+    return score
+  })
+  const horizontalLines = projectionLines(horizontalScores, width * 0.45, 10)
+  const verticalLines = projectionLines(verticalScores, height * 0.45, 6)
+  if (verticalLines.length < 3 || verticalLines.length > 6) return []
+
+  const widths = verticalLines.slice(1).map((line, index) => line - verticalLines[index])
+  const cardWidth = median(widths)
+  if (!cardWidth) return []
+  const expectedRowStep = cardWidth * 0.43
+  const rowLines = regularGridLines(horizontalLines, expectedRowStep)
+  if (rowLines.length < 3 || rowLines.length > 16) return []
+
+  const rowHeights = rowLines.slice(1).map((line, index) => line - rowLines[index])
+  const cardHeight = median(rowHeights)
+  if (!cardHeight || cardHeight / cardWidth < 0.32 || cardHeight / cardWidth > 0.7) return []
+
+  const cards: CardRect[] = []
+  for (let row = 0; row < rowLines.length - 1; row += 1) {
+    for (let column = 0; column < verticalLines.length - 1; column += 1) {
+      const x = verticalLines[column]
+      const y = rowLines[row]
+      const w = verticalLines[column + 1] - x
+      const h = rowLines[row + 1] - y
+      if (w > cardWidth * 0.6 && h > cardHeight * 0.6) cards.push({ x, y, w, h })
+    }
+  }
+  return removeOverlappingCards(cards)
+}
+
+function isLikelyVoterCardRect(rect: CardRect) {
+  const ratio = rect.h / rect.w
+  return ratio >= 0.32 && ratio <= 0.7
+}
+
+function projectionLines(scores: number[], threshold: number, mergeDistance: number) {
+  const lines: number[] = []
+  let runStart = -1
+  let bestIndex = -1
+  let bestScore = -1
+  const flush = (end: number) => {
+    if (runStart < 0) return
+    lines.push(bestIndex >= 0 ? bestIndex : Math.round((runStart + end) / 2))
+    runStart = -1
+    bestIndex = -1
+    bestScore = -1
+  }
+  scores.forEach((score, index) => {
+    if (score >= threshold) {
+      if (runStart < 0) runStart = index
+      if (score > bestScore) {
+        bestScore = score
+        bestIndex = index
+      }
+    } else if (runStart >= 0) {
+      flush(index - 1)
+    }
+  })
+  flush(scores.length - 1)
+  const merged: number[] = []
+  for (const line of lines) {
+    const previous = merged.at(-1)
+    if (previous !== undefined && line - previous <= mergeDistance) merged[merged.length - 1] = Math.round((previous + line) / 2)
+    else merged.push(line)
+  }
+  return merged
+}
+
+function regularGridLines(lines: number[], expectedStep: number) {
+  if (!lines.length || expectedStep <= 0) return []
+  let best: number[] = []
+  for (let start = 0; start < lines.length - 1; start += 1) {
+    const candidate = [lines[start]]
+    let current = start
+    while (current < lines.length - 1) {
+      const next = lines[current + 1]
+      const distance = next - lines[current]
+      const multiple = Math.round(distance / expectedStep)
+      if (distance < expectedStep * 0.75 || multiple < 1 || multiple > 3 || distance > expectedStep * 2.7) break
+      for (let step = 1; step < multiple; step += 1) candidate.push(Math.round(lines[current] + expectedStep * step))
+      candidate.push(next)
+      current += 1
+    }
+    if (candidate.length > best.length) best = candidate
+  }
+  return best
+}
+
+function median(values: number[]) {
+  if (!values.length) return 0
+  const sorted = [...values].sort((first, second) => first - second)
+  return sorted[Math.floor(sorted.length / 2)] ?? 0
 }
 
 async function recognizeCards(buffers: Buffer[], vision: ImageAnnotatorClient) {

@@ -1989,7 +1989,7 @@ export const processPdfImport = onTaskDispatched<{ sourcePdfId: string }>({
       onPageComplete: async (pageNumber, pageRows) => {
         const current = await sourceRef.get()
         if (current.data()?.cancelRequested === true) throw new Error('PDF_IMPORT_CANCELLED')
-        const pageCandidates = await addDuplicateState(pageRows.map(makeCardImportRow))
+        const pageCandidates = await addDuplicateState(separateDuplicateCardIdentities(pageRows.map(makeCardImportRow)))
         await storeImportPageRows(sourcePdfId, pageCandidates)
         storedRowCount += pageCandidates.length
         await sourceRef.update({ rowCount: storedRowCount, processedPage: pageNumber, updatedAt: FieldValue.serverTimestamp() })
@@ -2860,7 +2860,10 @@ function normalizeDoorNumber(value: unknown) {
 }
 
 function fallbackCardIdentity(card: ExtractedVoterCard) {
-  const parts = [card.fullName, card.relativeName, normalizeDoorNumber(card.doorNumber), card.age, card.gender]
+  // A card with an unreadable identity must still remain a distinct row. The
+  // page/card coordinates are the only stable identity available in that
+  // situation; without them, two blank OCR results collapse into one voter.
+  const parts = [card.fullName, card.relativeName, normalizeDoorNumber(card.doorNumber), card.age, card.gender, card.pageNumber, card.cardPosition]
     .map((part) => plainString(part).replace(/\s+/g, '').toLocaleLowerCase())
   return `auto:${stableHash(parts.join('|')).slice(0, 24)}`
 }
@@ -2919,6 +2922,31 @@ async function storeImportPageRows(sourcePdfId: string, rows: ImportRowRecord[])
     })
     await batch.commit()
   }
+}
+
+function separateDuplicateCardIdentities(rows: ImportRowRecord[]) {
+  const identities = new Set<string>()
+  return rows.map((row) => {
+    const identity = voterIdentity(row)
+    if (!identity || !identities.has(identity)) {
+      if (identity) identities.add(identity)
+      return row
+    }
+
+    // Two cards on the same page should never overwrite one another because
+    // OCR accidentally read the same voter ID twice. Keep the card as its
+    // own reviewable record until its identity is corrected.
+    const fallback = `auto:${stableHash([identity, row.pageNumber, row.cardPosition].join('|')).slice(0, 24)}`
+    return {
+      ...row,
+      voterId: '',
+      alternateIdentifier: '',
+      identityKey: fallback,
+      duplicateState: 'missingIdentity' as const,
+      needsReview: true,
+      reviewStatus: 'needsReview' as const,
+    }
+  })
 }
 
 async function upsertVoterFromImport(rowId: string, row: ImportRowRecord, source: SourcePdfRecord, sourcePdfId: string): Promise<'created' | 'updated'> {
@@ -3201,21 +3229,45 @@ function consonantSignature(value: string) {
 }
 
 function matchesSearch(record: VoterRecord, query: unknown) {
-  const cleanQuery = normalizeSearchText(plainString(query))
+  const rawQuery = plainString(query)
+  const cleanQuery = normalizeSearchText(rawQuery)
   if (!cleanQuery) return true
-  const rawFields = [
-    record.fullName, record.relativeName, record.relationshipType, record.age, record.gender, record.doorNumber,
-    record.voterId, record.alternateIdentifier, record.mobile, record.serialNumber, record.assemblySerial,
-    record.wardId, record.boothId, record.area, record.division, record.sourcePdfName, record.sourcePdfId, record.uploadedBy,
-  ]
-  if (rawFields.some((value) => normalizeSearchText(value).includes(cleanQuery))) return true
+
+  const exact = (value: string) => normalizeSearchText(value) === cleanQuery
+  const compactQuery = rawQuery.replace(/[\s-]+/g, '').toLocaleUpperCase()
+  const looksLikeVoterId = /^[A-Z]{2,4}\d{5,12}$/.test(compactQuery)
+  const looksLikeMobile = /^\d{10,12}$/.test(compactQuery)
+  const looksLikeDoor = /[-/]/.test(rawQuery) || /^\d+[A-Z]+$/i.test(rawQuery.replace(/\s+/g, ''))
+
+  // Numeric and structured identifiers are exact searches. This prevents a
+  // door number such as 1-12 from also returning records containing 1 or 12
+  // in a serial, age, ward, or unrelated text field.
+  if (looksLikeVoterId) return exact(record.voterId) || exact(record.alternateIdentifier)
+  if (looksLikeMobile) {
+    const digits = compactQuery.startsWith('91') && compactQuery.length === 12 ? compactQuery.slice(2) : compactQuery
+    return record.mobile.replace(/\D/g, '') === digits
+  }
+  if (looksLikeDoor) {
+    const normalizedDoorQuery = normalizeDoorNumber(rawQuery)
+    return Boolean(normalizedDoorQuery) && normalizeSearchText(record.doorNumber) === normalizeSearchText(normalizedDoorQuery)
+  }
+  if (/^\d+$/.test(compactQuery)) {
+    return [record.doorNumber, record.serialNumber, record.assemblySerial, record.wardId, record.boothId].some(exact)
+  }
 
   const romanQuery = canonicalRoman(plainString(query))
-  if (romanQuery.length < 2) return false
   const romanizedNames = [record.fullName, record.relativeName].map((value) => canonicalRoman(romanizeTelugu(value)))
-  if (romanizedNames.some((value) => value.includes(romanQuery))) return true
-  const queryConsonants = consonantSignature(romanQuery)
-  return queryConsonants.length >= 3 && romanizedNames.some((value) => consonantSignature(value).includes(queryConsonants))
+  if (romanQuery.length >= 2) {
+    if (romanizedNames.some((value) => value.includes(romanQuery))) return true
+    const queryConsonants = consonantSignature(romanQuery)
+    if (queryConsonants.length >= 3 && romanizedNames.some((value) => consonantSignature(value).includes(queryConsonants))) return true
+  }
+
+  // Text searches cover names and descriptive metadata only. Identity and
+  // numeric fields are intentionally excluded here so a name/area search
+  // cannot accidentally produce identifier matches.
+  return [record.fullName, record.relativeName, record.area, record.division, record.sourcePdfName, record.sourcePdfId, record.uploadedBy]
+    .some((value) => normalizeSearchText(value).includes(cleanQuery))
 }
 
 function matchesFilters(record: VoterRecord, filters: VoterFilters) {
