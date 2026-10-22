@@ -807,12 +807,25 @@ function isValidRelativeName(value: string) {
 }
 
 function findSerial(lines: string[], compositeText: string) {
+  const composite = compositeText.trim()
+  const withoutComposite = (line: string) => composite ? line.replace(composite, ' ') : line
+  const serialLabel = /serial\s*(?:number|no\.?)?|sl\.?\s*no\.?|సీరియల్|సంఖ్య|సం(?:\s*నం)?/i
+
   for (const line of lines) {
-    if (!/(?:వార్డు|ward)/i.test(line) || !/(?:సం|serial|sl\.?\s*no)/i.test(line)) continue
-    const withoutComposite = compositeText ? line.replace(compositeText.trim(), ' ') : line
-    const values = withoutComposite.match(/\d{1,6}/g)
+    const candidateLine = withoutComposite(line)
+    if (/(?:ఇంటి|house|door)\s*(?:సంఖ్య|నంబరు|నం|number|no\.?)/i.test(candidateLine) || !serialLabel.test(candidateLine)) continue
+    const values = candidateLine.match(/\d{1,6}/g)
     if (values?.length) return values.at(-1) ?? ''
   }
+
+  // Some English cards put the card serial on its own first line without a
+  // label (for example: "393"), while the assembly/part serial is presented
+  // separately in a three-part code. Prefer that standalone card serial.
+  for (const line of lines.slice(0, 4)) {
+    const candidate = withoutComposite(line).match(/^\D*(\d{1,6})\D*$/)?.[1]
+    if (candidate) return candidate
+  }
+
   return ''
 }
 
@@ -853,9 +866,10 @@ function normalizeDivision(value: string) {
 }
 
 function normalizeGender(value: string) {
-  if (/స్త్రీ|మహిళ|female|\bF\b/i.test(value)) return 'female'
-  if (/పురుష|\bపు\b|male|\bM\b/i.test(value)) return 'male'
-  if (/ఇతర|other|third/i.test(value)) return 'other'
+  const compact = value.replace(/\s+/g, '')
+  if (/స్త్రీ|మహిళ|female/i.test(compact) || /(?:^|[^A-Za-z])F(?:[^A-Za-z]|$)/i.test(value)) return 'female'
+  if (/పురుష|male/i.test(compact) || /(?:^|[^A-Za-z])పు(?:[^A-Za-z]|$)/i.test(value) || /(?:^|[^A-Za-z])M(?:[^A-Za-z]|$)/i.test(value)) return 'male'
+  if (/ఇతర|other|third/i.test(compact)) return 'other'
   return ''
 }
 
