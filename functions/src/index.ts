@@ -249,6 +249,12 @@ const storageEventRegion = region
 const deviceSessionTimeoutMs = 15 * 60 * 1000
 const taskLeaseTimeoutMs = 45 * 60 * 1000
 const slowOperationThresholdMs = 10 * 1000
+// Keep one PDF per worker so native PDF rendering and Vision requests stay
+// isolated, while allowing several different PDFs to progress together. These
+// are deliberately bounded instead of unlimited: Cloud Vision, Firestore,
+// Storage and the Cloud Functions project all enforce quotas.
+const pdfOcrMaxConcurrent = 6
+const pdfApplyMaxConcurrent = 4
 
 function startPerformanceTimer(functionName: string, context: Record<string, unknown> = {}) {
   const startedAt = Date.now()
@@ -1959,12 +1965,12 @@ export const processPdfImport = onTaskDispatched<{ sourcePdfId: string }>({
   region,
   memory: '2GiB',
   concurrency: 1,
-  maxInstances: 2,
+  maxInstances: pdfOcrMaxConcurrent,
   timeoutSeconds: 1800,
   // OCR claims the source with a lease and rewrites only the retryable pages,
   // so a transient retry cannot create a second OCR run or duplicate rows.
   retryConfig: { maxAttempts: 3, minBackoffSeconds: 60 },
-  rateLimits: { maxConcurrentDispatches: 2 },
+  rateLimits: { maxConcurrentDispatches: pdfOcrMaxConcurrent },
 }, async (request) => {
   const sourcePdfId = requiredString(request.data?.sourcePdfId, 'Source PDF id')
   const sourceRef = db.doc(`sourcePdfs/${sourcePdfId}`)
@@ -2070,12 +2076,12 @@ export const applyPdfImport = onTaskDispatched<{ sourcePdfId: string }>({
   region,
   memory: '2GiB',
   concurrency: 1,
-  maxInstances: 1,
+  maxInstances: pdfApplyMaxConcurrent,
   timeoutSeconds: 1800,
   // Voter upserts use a stable voter document ID and this task also claims an
   // apply lease, so retrying a transient failure is idempotent.
   retryConfig: { maxAttempts: 3, minBackoffSeconds: 60 },
-  rateLimits: { maxConcurrentDispatches: 1 },
+  rateLimits: { maxConcurrentDispatches: pdfApplyMaxConcurrent },
 }, async (request) => {
   const sourcePdfId = requiredString(request.data?.sourcePdfId, 'Source PDF id')
   const sourceRef = db.doc(`sourcePdfs/${sourcePdfId}`)

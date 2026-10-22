@@ -339,7 +339,7 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
 }
 
 function VoterRegisterSkeleton() {
-  return <section aria-label="Loading voter records" className="grid grid-cols-2 gap-3 max-[389px]:grid-cols-1 tablet:grid-cols-2 shell:grid-cols-3" aria-busy="true">
+  return <section aria-label="Loading voter records" className="grid grid-cols-2 gap-3 tablet:grid-cols-2 shell:grid-cols-3" aria-busy="true">
     {Array.from({ length: 6 }, (_, index) => <article className={joinClasses(uiClasses.card, 'grid min-h-64 gap-3 rounded-[1.25rem] p-3 sm:p-4')} key={index}>
       <span className="block h-9 w-4/5 animate-pulse rounded-xl bg-surface-muted" />
       <span className="block h-11 animate-pulse rounded-xl bg-surface-muted" />
@@ -355,7 +355,7 @@ function IndividualRecords({ records, onOpen, t }: { records: VoterRecord[]; onO
     counts.set(key, (counts.get(key) ?? 0) + 1)
     return counts
   }, new Map<string, number>())
-  return <div className="grid grid-cols-2 gap-2.5 max-[389px]:grid-cols-1 tablet:grid-cols-2 shell:grid-cols-3">{records.map((record) => {
+  return <div className="grid grid-cols-2 gap-2.5 tablet:grid-cols-2 shell:grid-cols-3">{records.map((record) => {
     const doorNumber = displayDoorNumber(record.doorNumber) || '—'
     return <article className={joinClasses(uiClasses.card, 'min-w-0 overflow-hidden rounded-2xl border-primary/15 shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_10%,transparent)]')} key={record.id}>
       <button className="block min-w-0 w-full p-2.5 text-left transition hover:bg-nav-active focus-visible:bg-nav-active min-[390px]:p-3" onClick={() => onOpen(record)} type="button">
@@ -373,7 +373,7 @@ function DoorWiseRecords({ groups, selectedDoor, onDoorOpen, onDoorClose, onOpen
   const activeGroup = groups.find(([doorNumber]) => doorNumber === selectedDoor)
 
   return <>
-    <div className="grid grid-cols-2 gap-2.5 max-[389px]:grid-cols-1 tablet:grid-cols-2 shell:grid-cols-3">{groups.map(([doorNumber, records]) => <article className={joinClasses(uiClasses.card, 'min-w-0 overflow-hidden rounded-2xl border-primary/15 bg-gradient-to-br from-surface via-surface to-nav-active/35 shadow-[0_6px_18px_color-mix(in_srgb,var(--primary)_8%,transparent)]')} key={doorNumber}>
+    <div className="grid grid-cols-2 gap-2.5 tablet:grid-cols-2 shell:grid-cols-3">{groups.map(([doorNumber, records]) => <article className={joinClasses(uiClasses.card, 'min-w-0 overflow-hidden rounded-2xl border-primary/15 bg-gradient-to-br from-surface via-surface to-nav-active/35 shadow-[0_6px_18px_color-mix(in_srgb,var(--primary)_8%,transparent)]')} key={doorNumber}>
       <button aria-haspopup="dialog" className="grid min-h-[5.75rem] w-full gap-2 p-3 text-left transition hover:bg-nav-active" onClick={() => onDoorOpen(doorNumber)} type="button">
         <div className="flex min-w-0 items-center justify-between gap-2"><span className="min-w-0 truncate whitespace-nowrap text-[10px] font-semibold text-muted">{t.door}</span><ChevronDown className="shrink-0 text-primary-strong" size={16} /></div>
         <div className="flex min-w-0 items-start gap-1.5"><strong className="min-w-0 flex-1 truncate whitespace-nowrap text-[10px] font-extrabold leading-4 text-copy" title={doorNumber || '—'}>{displayDoorNumber(doorNumber) || '—'}</strong><span className="shrink-0 whitespace-nowrap rounded-full bg-nav-active px-1.5 py-1 text-[8px] font-extrabold text-primary-strong">{records.length} {t.members}</span></div>
