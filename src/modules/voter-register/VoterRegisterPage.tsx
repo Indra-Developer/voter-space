@@ -465,7 +465,6 @@ function VoterDialog({ canDelete, canEdit, language, onClose, onDelete, onSave, 
       <EditorField disabled={readOnly} label={t.gender} value={draft.gender} onChange={(value) => update('gender', value)} />
       <EditorField disabled={readOnly} label={t.door} value={draft.doorNumber} onChange={(value) => update('doorNumber', value)} />
       <EditorField disabled={readOnly} label={t.voterId} placeholder={draft.voterId ? undefined : t.missingVoterId} value={draft.voterId} onChange={(value) => update('voterId', value)} />
-      <EditorField disabled={readOnly} label={t.alternateId} value={draft.alternateIdentifier} onChange={(value) => update('alternateIdentifier', value)} />
       <EditorField disabled={readOnly} label={t.mobile} value={draft.mobile} onChange={(value) => update('mobile', value)} />
       <EditorField disabled={readOnly} label={t.serial} value={draft.serialNumber} onChange={(value) => update('serialNumber', value)} />
       <EditorField disabled={readOnly} label={t.assemblySerial} value={draft.assemblySerial} onChange={(value) => update('assemblySerial', value)} />
