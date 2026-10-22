@@ -649,7 +649,7 @@ export function parseVoterCard(text: string, confidence: number, scope: ScopeDef
   const annotatedName = annotationFieldValue(annotation, 'name')
   const annotatedDoor = annotationFieldValue(annotation, 'door')
   const fullName = firstValidValue([annotatedName, labelledValue(lines, voterNameLabels, isValidVoterName), findUnlabelledName(lines)], isValidVoterName)
-  const relationship = findRelationship(lines)
+  const relationship = findRelationship(lines, annotation)
   const doorNumber = normalizeDoor(firstValidValue([annotatedDoor, labelledValue(lines, doorLabels, isValidDoorCandidate)], isValidDoorCandidate))
   const voterId = text.match(/\b([A-Z]{3})\s*[- ]?\s*(\d{7})\b/i)?.slice(1).join('').toLocaleUpperCase() ?? ''
   const age = text.match(/(?:వయస్సు|age)\s*[:.;|]?\s*(\d{1,3})/i)?.[1] ?? ''
@@ -783,18 +783,27 @@ function labelledValue(lines: string[], labels: RegExp[], validate: (value: stri
   return ''
 }
 
-function findRelationship(lines: string[]) {
+function findRelationship(lines: string[], annotation?: any) {
+  // Vision sometimes returns a different line grouping in the full-text
+  // response and the word-level annotation. Search both representations so
+  // a wrapped label such as "Fathers Name" followed by the value is not lost.
+  const annotationLines = annotation ? annotationRows(annotationWords(annotation)).map((row) => row.text) : []
+  const searchLines = [...lines, ...annotationLines]
   const choices: Array<{ type: string; labels: RegExp[] }> = [
-    { type: 'husband', labels: [/భర్త\s*పేరు/i, /husband(?:'s)?\s*name/i] },
-    { type: 'father', labels: [/తండ్రి\s*పేరు/i, /father(?:'s)?\s*name/i] },
-    { type: 'mother', labels: [/తల్లి\s*పేరు/i, /mother(?:'s)?\s*name/i] },
-    { type: 'guardian', labels: [/సంరక్షక(?:ుని)?\s*పేరు/i, /guardian(?:'s)?\s*name/i] },
+    { type: 'husband', labels: [/భర్త\s*పేరు/i, /husband(?:['’]?s)?\s*name/i] },
+    { type: 'father', labels: [/తండ్రి\s*పేరు/i, /father(?:['’]?s)?\s*name/i] },
+    { type: 'mother', labels: [/తల్లి\s*పేరు/i, /mother(?:['’]?s)?\s*name/i] },
+    { type: 'guardian', labels: [/సంరక్షక(?:ుని|ుడు)?\s*పేరు/i, /guardian(?:['’]?s)?\s*name/i] },
   ]
   for (const choice of choices) {
-    const name = labelledValue(lines, choice.labels)
+    const name = labelledValue(searchLines, choice.labels, isValidRelativeName)
     if (name) return { type: choice.type, name }
   }
   return { type: '', name: '' }
+}
+
+function isValidRelativeName(value: string) {
+  return isValidVoterName(value)
 }
 
 function findSerial(lines: string[], compositeText: string) {
