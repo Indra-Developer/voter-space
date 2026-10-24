@@ -87,7 +87,10 @@ export async function runVoterExport(options: {
       const link = document.createElement('a')
       link.href = download.data.url
       link.download = current.fileName
+      link.style.display = 'none'
+      document.body.appendChild(link)
       link.click()
+      link.remove()
       return current
     }
     if (current.status === 'failed') throw new Error(current.errorMessage || 'The export could not be completed.')

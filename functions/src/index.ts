@@ -1,5 +1,6 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
+import type { File as StorageFile } from '@google-cloud/storage'
 import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { getFunctions } from 'firebase-admin/functions'
@@ -109,6 +110,7 @@ type ExportJobRecord = {
   filters: VoterFilters
   fileName: string
   storagePath: string
+  downloadToken?: string
   status: ExportJobStatus
   progress: number
   processedCount: number
@@ -725,6 +727,7 @@ export const createVoterExport = onCall({ region }, async (request) => {
     filters,
     fileName,
     storagePath: `temporary-exports/${caller.uid}/${jobRef.id}/${fileName}`,
+    downloadToken: randomUUID(),
     status: 'queued',
     progress: 0,
     processedCount: 0,
@@ -787,14 +790,57 @@ export const getVoterExportDownloadUrl = onCall({ region }, async (request) => {
   const file = getStorage().bucket().file(job.storagePath)
   const [exists] = await file.exists()
   if (!exists) throw new HttpsError('not-found', 'The temporary export file has expired.')
-  const expiresAt = Date.now() + 10 * 60 * 1000
-  const [url] = await file.getSignedUrl({
-    version: 'v4',
-    action: 'read',
-    expires: expiresAt,
-    responseDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(job.fileName)}`,
-  })
-  return { url, expiresAt: new Date(expiresAt).toISOString() }
+  const downloadToken = job.downloadToken || randomUUID()
+  if (!job.downloadToken) await snapshot.ref.update({ downloadToken, updatedAt: FieldValue.serverTimestamp() })
+  const storageToken = await ensureStorageDownloadToken(file, downloadToken, job.fileName)
+  const expiresAt = job.expiresAt instanceof Timestamp ? job.expiresAt.toMillis() : Date.now() + 10 * 60 * 1000
+  return {
+    url: storageDownloadUrl(file, storageToken),
+    expiresAt: new Date(expiresAt).toISOString(),
+  }
+})
+
+// Export downloads use a short-lived, job-specific token instead of a Cloud
+// Storage V4 signed URL. The Functions runtime service account does not have
+// iam.serviceAccounts.signBlob in every Firebase project, and requiring that
+// permission made otherwise successful Excel, CSV, and PDF exports fail only
+// at the final download step. The token expires with the export job and the
+// scheduled cleanup removes both the job and its private Storage object.
+export const downloadVoterExport = onRequest({ region, cors: true, timeoutSeconds: 540, memory: '512MiB' }, async (request, response) => {
+  if (request.method !== 'GET') {
+    response.status(405).json({ error: 'Only GET requests are allowed.' })
+    return
+  }
+
+  try {
+    const exportJobId = requiredString(request.query.exportJobId, 'Export job id')
+    const downloadToken = requiredString(request.query.token, 'Export download token')
+    const snapshot = await db.doc(`exportJobs/${exportJobId}`).get()
+    if (!snapshot.exists) throw new HttpsError('not-found', 'The temporary export file has expired.')
+    const job = snapshot.data() as ExportJobRecord
+    if (!job.downloadToken || !secureTokenEquals(downloadToken, job.downloadToken)) {
+      throw new HttpsError('permission-denied', 'This export download link is not valid.')
+    }
+    if (job.status !== 'completed') throw new HttpsError('failed-precondition', 'The export is not ready yet.')
+    if (job.expiresAt instanceof Timestamp && job.expiresAt.toMillis() <= Date.now()) {
+      throw new HttpsError('not-found', 'The temporary export file has expired.')
+    }
+
+    const file = getStorage().bucket().file(job.storagePath)
+    const [exists] = await file.exists()
+    if (!exists) throw new HttpsError('not-found', 'The temporary export file has expired.')
+    const storageToken = await ensureStorageDownloadToken(file, downloadToken, job.fileName)
+    response.redirect(302, storageDownloadUrl(file, storageToken))
+  } catch (error) {
+    logger.error('Voter export download failed.', { error, exportJobId: request.query.exportJobId })
+    if (response.headersSent) {
+      response.end()
+      return
+    }
+    const status = httpStatusForDownloadError(error)
+    const message = error instanceof Error ? error.message : 'The export file could not be downloaded.'
+    response.status(status).json({ error: message })
+  }
 })
 
 export const processVoterExport = onTaskDispatched<{ exportJobId: string }>({
@@ -831,7 +877,15 @@ export const processVoterExport = onTaskDispatched<{ exportJobId: string }>({
       await jobRef.update({ progress: Math.min(98, progress), updatedAt: FieldValue.serverTimestamp() })
     })
     if (await exportWasCancelled(jobRef)) return
-    await getStorage().bucket().file(job.storagePath).save(buffer, { resumable: false, contentType: exportContentType(job.format), metadata: { cacheControl: 'private, max-age=600', metadata: { exportJobId } } })
+    await getStorage().bucket().file(job.storagePath).save(buffer, {
+      resumable: false,
+      contentType: exportContentType(job.format),
+      metadata: {
+        cacheControl: 'private, max-age=600',
+        contentDisposition: `attachment; filename="${job.fileName}"`,
+        metadata: { exportJobId, firebaseStorageDownloadTokens: job.downloadToken ?? randomUUID() },
+      },
+    })
     await jobRef.update({ status: 'completed', progress: 100, processedCount: records.length, totalCount: records.length, completedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
   } catch (error) {
     if (error instanceof Error && error.message === 'EXPORT_CANCELLED') return
@@ -1382,7 +1436,14 @@ export const createPdfImport = onCall({ region }, async (request) => {
     const existing = existingSnapshot.docs
       .map((item) => ({ id: item.id, ...(item.data() as SourcePdfRecord) }))
       .find((item) => item.wardId === input.wardId && item.boothId === input.boothId && item.status !== 'cancelled')
-    if (existing) return { id: existing.id, storagePath: existing.storagePath, duplicate: true, status: existing.status }
+    if (existing) {
+      const [objectExists] = await getStorage().bucket().file(existing.storagePath).exists()
+      if (!objectExists) {
+        await resetMissingSourcePdf(existing.id)
+        return { id: existing.id, storagePath: existing.storagePath, duplicate: false, status: 'readyForUpload' }
+      }
+      return { id: existing.id, storagePath: existing.storagePath, duplicate: true, status: existing.status }
+    }
   }
 
   // A deterministic id makes two simultaneous uploads of the same file and
@@ -1906,6 +1967,12 @@ export const retryPdfImport = onCall({ region }, async (request) => {
   const source = await getPdfImport(sourcePdfId)
   assertCanManagePdfImport(caller.record, source)
   if (source.status === 'readyForUpload') throw new HttpsError('failed-precondition', 'Upload the PDF before starting OCR.')
+  const [objectExists] = await getStorage().bucket().file(source.storagePath).exists()
+  if (!objectExists) {
+    await resetMissingSourcePdf(sourcePdfId)
+    await scheduleDashboardStatsRefresh('pdf-retry-needs-upload')
+    return { status: 'readyForUpload' }
+  }
   const retryPage = Math.max(1, Number(source.failedPage) || 1)
   await db.doc(`sourcePdfs/${sourcePdfId}`).update({ status: 'uploaded', cancelRequested: false, stage: retryPage > 1 ? `OCR retry queued from page ${retryPage}` : 'OCR retry queued', progress: 8, processedPage: retryPage - 1, failedPage: retryPage > 1 ? retryPage : FieldValue.delete(), pageCount: FieldValue.delete(), errorMessage: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() })
   await enqueueImportTask('processPdfImport', { sourcePdfId })
@@ -1934,6 +2001,11 @@ export const onSourcePdfUploaded = onObjectFinalized({
   if (!snapshot.exists) return
   const source = snapshot.data() as SourcePdfRecord
   if (source.ownerUid !== ownerUid || source.storagePath !== file.name) return
+  const [objectExists] = await getStorage().bucket().file(file.name).exists()
+  if (!objectExists) {
+    logger.error('Source PDF finalization event referenced a missing Storage object.', { sourcePdfId, storagePath: file.name })
+    return
+  }
   let shouldEnqueue = false
   await db.runTransaction(async (transaction) => {
     const current = await transaction.get(sourceRef)
@@ -1980,7 +2052,15 @@ export const processPdfImport = onTaskDispatched<{ sourcePdfId: string }>({
 
   try {
     const bucket = getStorage().bucket()
-    const [pdfBytes] = await bucket.file(source.storagePath).download()
+    const sourceFile = bucket.file(source.storagePath)
+    const [objectExists] = await sourceFile.exists()
+    if (!objectExists) {
+      logger.error('Source PDF disappeared before OCR could read it.', { sourcePdfId, storagePath: source.storagePath })
+      await resetMissingSourcePdf(sourcePdfId)
+      await scheduleDashboardStatsRefresh('pdf-ocr-missing-source')
+      return
+    }
+    const [pdfBytes] = await sourceFile.download()
     const retryFromPage = Math.max(1, Number(source.failedPage) || 1)
     const preservedRowCount = await prepareImportRetry(sourcePdfId, retryFromPage)
     let storedRowCount = preservedRowCount
@@ -2506,6 +2586,31 @@ async function getPdfImport(sourcePdfId: string) {
   return snapshot.data() as SourcePdfRecord
 }
 
+async function resetMissingSourcePdf(sourcePdfId: string) {
+  await db.doc(`sourcePdfs/${sourcePdfId}`).update({
+    status: 'readyForUpload',
+    stage: 'Source PDF is missing - upload it again',
+    progress: 0,
+    processedPage: 0,
+    errorMessage: 'The source PDF is no longer available in storage. Upload the PDF again to restart OCR.',
+    failedPage: FieldValue.delete(),
+    pageCount: FieldValue.delete(),
+    fileSize: FieldValue.delete(),
+    rowCount: FieldValue.delete(),
+    readyCount: FieldValue.delete(),
+    duplicateCount: FieldValue.delete(),
+    needsReviewCount: FieldValue.delete(),
+    areas: FieldValue.delete(),
+    divisions: FieldValue.delete(),
+    coverRows: FieldValue.delete(),
+    uploadedAt: FieldValue.delete(),
+    cancelRequested: false,
+    ocrLockId: FieldValue.delete(),
+    ocrStartedAt: FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+}
+
 async function enqueueImportTask(functionName: 'processPdfImport' | 'applyPdfImport', data: { sourcePdfId: string }) {
   const queue = getFunctions().taskQueue<{ sourcePdfId: string }>(`locations/${region}/functions/${functionName}`)
   await queue.enqueue(data)
@@ -2541,6 +2646,25 @@ function exportContentType(format: ExportFormat) {
   if (format === 'excel') return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   if (format === 'pdf') return 'application/pdf'
   return 'text/csv; charset=utf-8'
+}
+
+async function ensureStorageDownloadToken(file: StorageFile, token: string, fileName: string) {
+  const [metadata] = await file.getMetadata()
+  const tokenMetadata = metadata.metadata?.firebaseStorageDownloadTokens
+  const contentDisposition = `attachment; filename="${fileName}"`
+  if (tokenMetadata === token && metadata.contentDisposition === contentDisposition) return token
+  await file.setMetadata({ contentDisposition, metadata: { ...(metadata.metadata ?? {}), firebaseStorageDownloadTokens: token } })
+  return token
+}
+
+function storageDownloadUrl(file: StorageFile, token: string) {
+  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(file.bucket.name)}/o/${encodeURIComponent(file.name)}?alt=media&token=${encodeURIComponent(token)}`
+}
+
+function secureTokenEquals(first: string, second: string) {
+  const firstHash = createHash('sha256').update(first).digest()
+  const secondHash = createHash('sha256').update(second).digest()
+  return timingSafeEqual(firstHash, secondHash)
 }
 
 function exportJobForClient(id: string, job: ExportJobRecord) {
@@ -2599,8 +2723,13 @@ async function countExportMatches(user: UserRecord, filters: VoterFilters) {
   const directQuery = buildDirectVoterQuery(user, filters)
   if (directQuery?.empty) return 0
   if (directQuery?.query && canUseDirectVoterCount(filters)) {
-    const result = await directQuery.query.count().get()
-    return result.data().count
+    try {
+      const result = await directQuery.query.count().get()
+      return result.data().count
+    } catch (error) {
+      if (!isMissingFirestoreIndex(error)) throw error
+      logger.warn('Export count is falling back to a complete voter scan because a Firestore index is unavailable.', { error })
+    }
   }
 
   let count = 0
@@ -2629,7 +2758,23 @@ async function collectExportMatches(user: UserRecord, filters: VoterFilters, onB
 async function scanExportVoters(user: UserRecord, filters: VoterFilters, onBatch: (records: VoterRecord[]) => Promise<void>) {
   const directQuery = buildDirectVoterQuery(user, filters)
   if (directQuery?.empty) return
-  const query = directQuery?.query ?? db.collection('voters').orderBy(FieldPath.documentId())
+  if (directQuery?.query) {
+    let emittedBatch = false
+    try {
+      await scanExportQuery(directQuery.query, user, filters, async (records) => {
+        emittedBatch = true
+        await onBatch(records)
+      })
+      return
+    } catch (error) {
+      if (emittedBatch || !isMissingFirestoreIndex(error)) throw error
+      logger.warn('Filtered export is falling back to a complete voter scan because a Firestore index is unavailable.', { error })
+    }
+  }
+  await scanExportQuery(db.collection('voters').orderBy(FieldPath.documentId()), user, filters, onBatch)
+}
+
+async function scanExportQuery(query: FirebaseFirestore.Query, user: UserRecord, filters: VoterFilters, onBatch: (records: VoterRecord[]) => Promise<void>) {
   let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined
 
   while (true) {
@@ -2643,6 +2788,12 @@ async function scanExportVoters(user: UserRecord, filters: VoterFilters, onBatch
     if (snapshot.size < 500) return
     cursor = snapshot.docs[snapshot.docs.length - 1]
   }
+}
+
+function isMissingFirestoreIndex(error: unknown) {
+  const code = String(getErrorCode(error) ?? '')
+  const message = error instanceof Error ? error.message : ''
+  return code === '9' || code.includes('failed-precondition') || /requires\s+(?:a|an)\s+index|missing\s+index/i.test(message)
 }
 
 async function claimPdfProcessing(sourceRef: FirebaseFirestore.DocumentReference) {
