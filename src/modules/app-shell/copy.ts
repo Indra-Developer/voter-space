@@ -47,6 +47,7 @@ export const copy: Record<AppLanguage, AppCopy> = {
       users: 'వినియోగదారుల నిర్వహణ',
       directory: 'వినియోగదారుల వివరాలు',
       audit: 'ఆడిట్ లాగ్‌లు',
+      reports: 'రోజువారీ నివేదికలు',
       settings: 'సెట్టింగులు',
     },
     mobile: {
@@ -96,6 +97,7 @@ export const copy: Record<AppLanguage, AppCopy> = {
       users: 'User Management',
       directory: 'User Directory',
       audit: 'Audit Logs',
+      reports: 'Daily Reports',
       settings: 'Settings',
     },
     mobile: { dashboard: 'Home', register: 'Register', upload: 'Upload', users: 'Users', settings: 'Profile' },

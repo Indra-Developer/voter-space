@@ -20,7 +20,7 @@ type CreateAccountRequest = {
   status: 'active' | 'disabled'
   parentAdminId?: string
   scope: { wardIds: string[]; boothIds: string[] }
-  permissions: { upload: boolean; edit: boolean; download: boolean; audit: boolean }
+  permissions: { upload: boolean; edit: boolean; download: boolean; audit: boolean; reports: boolean }
   profilePhotoPath?: string
   bannerPath?: string
   deviceLimit: number
@@ -43,7 +43,17 @@ function requireFirebase() {
 }
 
 function profileFromFirestore(data: unknown): UserProfile {
-  return data as UserProfile
+  const profile = (data && typeof data === 'object' ? data : {}) as UserProfile
+  return {
+    ...profile,
+    permissions: {
+      upload: Boolean(profile.permissions?.upload),
+      edit: Boolean(profile.permissions?.edit),
+      download: profile.permissions?.download !== false,
+      audit: Boolean(profile.permissions?.audit),
+      reports: Boolean(profile.permissions?.reports),
+    },
+  }
 }
 
 export async function resolveStorageFileUrl(path?: string) {
@@ -219,6 +229,12 @@ export async function updateAccount(payload: UpdateAccountRequest) {
   const client = requireFirebase()
   const updateUserAccount = httpsCallable<UpdateAccountRequest, { uid: string }>(client.functions, 'updateUserAccount')
   return updateUserAccount(payload)
+}
+
+export async function deleteAccount(uid: string) {
+  const client = requireFirebase()
+  const deleteUserAccount = httpsCallable<{ uid: string }, { uid: string }>(client.functions, 'deleteUserAccount')
+  return deleteUserAccount({ uid })
 }
 
 export async function sendAccountPasswordReset(email: string) {

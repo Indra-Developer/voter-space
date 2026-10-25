@@ -22,7 +22,8 @@ const db = getFirestore()
 type Role = 'superAdmin' | 'admin' | 'subMember'
 type Status = 'active' | 'disabled'
 type Scope = { wardIds: string[]; boothIds: string[] }
-type Permissions = { upload: boolean; edit: boolean; download: boolean; audit: boolean }
+type Permissions = { upload: boolean; edit: boolean; download: boolean; audit: boolean; reports: boolean }
+type SurveyStatus = 'ok' | 'pending' | 'noNeed'
 type DoorNumberStatus = 'available' | 'missing' | 'verificationRequired'
 type UserRecord = {
   fullName: string
@@ -79,6 +80,13 @@ type VoterRecord = {
   cardPosition?: number
   reviewStatus: 'pending' | 'reviewed' | 'needsReview'
   needsReview: boolean
+  surveyStatus?: SurveyStatus
+  surveyReason?: string
+  surveyDate?: string
+  surveyUpdatedAt?: string
+  surveyUpdatedBy?: string
+  houseKey?: string
+  houseMemberCount?: number
   uploadedAt?: string
   uploadedBy: string
 }
@@ -98,9 +106,12 @@ type VoterFilters = {
   sourcePdf?: unknown
   reviewStatus?: unknown
   needsReview?: unknown
+  surveyStatus?: unknown
+  surveyDate?: unknown
   uploadedFrom?: unknown
   uploadedTo?: unknown
   uploadedBy?: unknown
+  houseMemberCount?: unknown
 }
 type VoterUpdateInput = VoterRecord & { id?: unknown }
 type ExportJobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled'
@@ -258,7 +269,8 @@ const slowOperationThresholdMs = 10 * 1000
 // Storage and the Cloud Functions project all enforce quotas.
 const pdfOcrMaxConcurrent = 6
 const pdfApplyMaxConcurrent = 4
-const dashboardStatsVersion = 2
+const dashboardStatsVersion = 3
+let houseIndexBuildPromise: Promise<DashboardStats> | undefined
 
 function startPerformanceTimer(functionName: string, context: Record<string, unknown> = {}) {
   const startedAt = Date.now()
@@ -447,6 +459,36 @@ export const updateUserAccount = onCall({ region }, async (request) => {
   return { uid: input.uid }
 })
 
+export const deleteUserAccount = onCall({ region, timeoutSeconds: 120 }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  const input = request.data && typeof request.data === 'object' ? request.data as { uid?: unknown } : {}
+  const targetUid = requiredString(input.uid, 'User id')
+  if (targetUid === caller.uid) throw new HttpsError('failed-precondition', 'You cannot delete your own account.')
+
+  const targetRef = db.doc(`users/${targetUid}`)
+  const targetSnapshot = await targetRef.get()
+  if (!targetSnapshot.exists) throw new HttpsError('not-found', 'User account not found.')
+  const target = targetSnapshot.data() as UserRecord
+  if (target.role === 'superAdmin') throw new HttpsError('permission-denied', 'Super Admin accounts cannot be deleted here.')
+
+  const canDelete = caller.record.role === 'superAdmin' || (caller.record.role === 'admin' && target.role === 'subMember' && target.parentAdminId === caller.uid)
+  if (!canDelete) throw new HttpsError('permission-denied', 'You can delete only accounts within your management scope.')
+
+  if (target.role === 'admin') {
+    const childSnapshot = await db.collection('users').where('parentAdminId', '==', targetUid).limit(1).get()
+    if (!childSnapshot.empty) throw new HttpsError('failed-precondition', 'Remove this Admin\'s Sub-members before deleting the Admin account.')
+  }
+
+  await auth.deleteUser(targetUid).catch((error) => {
+    if (getErrorCode(error) !== 'auth/user-not-found') throw error
+  })
+  await db.doc(`${targetRef.path}/private/sessionControl`).delete().catch(() => undefined)
+  await targetRef.delete()
+  await deleteStoragePaths([target.profilePhotoPath, target.bannerPath].filter((path): path is string => Boolean(path)))
+  await writeAudit(caller, 'account_deleted', targetUid, target.fullName, { role: target.role, email: target.email })
+  return { uid: targetUid }
+})
+
 export const updateOwnProfileMedia = onCall({ region }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
   if (caller.record.role !== 'superAdmin') throw new HttpsError('permission-denied', 'Only Super Admins can change their profile images.')
@@ -481,6 +523,7 @@ export const logPasswordResetRequest = onCall({ region }, async (request) => {
 export const listVoters = onCall({ region }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
   const filters = readVoterFilters(request.data)
+  await ensureHouseMemberIndexReady(filters)
   const input = request.data as { cursor?: unknown; pageSize?: unknown; sourcePdfId?: unknown }
   const pageSize = Math.min(optionalInteger(input?.pageSize) ?? 100, 100)
   const cursorId = plainString(input?.cursor)
@@ -573,6 +616,125 @@ export const listVoters = onCall({ region }, async (request) => {
   return { records: records.slice(0, pageSize), nextCursor: hasMore ? lastScannedId : undefined, hasMore }
 })
 
+export const listHouseGroups = onCall({ region, timeoutSeconds: 120 }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  const input = request.data && typeof request.data === 'object' ? request.data as { context?: unknown; cursor?: unknown; pageSize?: unknown } : {}
+  const context = plainString(input.context)
+  if (context !== 'register' && caller.record.role !== 'superAdmin' && !caller.record.permissions.reports) {
+    throw new HttpsError('permission-denied', 'You do not have permission to view daily survey reports.')
+  }
+  const filters = readVoterFilters(request.data)
+  const memberCount = parseHouseMemberCount(filters.houseMemberCount)
+  if (!memberCount) return { groups: [], hasMore: false }
+  await ensureHouseMemberIndexReady(filters)
+  const directQuery = buildDirectVoterQuery(caller.record, filters)
+  if (directQuery?.empty) return { groups: [], hasMore: false }
+  if (!directQuery?.query) return { groups: [], hasMore: false }
+
+  const pageSize = Math.min(optionalInteger(input?.pageSize) ?? 50, 100)
+  const cursorId = plainString(input?.cursor)
+  const groupedQuery = directQuery.query.orderBy('houseKey', 'asc')
+  return listHouseGroupsFromQuery(groupedQuery, cursorId, pageSize, caller, filters)
+})
+
+async function listHouseGroupsFromQuery(query: FirebaseFirestore.Query, cursorId: string, pageSize: number, caller: Awaited<ReturnType<typeof requireCaller>>, filters: VoterFilters) {
+  let scanCursor = cursorId ? await db.doc(`voters/${cursorId}`).get() : undefined
+  let hasMore = true
+  let currentHouseKey = ''
+  let currentRecords: VoterRecord[] = []
+  let previousDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined
+  const groups: Array<{ key: string; wardId: string; boothId: string; doorNumber: string; area: string; records: VoterRecord[] }> = []
+  const scanSize = 250
+
+  const pushCurrentGroup = () => {
+    if (!currentHouseKey || !currentRecords.length) return
+    const first = currentRecords[0]
+    groups.push({
+      key: currentHouseKey,
+      wardId: first.wardId,
+      boothId: first.boothId,
+      doorNumber: first.doorNumber || '—',
+      area: first.area,
+      records: currentRecords,
+    })
+  }
+
+  while (hasMore) {
+    const snapshot = await (scanCursor?.exists ? query.startAfter(scanCursor).limit(scanSize) : query.limit(scanSize)).get()
+    if (!snapshot.size) {
+      hasMore = false
+      break
+    }
+
+    for (const item of snapshot.docs) {
+      const record = voterFromFirestore(item.id, item.data())
+      const itemHouseKey = plainString(item.data().houseKey) || houseGroupKey(record)
+      if (currentHouseKey && itemHouseKey !== currentHouseKey) {
+        pushCurrentGroup()
+        if (groups.length >= pageSize) {
+          return { groups, nextCursor: previousDoc?.id, hasMore: true }
+        }
+        currentRecords = []
+        currentHouseKey = itemHouseKey
+      } else if (!currentHouseKey) {
+        currentHouseKey = itemHouseKey
+      }
+
+      if (canViewVoter(caller.record, record) && matchesFilters(record, filters)) currentRecords.push(record)
+      previousDoc = item
+    }
+
+    scanCursor = snapshot.docs[snapshot.docs.length - 1]
+    hasMore = snapshot.size === scanSize
+  }
+
+  pushCurrentGroup()
+  return { groups, hasMore: false }
+}
+
+export const getDailySurveySummary = onCall({ region, timeoutSeconds: 120, memory: '512MiB' }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  if (caller.record.role !== 'superAdmin' && !caller.record.permissions.reports) {
+    throw new HttpsError('permission-denied', 'You do not have permission to view daily survey reports.')
+  }
+  const input = request.data && typeof request.data === 'object' ? request.data as { filters?: unknown; surveyDate?: unknown } : {}
+  const filters = { ...readVoterFilters(input.filters), surveyDate: plainString(input.surveyDate) }
+  await ensureHouseMemberIndexReady(filters)
+  const directQuery = buildDirectVoterQuery(caller.record, filters)
+  if (directQuery?.empty) return { totalVoters: 0, totalHouses: 0, okVoters: 0, pendingVoters: 0, noNeedVoters: 0, completedHouses: 0, pendingHouses: 0 }
+  const query = directQuery?.query ?? db.collection('voters').orderBy(FieldPath.documentId())
+  let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined
+  const groups = new Map<string, { status: SurveyStatus; voterCount: number }>()
+  let totalVoters = 0
+  let okVoters = 0
+  let pendingVoters = 0
+  let noNeedVoters = 0
+
+  while (true) {
+    const snapshot = await (cursor ? query.startAfter(cursor).limit(500) : query.limit(500)).get()
+    if (!snapshot.size) break
+    snapshot.docs
+      .map((item) => voterFromFirestore(item.id, item.data()))
+      .filter((record) => canViewVoter(caller.record, record))
+      .filter((record) => matchesFilters(record, filters))
+      .forEach((record) => {
+        const status = effectiveSurveyStatus(record, filters.surveyDate)
+        const key = `${record.wardId}::${record.boothId}::${record.doorNumber || '—'}`
+        const existing = groups.get(key)
+        groups.set(key, { status: existing && existing.status !== status ? 'pending' : status, voterCount: (existing?.voterCount ?? 0) + 1 })
+        totalVoters += 1
+        if (status === 'ok') okVoters += 1
+        else if (status === 'noNeed') noNeedVoters += 1
+        else pendingVoters += 1
+      })
+    if (snapshot.size < 500) break
+    cursor = snapshot.docs[snapshot.docs.length - 1]
+  }
+
+  const completedHouses = [...groups.values()].filter((group) => group.status === 'ok' || group.status === 'noNeed').length
+  return { totalVoters, totalHouses: groups.size, okVoters, pendingVoters, noNeedVoters, completedHouses, pendingHouses: groups.size - completedHouses }
+})
+
 type DirectQueryPlan = { query?: FirebaseFirestore.Query; empty?: boolean }
 
 function buildDirectVoterQuery(user: UserRecord, filters: VoterFilters): DirectQueryPlan | undefined {
@@ -586,6 +748,8 @@ function buildDirectVoterQuery(user: UserRecord, filters: VoterFilters): DirectQ
   const requestedDivision = normalizeDivision(filters.division)
   const requestedSourcePdfId = plainString(filters.sourcePdfId)
   const requestedSourcePdf = plainString(filters.sourcePdf)
+  const requestedHouseMemberCount = parseHouseMemberCount(filters.houseMemberCount)
+  if (plainString(filters.houseMemberCount) && requestedHouseMemberCount === undefined) return { empty: true }
 
   if (user.role !== 'superAdmin') {
     if (requestedWard && !user.scope.wardIds.includes(requestedWard)) return { empty: true }
@@ -598,6 +762,8 @@ function buildDirectVoterQuery(user: UserRecord, filters: VoterFilters): DirectQ
   }
 
   if (requestedSourcePdfId) addWhere('sourcePdfId', '==', requestedSourcePdfId)
+  if (requestedHouseMemberCount?.operator === '==') addWhere('houseMemberCount', '==', requestedHouseMemberCount.value)
+  if (requestedHouseMemberCount?.operator === '>=') addWhere('houseMemberCount', '>=', requestedHouseMemberCount.value)
   if (requestedWard) addWhere('wardId', '==', requestedWard)
   else if (user.role !== 'superAdmin' && user.scope.wardIds.length === 1) addWhere('wardId', '==', user.scope.wardIds[0])
   else if (user.role !== 'superAdmin' && user.scope.wardIds.length > 1 && user.scope.wardIds.length <= 30) {
@@ -652,6 +818,7 @@ function canUseDirectVoterCount(filters: VoterFilters) {
   if (postFilterFields.some((field) => plainString(filters[field]))) return false
   if (plainString(filters.sourcePdf) && !plainString(filters.sourcePdf).toLocaleLowerCase().endsWith('.pdf')) return false
   if (plainString(filters.reviewStatus) || plainString(filters.needsReview)) return false
+  if (plainString(filters.surveyStatus) || plainString(filters.surveyDate)) return false
   if (plainString(filters.uploadedFrom) && !queryDate(plainString(filters.uploadedFrom))) return false
   if (plainString(filters.uploadedTo) && !queryDate(plainString(filters.uploadedTo))) return false
   return true
@@ -688,6 +855,7 @@ async function listVotersFromQuery(query: FirebaseFirestore.Query, cursorId: str
 export const countVoters = onCall({ region, timeoutSeconds: 120, memory: '512MiB' }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
   const filters = readVoterFilters(request.data)
+  await ensureHouseMemberIndexReady(filters)
   const directQuery = buildDirectVoterQuery(caller.record, filters)
   if (directQuery?.empty) return { totalCount: 0 }
   if (directQuery?.query && canUseDirectVoterCount(filters)) {
@@ -696,7 +864,7 @@ export const countVoters = onCall({ region, timeoutSeconds: 120, memory: '512MiB
   }
 
   const pageSize = 500
-  const query = db.collection('voters').orderBy(FieldPath.documentId())
+  const query = directQuery?.query ?? db.collection('voters').orderBy(FieldPath.documentId())
   let cursor: FirebaseFirestore.QueryDocumentSnapshot | undefined
   let totalCount = 0
 
@@ -864,6 +1032,7 @@ export const processVoterExport = onTaskDispatched<{ exportJobId: string }>({
   try {
     const caller = await requireCaller(job.ownerUid)
     if (!canDownloadSourcePdf(caller.record)) throw new Error('Export permission was removed before processing started.')
+    await ensureHouseMemberIndexReady(job.filters)
     const totalCount = await countExportMatches(caller.record, job.filters)
     await jobRef.update({ totalCount, progress: totalCount ? 8 : 100, updatedAt: FieldValue.serverTimestamp() })
     if (await exportWasCancelled(jobRef)) return
@@ -1096,6 +1265,10 @@ function dashboardBoothKey(wardId: string, boothId: string) {
   return wardId && boothId ? `${wardId}::${boothId}` : ''
 }
 
+function houseGroupKey(record: Pick<VoterRecord, 'wardId' | 'boothId' | 'doorNumber'>) {
+  return `${record.wardId || '—'}::${record.boothId || '—'}::${record.doorNumber || '—'}`
+}
+
 function isCountableDashboardSource(source: SourcePdfRecord) {
   // A source document is created before the browser finishes writing the PDF.
   // Do not count that placeholder, or a cancelled source, as an uploaded PDF.
@@ -1149,13 +1322,29 @@ function addDashboardSource(wardCounts: Record<string, DashboardScopeCount>, boo
 
 async function rebuildDashboardStats() {
   const [voterSnapshot, sourceSnapshot] = await Promise.all([
-    db.collection('voters').select('wardId', 'boothId', 'area', 'division', 'sourcePdfId', 'sourcePdfName', 'uploadedByName', 'uploadedBy').get(),
+    db.collection('voters').select('wardId', 'boothId', 'doorNumber', 'area', 'division', 'sourcePdfId', 'sourcePdfName', 'uploadedByName', 'uploadedBy', 'houseKey', 'houseMemberCount').get(),
     db.collection('sourcePdfs').get(),
   ])
   const wardCounts: Record<string, DashboardScopeCount> = {}
   const boothCounts: Record<string, DashboardScopeCount> = {}
   const metadata: VoterFilterMetadata = { byWard: {}, needsRebuild: false }
-  const voters = voterSnapshot.docs.map((item) => voterFromFirestore(item.id, item.data()))
+  const voterEntries = voterSnapshot.docs.map((item) => ({ ref: item.ref, raw: item.data(), record: voterFromFirestore(item.id, item.data()) }))
+  const voters = voterEntries.map((entry) => entry.record)
+  const houseCounts = new Map<string, number>()
+  voterEntries.forEach(({ record }) => {
+    const key = houseGroupKey(record)
+    houseCounts.set(key, (houseCounts.get(key) ?? 0) + 1)
+  })
+  const houseIndexUpdates = voterEntries.flatMap(({ ref, raw, record }) => {
+    const houseKey = houseGroupKey(record)
+    const houseMemberCount = houseCounts.get(houseKey) ?? 1
+    return raw.houseKey === houseKey && Number(raw.houseMemberCount) === houseMemberCount ? [] : [{ ref, houseKey, houseMemberCount }]
+  })
+  for (const group of splitInto(houseIndexUpdates, 400)) {
+    const batch = db.batch()
+    group.forEach(({ ref, houseKey, houseMemberCount }) => batch.update(ref, { houseKey, houseMemberCount }))
+    if (group.length) await batch.commit()
+  }
   voters.forEach((record) => {
     addDashboardVoter(wardCounts, boothCounts, record)
     if (!record.wardId || !record.boothId) return
@@ -1219,7 +1408,7 @@ async function rebuildDashboardStats() {
   }
 
   await Promise.all([
-    db.doc('stats/summary').set({ ...summary, updatedAt: FieldValue.serverTimestamp() }),
+    db.doc('stats/summary').set({ ...summary, houseIndexDirty: false, updatedAt: FieldValue.serverTimestamp() }),
     db.doc('stats/wardCounts').set({ counts: wardCounts, updatedAt: FieldValue.serverTimestamp() }),
     db.doc('stats/boothCounts').set({ counts: boothCounts, updatedAt: FieldValue.serverTimestamp() }),
     db.doc(voterFilterMetadataPath).set({ byWard: metadata.byWard, needsRebuild: false, updatedAt: FieldValue.serverTimestamp() }),
@@ -1305,13 +1494,24 @@ const dashboardMetricNames: DashboardMetricName[] = [
 
 async function readDashboardSummaryForCaller(user: UserRecord) {
   let summarySnapshot = await db.doc('stats/summary').get()
-  if (!summarySnapshot.exists || summarySnapshot.data()?.statsVersion !== dashboardStatsVersion || !summarySnapshot.data()?.sourceStatusById) {
+  if (!summarySnapshot.exists || summarySnapshot.data()?.statsVersion !== dashboardStatsVersion || summarySnapshot.data()?.houseIndexDirty === true || !summarySnapshot.data()?.sourceStatusById) {
     await rebuildDashboardStats()
     summarySnapshot = await db.doc('stats/summary').get()
   }
   const summary = summarySnapshot.data() as DashboardStats
   const [wardSnapshot, boothSnapshot] = await Promise.all([db.doc('stats/wardCounts').get(), db.doc('stats/boothCounts').get()])
   return summaryForCaller(summary, (wardSnapshot.data() ?? { counts: {} }) as DashboardStatsDocument, (boothSnapshot.data() ?? { counts: {} }) as DashboardStatsDocument, user)
+}
+
+async function ensureHouseMemberIndexReady(filters: VoterFilters) {
+  if (!plainString(filters.houseMemberCount)) return
+  const snapshot = await db.doc('stats/summary').get()
+  if (snapshot.data()?.statsVersion === dashboardStatsVersion && snapshot.data()?.houseIndexDirty !== true) return
+  // The dashboard rebuild already reads all voter documents for accurate
+  // counts. Reuse that single pass to materialize houseMemberCount on each
+  // voter, so subsequent house-size filters become indexed Firestore queries.
+  houseIndexBuildPromise ??= rebuildDashboardStats().finally(() => { houseIndexBuildPromise = undefined })
+  await houseIndexBuildPromise
 }
 
 export const refreshDashboardStats = onTaskDispatched<{ reason?: string }>({
@@ -1406,6 +1606,54 @@ export const updateVoterRecord = onCall({ region }, async (request) => {
   await writeAudit(caller, 'voter_record_updated', input.id, input.fullName, { voterId: input.voterId, doorNumber: input.doorNumber, sourcePdfId: input.sourcePdfId, pageNumber: input.pageNumber })
   await scheduleDashboardStatsRefresh('voter-updated')
   return { id: input.id }
+})
+
+export const updateVoterSurveyStatus = onCall({ region }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  if (caller.record.role !== 'superAdmin' && !caller.record.permissions.reports) {
+    throw new HttpsError('permission-denied', 'You do not have permission to update survey status.')
+  }
+  const input = request.data && typeof request.data === 'object' ? request.data as { voterIds?: unknown; status?: unknown; reason?: unknown; surveyDate?: unknown; house?: unknown } : {}
+  const voterIds = Array.isArray(input.voterIds) ? [...new Set(input.voterIds.filter((value): value is string => typeof value === 'string' && Boolean(value.trim())).map((value) => value.trim()))].slice(0, 200) : []
+  if (!voterIds.length) throw new HttpsError('invalid-argument', 'Select at least one voter.')
+  const status = input.status === 'ok' || input.status === 'pending' || input.status === 'noNeed' ? input.status : undefined
+  if (!status) throw new HttpsError('invalid-argument', 'Choose OK, Pending, or No Need.')
+  const surveyDate = plainString(input.surveyDate)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(surveyDate)) throw new HttpsError('invalid-argument', 'A valid survey date is required.')
+  const reason = plainString(input.reason).slice(0, 400)
+  if (status === 'pending' && !reason) throw new HttpsError('invalid-argument', 'Add a reason for a pending survey.')
+  const houseInput = input.house && typeof input.house === 'object' ? input.house as { wardId?: unknown; boothId?: unknown; doorNumber?: unknown } : undefined
+  const house = houseInput ? { wardId: plainString(houseInput.wardId), boothId: plainString(houseInput.boothId), doorNumber: plainString(houseInput.doorNumber) === '—' ? '' : normalizeDoorNumber(houseInput.doorNumber) } : undefined
+  if (house && (!house.wardId || !house.boothId)) throw new HttpsError('invalid-argument', 'A complete house reference is required.')
+  let voters: VoterRecord[]
+  if (house) {
+    let houseQuery: FirebaseFirestore.Query = db.collection('voters').where('wardId', '==', house.wardId)
+    const houseSnapshot = await houseQuery.get()
+    voters = houseSnapshot.docs
+      .map((snapshot) => voterFromFirestore(snapshot.id, snapshot.data() ?? {}))
+      .filter((voter) => voter.boothId === house.boothId && voter.doorNumber === house.doorNumber)
+  } else {
+    const refs = voterIds.map((id) => db.doc(`voters/${id}`))
+    const snapshots = await db.getAll(...refs)
+    voters = snapshots.map((snapshot) => {
+      if (!snapshot.exists) throw new HttpsError('not-found', 'A selected voter record was not found.')
+      return voterFromFirestore(snapshot.id, snapshot.data() ?? {})
+    })
+  }
+  if (!voters.length) throw new HttpsError('not-found', 'No voter records were found for this house.')
+  if (voters.some((voter) => !canViewVoter(caller.record, voter))) throw new HttpsError('permission-denied', 'A selected voter is outside your allowed scope.')
+  const batch = db.batch()
+  voters.forEach((voter) => batch.update(db.doc(`voters/${voter.id}`), cleanUndefined({
+    surveyStatus: status,
+    surveyReason: reason || FieldValue.delete(),
+    surveyDate,
+    surveyUpdatedAt: FieldValue.serverTimestamp(),
+    surveyUpdatedBy: caller.uid,
+    surveyUpdatedByName: caller.record.fullName,
+  })))
+  await batch.commit()
+  await writeAudit(caller, 'voter_survey_status_updated', voters[0]?.id ?? '', voters[0]?.doorNumber || 'House survey', { voterCount: voters.length, status, surveyDate, reason })
+  return { updatedCount: voters.length }
 })
 
 export const deleteVoterRecord = onCall({ region, timeoutSeconds: 120 }, async (request) => {
@@ -2349,17 +2597,17 @@ async function requireCaller(uid?: string) {
 
 async function authorizeNewAccount(caller: Awaited<ReturnType<typeof requireCaller>>, input: AccountInput) {
   const role = validNewRole(input.role)
-  if (caller.record.role === 'superAdmin') return buildAccount(input, role, caller.uid)
+  if (caller.record.role === 'superAdmin') return buildAccount(input, role, caller.uid, undefined, undefined, true)
   if (caller.record.role !== 'admin' || role !== 'subMember') {
     throw new HttpsError('permission-denied', 'Only Super Admins can create Admin accounts.')
   }
-  return buildAccount({ ...input, parentAdminId: caller.uid, status: 'active' }, role, caller.uid, caller.record)
+  return buildAccount({ ...input, parentAdminId: caller.uid, status: 'active' }, role, caller.uid, caller.record, undefined, caller.record.permissions.reports)
 }
 
 async function authorizeUpdate(caller: Awaited<ReturnType<typeof requireCaller>>, target: UserRecord, input: AccountInput) {
   if (target.role === 'superAdmin') throw new HttpsError('permission-denied', 'Super Admin accounts cannot be edited here.')
   if (caller.record.role === 'superAdmin') {
-    return buildAccount({ ...input, parentAdminId: target.role === 'admin' ? undefined : input.parentAdminId ?? target.parentAdminId }, target.role, caller.uid, undefined, target)
+    return buildAccount({ ...input, parentAdminId: target.role === 'admin' ? undefined : input.parentAdminId ?? target.parentAdminId }, target.role, caller.uid, undefined, target, true)
   }
   if (caller.record.role !== 'admin' || target.role !== 'subMember' || target.parentAdminId !== caller.uid) {
     throw new HttpsError('permission-denied', 'You can manage only your own Sub-members.')
@@ -2371,10 +2619,10 @@ async function authorizeUpdate(caller: Awaited<ReturnType<typeof requireCaller>>
     status: target.status,
     permissions: target.permissions,
     bannerPath: undefined,
-  }, 'subMember', caller.uid, caller.record, target)
+  }, 'subMember', caller.uid, caller.record, target, caller.record.permissions.reports || target.permissions.reports)
 }
 
-async function buildAccount(input: AccountInput, role: 'admin' | 'subMember', uploaderUid: string, parentScope?: UserRecord, existingAccount?: UserRecord): Promise<UserRecord> {
+async function buildAccount(input: AccountInput, role: 'admin' | 'subMember', uploaderUid: string, parentScope?: UserRecord, existingAccount?: UserRecord, reportsAllowed = false): Promise<UserRecord> {
   const fullName = requiredString(input.fullName, 'Full name')
   const email = requiredString(input.email, 'Email').toLowerCase()
   if (!/^\S+@\S+\.\S+$/.test(email)) throw new HttpsError('invalid-argument', 'Enter a valid email address.')
@@ -2382,7 +2630,10 @@ async function buildAccount(input: AccountInput, role: 'admin' | 'subMember', up
   const scope = readScope(input.scope)
   const status = input.status === 'disabled' ? 'disabled' : 'active'
   const parentAdminId = role === 'subMember' ? requiredString(input.parentAdminId, 'Parent Admin') : undefined
-  const permissions = role === 'admin' ? readPermissions(input.permissions) : { upload: false, edit: false, download: true, audit: false }
+  const requestedPermissions = readPermissions(input.permissions)
+  const permissions = role === 'admin'
+    ? requestedPermissions
+    : { upload: false, edit: false, download: true, audit: false, reports: reportsAllowed && requestedPermissions.reports }
   const profilePhotoPath = imagePath(input.profilePhotoPath, uploaderUid, existingAccount?.profilePhotoPath)
   const bannerPath = role === 'admin' ? imagePath(input.bannerPath, uploaderUid, existingAccount?.bannerPath) : undefined
   const deviceLimit = readDeviceLimit(input.deviceLimit ?? existingAccount?.deviceLimit)
@@ -2445,7 +2696,7 @@ function stringList(value: unknown) {
 
 function readPermissions(value: unknown): Permissions {
   const input = value && typeof value === 'object' ? value as Partial<Permissions> : {}
-  return { upload: input.upload === true, edit: input.edit === true, download: input.download === true, audit: input.audit === true }
+  return { upload: input.upload === true, edit: input.edit === true, download: input.download === true, audit: input.audit === true, reports: input.reports === true }
 }
 
 function readDeviceLimit(value: unknown) {
@@ -2637,6 +2888,7 @@ async function enqueueExportTask(exportJobId: string) {
 
 async function scheduleDashboardStatsRefresh(reason: string) {
   try {
+    await db.doc('stats/summary').set({ houseIndexDirty: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
     const queue = getFunctions().taskQueue<{ reason: string }>(`locations/${region}/functions/refreshDashboardStats`)
     await queue.enqueue({ reason })
   } catch (error) {
@@ -3290,6 +3542,13 @@ function voterFromFirestore(id: string, value: Record<string, unknown>): VoterRe
     cardPosition: optionalInteger(value.cardPosition),
     reviewStatus,
     needsReview: value.needsReview === true || reviewStatus === 'needsReview',
+    surveyStatus: readSurveyStatus(value.surveyStatus),
+    surveyReason: plainString(value.surveyReason),
+    surveyDate: plainString(value.surveyDate),
+    surveyUpdatedAt: dateAsIso(value.surveyUpdatedAt),
+    surveyUpdatedBy: plainString(value.surveyUpdatedByName ?? value.surveyUpdatedBy),
+    houseKey: plainString(value.houseKey),
+    houseMemberCount: optionalInteger(value.houseMemberCount),
     uploadedAt: dateAsIso(value.uploadedAt),
     uploadedBy: plainString(value.uploadedByName ?? value.uploadedBy),
   }
@@ -3446,6 +3705,8 @@ function matchesFilters(record: VoterRecord, filters: VoterFilters) {
   const exact = (value: string, query: unknown) => !plainString(query) || value.trim().toLocaleLowerCase() === plainString(query).toLocaleLowerCase()
   const uploadedDate = record.uploadedAt?.slice(0, 10) ?? ''
   const needsReview = filters.needsReview === 'yes' ? true : filters.needsReview === 'no' ? false : undefined
+  const surveyStatus = plainString(filters.surveyStatus)
+  const houseMemberCount = parseHouseMemberCount(filters.houseMemberCount)
   return matchesSearch(record, filters.search) &&
     matches(record.fullName, filters.name) &&
     matches(record.sourcePdfId, filters.sourcePdfId) &&
@@ -3461,9 +3722,19 @@ function matchesFilters(record: VoterRecord, filters: VoterFilters) {
     matches(`${record.sourcePdfName} ${record.sourcePdfId}`, filters.sourcePdf) &&
     (plainString(filters.reviewStatus) === '' || record.reviewStatus === filters.reviewStatus) &&
     (needsReview === undefined || record.needsReview === needsReview) &&
+    (!surveyStatus || effectiveSurveyStatus(record, plainString(filters.surveyDate)) === surveyStatus) &&
+    (!houseMemberCount || (houseMemberCount.operator === '>=' ? (record.houseMemberCount ?? 0) >= houseMemberCount.value : (record.houseMemberCount ?? 0) === houseMemberCount.value)) &&
     (!plainString(filters.uploadedFrom) || uploadedDate >= plainString(filters.uploadedFrom)) &&
     (!plainString(filters.uploadedTo) || uploadedDate <= plainString(filters.uploadedTo)) &&
     matches(record.uploadedBy, filters.uploadedBy)
+}
+
+function readSurveyStatus(value: unknown): SurveyStatus {
+  return value === 'ok' || value === 'noNeed' ? value : 'pending'
+}
+
+function effectiveSurveyStatus(record: VoterRecord, surveyDate: string) {
+  return surveyDate && record.surveyDate !== surveyDate ? 'pending' as const : readSurveyStatus(record.surveyStatus)
 }
 
 function uniqueSorted(values: string[]) {
@@ -3483,6 +3754,14 @@ function queryDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
   const parsed = new Date(`${value}T00:00:00.000Z`)
   return Number.isNaN(parsed.getTime()) ? undefined : parsed
+}
+
+function parseHouseMemberCount(value: unknown): { operator: '==' | '>='; value: number } | undefined {
+  const cleaned = plainString(value)
+  if (!cleaned) return undefined
+  if (cleaned === '10+') return { operator: '>=', value: 10 }
+  const count = Number(cleaned)
+  return Number.isInteger(count) && count > 0 && count <= 100 ? { operator: '==', value: count } : undefined
 }
 
 function optionalInteger(value: unknown) {

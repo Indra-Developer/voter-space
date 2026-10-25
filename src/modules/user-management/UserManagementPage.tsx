@@ -1,11 +1,11 @@
-import { Camera, Check, CheckCircle2, ChevronDown, Eye, EyeOff, Pencil, Plus, ShieldCheck, UserRound, Users, XCircle } from 'lucide-react'
+import { Camera, Check, CheckCircle2, ChevronDown, Eye, EyeOff, Pencil, Plus, ShieldCheck, Trash2, UserRound, Users, XCircle } from 'lucide-react'
 import { collection, getCountFromServer, onSnapshot, orderBy, query, where, type Query } from 'firebase/firestore'
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { db } from '../../lib/firebase'
 import type { AppLanguage } from '../app-shell/types'
 import { joinClasses, uiClasses } from '../app-shell/ui'
 import './user-management.css'
-import { createAccount, readableFirebaseError, resolveStorageFileUrl, updateAccount, uploadAccountImage } from '../auth/firebase-auth'
+import { createAccount, deleteAccount, readableFirebaseError, resolveStorageFileUrl, updateAccount, uploadAccountImage } from '../auth/firebase-auth'
 import { emptyPermissions, type AccountFormValues, type AppSession, type UserProfile } from '../auth/types'
 import { loadVoterFilterOptions } from '../voter-register/voter-service'
 
@@ -29,9 +29,9 @@ const pageCopy = {
     create: 'కొత్త ఖాతా', edit: 'ఖాతా సవరించండి', fullName: 'పూర్తి పేరు', mobile: 'మొబైల్ నంబర్', email: 'లాగిన్ ఇమెయిల్',
     role: 'పాత్ర', admin: 'అడ్మిన్', subMember: 'సబ్-మెంబర్', status: 'ఖాతా స్థితి', active: 'యాక్టివ్', disabled: 'డిసేబుల్',
     profilePhoto: 'ప్రొఫైల్ ఫోటో', banner: 'అడ్మిన్ బ్యానర్', parentAdmin: 'పేరెంట్ అడ్మిన్', wardAccess: 'అనుమతించిన వార్డులు', boothAccess: 'అనుమతించిన బూత్‌లు',
-    assignedWard: 'కేటాయించిన వార్డులు', assignedBooth: 'కేటాయించిన బూత్‌లు', permissions: 'అడ్మిన్ అనుమతులు', upload: 'PDF అప్‌లోడ్', editPermission: 'డేటా సవరింపు', download: 'డౌన్‌లోడ్', audit: 'సొంత ఆడిట్ కార్యకలాపాలు',
+    assignedWard: 'కేటాయించిన వార్డులు', assignedBooth: 'కేటాయించిన బూత్‌లు', permissions: 'అనుమతులు', upload: 'PDF అప్‌లోడ్', editPermission: 'డేటా సవరింపు', download: 'డౌన్‌లోడ్', audit: 'సొంత ఆడిట్ కార్యకలాపాలు', reports: 'రోజువారీ నివేదికలు',
     password: 'లాగిన్ పాస్‌వర్డ్', confirmPassword: 'పాస్‌వర్డ్ నిర్ధారించండి', showPassword: 'పాస్‌వర్డ్ చూపించండి', hidePassword: 'పాస్‌వర్డ్ దాచండి', passwordHelp: 'కనీసం 8 అక్షరాలు. సృష్టించిన ఖాతా ఇదే పాస్‌వర్డ్‌తో లాగిన్ అవుతుంది.', passwordEditHelp: 'మార్చాల్సిన అవసరం లేకపోతే ఖాళీగా ఉంచండి.', passwordMismatch: 'రెండు పాస్‌వర్డ్‌లు ఒకేలా ఉండాలి.', passwordShort: 'పాస్‌వర్డ్‌లో కనీసం 8 అక్షరాలు ఉండాలి.', save: 'ఖాతా సేవ్ చేయండి', cancel: 'రద్దు', editAccount: 'సవరించండి', disable: 'యాక్సెస్ తొలగించండి', enable: 'యాక్సెస్ ఇవ్వండి',
-    deviceLimit: 'అనుమతించిన డివైస్‌లు', deviceLimitHelp: 'ఈ ఖాతా ఒకేసారి ఎన్ని డివైస్‌లలో లాగిన్ కావచ్చో ఎంచుకోండి.', device: 'డివైస్', devices: 'డివైస్‌లు',
+    deviceLimit: 'అనుమతించిన డివైస్‌లు', deviceLimitHelp: 'ఈ ఖాతా ఒకేసారి ఎన్ని డివైస్‌లలో లాగిన్ కావచ్చో ఎంచుకోండి.', device: 'డివైస్', devices: 'డివైస్‌లు', deleteAccount: 'ఖాతా తొలగించండి', deleteConfirm: 'ఈ ఖాతాను శాశ్వతంగా తొలగించాలా?', deleted: 'ఖాతా తొలగించబడింది.',
     ownMembers: 'మీ సబ్-మెంబర్లు మాత్రమే కనిపిస్తారు.', noUsers: 'ఇంకా వినియోగదారులు లేరు.', saved: 'ఖాతా సేవ్ అయింది. ఈ ఫారమ్‌లో ఇచ్చిన పాస్‌వర్డ్‌తో యూజర్ లాగిన్ అవ్వవచ్చు.',
     commaHelp: 'డేటాబేస్‌లో ఉన్న వార్డులు మరియు బూత్‌లను ఇక్కడ ఎంచుకోండి.', selectOneOrMore: 'ఒకటి లేదా అంతకంటే ఎక్కువ ఎంచుకోండి', noValues: 'ఇంకా విలువలు అందుబాటులో లేవు', noAdmins: 'ముందుగా ఒక అడ్మిన్ ఖాతాను సృష్టించండి.', imageWarning: 'ఖాతా సృష్టించబడింది. చిత్రం సేవ్ కాలేదు; ఈ ఖాతాను సవరించి మళ్లీ చిత్రాన్ని ఎంచుకోండి.',
   },
@@ -40,9 +40,9 @@ const pageCopy = {
     create: 'New account', edit: 'Edit account', fullName: 'Full name', mobile: 'Mobile number', email: 'Login email',
     role: 'Role', admin: 'Admin', subMember: 'Sub-member', status: 'Account status', active: 'Active', disabled: 'Disabled',
     profilePhoto: 'Profile photo', banner: 'Admin banner', parentAdmin: 'Parent Admin', wardAccess: 'Allowed wards', boothAccess: 'Allowed booths',
-    assignedWard: 'Assigned wards', assignedBooth: 'Assigned booths', permissions: 'Admin permissions', upload: 'PDF upload', editPermission: 'Edit data', download: 'Download', audit: 'Own audit activity',
+    assignedWard: 'Assigned wards', assignedBooth: 'Assigned booths', permissions: 'Account permissions', upload: 'PDF upload', editPermission: 'Edit data', download: 'Download', audit: 'Own audit activity', reports: 'Daily reports',
     password: 'Login password', confirmPassword: 'Confirm password', showPassword: 'Show password', hidePassword: 'Hide password', passwordHelp: 'At least 8 characters. The new account will log in with this password.', passwordEditHelp: 'Leave blank if the password should stay unchanged.', passwordMismatch: 'Both passwords must match.', passwordShort: 'Password must contain at least 8 characters.', save: 'Save account', cancel: 'Cancel', editAccount: 'Edit', disable: 'Remove access', enable: 'Enable access',
-    deviceLimit: 'Allowed devices', deviceLimitHelp: 'Choose how many devices can use this account at the same time.', device: 'device', devices: 'devices',
+    deviceLimit: 'Allowed devices', deviceLimitHelp: 'Choose how many devices can use this account at the same time.', device: 'device', devices: 'devices', deleteAccount: 'Delete account', deleteConfirm: 'Delete this account permanently?', deleted: 'Account deleted.',
     ownMembers: 'Only your own sub-members are shown.', noUsers: 'There are no users yet.', saved: 'Account saved. The user can log in with the password entered in this form.',
     commaHelp: 'Select the wards and booths available in the database.', selectOneOrMore: 'Select one or more', noValues: 'No values are available yet', noAdmins: 'Create an Admin account first.', imageWarning: 'The account was created, but an image was not saved. Edit this account and select the image again.',
   },
@@ -56,6 +56,7 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
   const [editingUser, setEditingUser] = useState<DirectoryUser>()
   const [showForm, setShowForm] = useState(false)
   const [notice, setNotice] = useState<string>()
+  const [deletingUserId, setDeletingUserId] = useState<string>()
   const [scopeOptions, setScopeOptions] = useState<ScopeOptions>({ wards: [], booths: [], boothsByWard: {} })
   const snapshotVersion = useRef(0)
   const t = pageCopy[language]
@@ -171,6 +172,29 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
     }
   }
 
+  const canDeleteUser = (user: DirectoryUser) => isSuperAdmin || (session.profile.role === 'admin' && user.role === 'subMember' && user.parentAdminId === session.uid)
+  const handleDelete = async (user: DirectoryUser) => {
+    if (!canDeleteUser(user) || deletingUserId) return
+    if (!window.confirm(`${t.deleteConfirm}\n\n${user.fullName}`)) return
+    setDeletingUserId(user.uid)
+    try {
+      await deleteAccount(user.uid)
+      setUsers((current) => current.filter((item) => item.uid !== user.uid))
+      setMetricValues((current) => ({
+        ...current,
+        accounts: Math.max(0, (current.accounts ?? 0) - 1),
+        admins: user.role === 'admin' ? Math.max(0, (current.admins ?? 0) - 1) : current.admins,
+        members: user.role === 'subMember' ? Math.max(0, (current.members ?? 0) - 1) : current.members,
+        active: user.status === 'active' ? Math.max(0, (current.active ?? 0) - 1) : current.active,
+      }))
+      setNotice(t.deleted)
+    } catch (error) {
+      setNotice(readableFirebaseError(error))
+    } finally {
+      setDeletingUserId(undefined)
+    }
+  }
+
   return (
     <section className="user-management grid gap-4 font-sans text-copy">
       <header className="user-management-intro flex justify-end">
@@ -220,6 +244,7 @@ export function UserManagementPage({ language, session }: UserManagementPageProp
             <div className="user-row-actions">
               <button aria-label={t.editAccount} className={joinClasses(uiClasses.button, uiClasses.secondaryButton, 'min-h-9 text-xs')} onClick={() => startEdit(user)} type="button"><Pencil size={16} />{t.editAccount}</button>
               {isSuperAdmin ? <button className={joinClasses(user.status === 'active' ? 'danger-action' : 'success-action', uiClasses.button, user.status === 'active' ? uiClasses.dangerButton : uiClasses.primaryButton, 'min-h-9 text-xs')} onClick={() => handleAccess(user)} type="button">{user.status === 'active' ? <XCircle size={16} /> : <CheckCircle2 size={16} />}{user.status === 'active' ? t.disable : t.enable}</button> : null}
+              {canDeleteUser(user) ? <button aria-label={t.deleteAccount} className={joinClasses('danger-action', uiClasses.button, uiClasses.dangerButton, 'min-h-9 text-xs')} disabled={deletingUserId === user.uid} onClick={() => void handleDelete(user)} type="button"><Trash2 size={16} />{deletingUserId === user.uid ? '…' : t.deleteAccount}</button> : null}
             </div>
           </article>
         ))}
@@ -389,7 +414,7 @@ function AccountForm({ adminOptions, initialUser, language, onCancel, onComplete
         </div></fieldset>
       )}
 
-      {isAdminAccount ? <fieldset className={joinClasses('permissions-grid', uiClasses.card, 'grid gap-3 p-4')}><legend>{t.permissions}</legend><CheckBox checked={values.permissions.upload} label={t.upload} onChange={(checked) => setPermission('upload', checked)} /><CheckBox checked={values.permissions.edit} label={t.editPermission} onChange={(checked) => setPermission('edit', checked)} /><CheckBox checked={values.permissions.download} label={t.download} onChange={(checked) => setPermission('download', checked)} /><CheckBox checked={values.permissions.audit} label={t.audit} onChange={(checked) => setPermission('audit', checked)} /></fieldset> : null}
+      {isAdminAccount || isSuperAdmin ? <fieldset className={joinClasses('permissions-grid', uiClasses.card, 'grid gap-3 p-4')}><legend>{t.permissions}</legend>{isAdminAccount ? <><CheckBox checked={values.permissions.upload} label={t.upload} onChange={(checked) => setPermission('upload', checked)} /><CheckBox checked={values.permissions.edit} label={t.editPermission} onChange={(checked) => setPermission('edit', checked)} /><CheckBox checked={values.permissions.download} label={t.download} onChange={(checked) => setPermission('download', checked)} /><CheckBox checked={values.permissions.audit} label={t.audit} onChange={(checked) => setPermission('audit', checked)} /></> : null}{isSuperAdmin ? <CheckBox checked={values.permissions.reports} label={t.reports} onChange={(checked) => setPermission('reports', checked)} /> : null}</fieldset> : null}
 
       <div className="account-form-actions flex flex-wrap justify-end gap-2"><button className={joinClasses('secondary-button', uiClasses.button, uiClasses.secondaryButton)} onClick={onCancel} type="button">{t.cancel}</button><button className={joinClasses('primary-button', uiClasses.button, uiClasses.primaryButton)} disabled={isSaving} type="submit">{isSaving ? '…' : t.save}</button></div>
     </form>

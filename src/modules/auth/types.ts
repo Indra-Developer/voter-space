@@ -7,6 +7,7 @@ export type UserPermissions = {
   edit: boolean
   download: boolean
   audit: boolean
+  reports: boolean
 }
 
 export type AccessScope = {
@@ -55,4 +56,4 @@ export type AccountFormValues = {
   deviceLimit: number
 }
 
-export const emptyPermissions: UserPermissions = { upload: false, edit: false, download: true, audit: false }
+export const emptyPermissions: UserPermissions = { upload: false, edit: false, download: true, audit: false, reports: false }

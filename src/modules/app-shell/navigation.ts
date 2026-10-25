@@ -1,6 +1,7 @@
 import {
   Activity,
   BookOpen,
+  ClipboardList,
   LayoutDashboard,
   Settings,
   Upload,
@@ -22,6 +23,7 @@ export const navigationItems: NavigationItem[] = [
   { key: 'users', icon: Users },
   { key: 'directory', icon: UsersRound },
   { key: 'audit', icon: Activity },
+  { key: 'reports', icon: ClipboardList },
   { key: 'settings', icon: Settings },
 ]
 

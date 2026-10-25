@@ -7,6 +7,7 @@ export const navigationPaths: Record<NavigationKey, string> = {
   users: '/user-management',
   directory: '/user-directory',
   audit: '/audit-logs',
+  reports: '/daily-reports',
   settings: '/settings',
 }
 

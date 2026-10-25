@@ -25,6 +25,13 @@ export type VoterRecord = {
   cardPosition?: number
   uploadedAt?: string
   uploadedBy: string
+  reviewStatus?: 'pending' | 'reviewed' | 'needsReview'
+  needsReview?: boolean
+  surveyStatus?: 'ok' | 'pending' | 'noNeed'
+  surveyReason?: string
+  surveyDate?: string
+  surveyUpdatedAt?: string
+  surveyUpdatedBy?: string
 }
 
 export type VoterFilters = {
@@ -44,10 +51,15 @@ export type VoterFilters = {
   uploadedFrom: string
   uploadedTo: string
   uploadedBy: string
+  reviewStatus?: '' | 'pending' | 'reviewed' | 'needsReview'
+  needsReview?: '' | 'yes' | 'no'
+  surveyStatus?: '' | 'ok' | 'pending' | 'noNeed'
+  surveyDate?: string
+  houseMemberCount?: string
 }
 
 export const emptyVoterFilters: VoterFilters = {
-  search: '', name: '', doorNumber: '', voterId: '', alternateIdentifier: '', mobile: '', serialNumber: '', wardId: '', boothId: '', area: '', division: '', sourcePdf: '', uploadedFrom: '', uploadedTo: '', uploadedBy: '',
+  search: '', name: '', doorNumber: '', voterId: '', alternateIdentifier: '', mobile: '', serialNumber: '', wardId: '', boothId: '', area: '', division: '', sourcePdf: '', uploadedFrom: '', uploadedTo: '', uploadedBy: '', reviewStatus: '', needsReview: '', surveyStatus: '', houseMemberCount: '',
 }
 
 export type VoterFilterOptions = {

@@ -53,12 +53,59 @@ export async function loadVoters(cursor?: string, options: VoterLoadOptions = {}
   }, { ttlMs: 30_000, force: options.force })
 }
 
+export type HouseVoterGroup = {
+  key: string
+  wardId: string
+  boothId: string
+  doorNumber: string
+  area: string
+  records: VoterRecord[]
+}
+
+export type HouseGroupContext = 'reports' | 'register'
+
+export async function loadHouseGroups(cursor?: string, options: VoterLoadOptions = {}, context: HouseGroupContext = 'reports') {
+  const key = `house-groups:${context}:${auth?.currentUser?.uid ?? 'signed-out'}:${cursor ?? 'first'}:${JSON.stringify({ filters: options.filters ?? {} })}`
+  return cachedRequest(key, async () => {
+    const listHouseGroups = httpsCallable<{ cursor?: string; pageSize: number; context: HouseGroupContext } & Partial<VoterFilters>, { groups: HouseVoterGroup[]; nextCursor?: string; hasMore: boolean }>(requireFunctions(), 'listHouseGroups')
+    const result = await listHouseGroups({ cursor, pageSize: 50, context, ...(options.filters ?? {}) })
+    return result.data
+  }, { ttlMs: 30_000, force: options.force })
+}
+
 export async function countVoters(filters: VoterFilters, options: { force?: boolean } = {}) {
   const key = `voter-count:${auth?.currentUser?.uid ?? 'signed-out'}:${JSON.stringify(filters)}`
   return cachedRequest(key, async () => {
     const call = httpsCallable<Partial<VoterFilters>, { totalCount: number }>(requireFunctions(), 'countVoters')
     return (await call(filters)).data
   }, { ttlMs: 30_000, force: options.force })
+}
+
+export type DailySurveySummary = {
+  totalVoters: number
+  totalHouses: number
+  okVoters: number
+  pendingVoters: number
+  noNeedVoters: number
+  completedHouses: number
+  pendingHouses: number
+}
+
+export async function loadDailySurveySummary(filters: VoterFilters, surveyDate: string, options: { force?: boolean } = {}) {
+  const key = `daily-survey-summary:${auth?.currentUser?.uid ?? 'signed-out'}:${surveyDate}:${JSON.stringify(filters)}`
+  return cachedRequest(key, async () => {
+    const call = httpsCallable<{ filters: VoterFilters; surveyDate: string }, DailySurveySummary>(requireFunctions(), 'getDailySurveySummary')
+    return (await call({ filters, surveyDate })).data
+  }, { ttlMs: 15_000, force: options.force })
+}
+
+export async function updateVoterSurveyStatus(payload: { voterIds: string[]; status: 'ok' | 'pending' | 'noNeed'; reason?: string; surveyDate: string; house?: { wardId: string; boothId: string; doorNumber: string } }) {
+  const call = httpsCallable<typeof payload, { updatedCount: number }>(requireFunctions(), 'updateVoterSurveyStatus')
+  const result = (await call(payload)).data
+  invalidateVoterDataCache()
+  invalidateRequestCache('daily-survey-summary:')
+  invalidateRequestCache('audit-logs:')
+  return result
 }
 
 export async function runVoterExport(options: {
@@ -137,6 +184,7 @@ export function invalidateVoterDataCache() {
   invalidateRequestCache('dashboard-summary:')
   invalidateRequestCache('dashboard-metric:')
   invalidateRequestCache('audit-logs:')
+  invalidateRequestCache('daily-survey-summary:')
 }
 
 export async function deleteVotersByWard(wardId: string) {

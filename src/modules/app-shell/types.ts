@@ -11,6 +11,7 @@ export type NavigationKey =
   | 'users'
   | 'directory'
   | 'audit'
+  | 'reports'
   | 'settings'
 
 export type ShellProfile = {

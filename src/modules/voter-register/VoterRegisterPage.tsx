@@ -6,18 +6,19 @@ import { readableFirebaseError } from '../auth/firebase-auth'
 import type { AppLanguage } from '../app-shell/types'
 import { PageState } from '../app-shell/PageState'
 import { joinClasses, uiClasses } from '../app-shell/ui'
-import { countVoters, deleteVoter, loadVoterCardImage, loadVoterFilterOptions, loadVoters, runVoterExport, saveVoter, ServerExportCancelledError, type VoterExportFormat } from './voter-service'
+import { countVoters, deleteVoter, loadHouseGroups, loadVoterCardImage, loadVoterFilterOptions, loadVoters, runVoterExport, saveVoter, ServerExportCancelledError, type VoterExportFormat } from './voter-service'
 import { emptyVoterFilters, type VoterFilterOptions, type VoterFilters, type VoterRecord } from './types'
 import { displayDoorNumber, displayOfficialVoterId, missingOfficialVoterId } from './voter-display'
 
 type ViewMode = 'individual' | 'door'
 type VoterPageResult = Awaited<ReturnType<typeof loadVoters>>
+type HouseGroupPageResult = Awaited<ReturnType<typeof loadHouseGroups>>
 type FirstPageCache = { key: string; result: VoterPageResult; cachedAt: number }
-const screenCopy = {
+export const screenCopy = {
   en: {
     label: 'Voter data', title: 'Voter Register', description: 'Find voters, check records, and export only the records you are allowed to access.',
     search: 'Search all voter fields', searchPlaceholder: 'Name, voter ID, door number, serial, ward, booth, area, division, PDF…', searchHint: 'You can search using Telugu, English spelling, voter ID, door number, serial number, ward, booth, area, division, mobile number, or PDF name.', refresh: 'Refresh', records: 'records', individual: 'Individual records', doorWise: 'Door-wise view',
-    filters: 'Filters', filterHint: 'Narrow down records using the filters below.', clear: 'Clear filters', moreFilters: 'More filters', hideFilters: 'Hide filters', name: 'Name', door: 'House number', voterId: 'Voter ID', alternateId: 'Alternate ID', mobile: 'Mobile number', serial: 'Serial number', ward: 'Ward', booth: 'Booth', area: 'Area', division: 'Division', source: 'Source PDF', uploadedFrom: 'Uploaded from', uploadedTo: 'Uploaded to', uploadedBy: 'Uploaded by', members: 'members', chooseDate: 'Choose upload dates', deleteWardOpen: 'Delete ward', deleteWardTitle: 'Delete complete ward data', deleteWardHint: 'This permanently removes the ward voters, voter card images, source PDFs, and import rows from Firestore and Storage.', selectWard: 'Select ward', typeWard: 'Type the ward number to confirm', deleteWard: 'Delete ward data', deletingWard: 'Deleting ward data…', deleteWardSuccess: 'Ward data deleted successfully.', deleteWardError: 'Ward data could not be deleted.', cancel: 'Cancel',
+    filters: 'Filters', filterHint: 'Narrow down records using the filters below.', clear: 'Clear filters', moreFilters: 'More filters', hideFilters: 'Hide filters', name: 'Name', door: 'House number', voterId: 'Voter ID', alternateId: 'Alternate ID', mobile: 'Mobile number', serial: 'Serial number', ward: 'Ward', booth: 'Booth', area: 'Area', division: 'Division', source: 'Source PDF', uploadedFrom: 'Uploaded from', uploadedTo: 'Uploaded to', uploadedBy: 'Uploaded by', houseMembers: 'House members', members: 'members', chooseDate: 'Choose upload dates', deleteWardOpen: 'Delete ward', deleteWardTitle: 'Delete complete ward data', deleteWardHint: 'This permanently removes the ward voters, voter card images, source PDFs, and import rows from Firestore and Storage.', selectWard: 'Select ward', typeWard: 'Type the ward number to confirm', deleteWard: 'Delete ward data', deletingWard: 'Deleting ward data…', deleteWardSuccess: 'Ward data deleted successfully.', deleteWardError: 'Ward data could not be deleted.', cancel: 'Cancel',
     any: 'All',
     export: 'Exports', hideExport: 'Hide exports', exportExcel: 'Excel', exportPdf: 'PDF', exportCsv: 'CSV', exporting: 'Preparing export…', preparingExport: 'Preparing export…', recordsProcessed: 'Records processed', downloadReady: 'Download ready.', cancelExport: 'Cancel export', retryExport: 'Retry export', exportCancelled: 'Export cancelled.', exportError: 'The export could not be completed.', exportHint: 'Exports include every database record matching the selected filters.',
     noRecords: 'No voter found for this search.', noData: 'No voter records have been imported yet.',
@@ -27,7 +28,7 @@ const screenCopy = {
   te: {
     label: 'ఓటర్ డేటా', title: 'ఓటర్ రిజిస్టర్', description: 'ఓటర్లను వెతకండి, రికార్డులను చూడండి, మీకు అనుమతి ఉన్న డేటాను మాత్రమే ఎగుమతి చేయండి.',
     search: 'ఓటర్ వివరాల్లో వెతకండి', searchPlaceholder: 'పేరు, ఓటర్ ఐడి, ఇంటి నంబర్, సీరియల్, వార్డు, బూత్…', searchHint: 'తెలుగు లేదా ఇంగ్లీష్ స్పెల్లింగ్‌తో వెతకండి.', refresh: 'రిఫ్రెష్', records: 'రికార్డులు', individual: 'వ్యక్తిగతం', doorWise: 'ఇంటి వారీ',
-    filters: 'ఫిల్టర్లు', filterHint: 'ఫిల్టర్లను ఉపయోగించండి.', clear: 'ఫిల్టర్లు క్లియర్', moreFilters: 'మరిన్ని ఫిల్టర్లు', hideFilters: 'ఫిల్టర్లు దాచండి', name: 'పేరు', door: 'ఇంటి నంబర్', voterId: 'ఓటర్ ఐడి', alternateId: 'ప్రత్యామ్నాయ ఐడి', mobile: 'మొబైల్ నంబర్', serial: 'సీరియల్ నంబర్', ward: 'వార్డు', booth: 'బూత్', area: 'ప్రాంతం', division: 'డివిజన్', source: 'సోర్స్ PDF', uploadedFrom: 'అప్‌లోడ్ మొదలు', uploadedTo: 'అప్‌లోడ్ చివరి తేదీ', uploadedBy: 'అప్‌లోడ్ చేసినవారు', members: 'సభ్యులు', chooseDate: 'అప్‌లోడ్ తేదీలను ఎంచుకోండి', deleteWardOpen: 'వార్డు తొలగింపు', deleteWardTitle: 'వార్డు మొత్తం డేటాను తొలగించండి', deleteWardHint: 'ఈ చర్య వార్డు ఓటర్లు, ఓటర్ కార్డు చిత్రాలు, సోర్స్ PDFలు మరియు Firestore, Storageలోని దిగుమతి వరుసలను శాశ్వతంగా తొలగిస్తుంది.', selectWard: 'వార్డును ఎంచుకోండి', typeWard: 'నిర్ధారించడానికి వార్డు నంబర్ టైప్ చేయండి', deleteWard: 'వార్డు డేటా తొలగించండి', deletingWard: 'వార్డు డేటా తొలగిస్తోంది…', deleteWardSuccess: 'వార్డు డేటా విజయవంతంగా తొలగించబడింది.', deleteWardError: 'వార్డు డేటా తొలగించలేకపోయాము.', cancel: 'రద్దు',
+    filters: 'ఫిల్టర్లు', filterHint: 'ఫిల్టర్లను ఉపయోగించండి.', clear: 'ఫిల్టర్లు క్లియర్', moreFilters: 'మరిన్ని ఫిల్టర్లు', hideFilters: 'ఫిల్టర్లు దాచండి', name: 'పేరు', door: 'ఇంటి నంబర్', voterId: 'ఓటర్ ఐడి', alternateId: 'ప్రత్యామ్నాయ ఐడి', mobile: 'మొబైల్ నంబర్', serial: 'సీరియల్ నంబర్', ward: 'వార్డు', booth: 'బూత్', area: 'ప్రాంతం', division: 'డివిజన్', source: 'సోర్స్ PDF', uploadedFrom: 'అప్‌లోడ్ మొదలు', uploadedTo: 'అప్‌లోడ్ చివరి తేదీ', uploadedBy: 'అప్‌లోడ్ చేసినవారు', houseMembers: 'ఇంటి సభ్యులు', members: 'సభ్యులు', chooseDate: 'అప్‌లోడ్ తేదీలను ఎంచుకోండి', deleteWardOpen: 'వార్డు తొలగింపు', deleteWardTitle: 'వార్డు మొత్తం డేటాను తొలగించండి', deleteWardHint: 'ఈ చర్య వార్డు ఓటర్లు, ఓటర్ కార్డు చిత్రాలు, సోర్స్ PDFలు మరియు Firestore, Storageలోని దిగుమతి వరుసలను శాశ్వతంగా తొలగిస్తుంది.', selectWard: 'వార్డును ఎంచుకోండి', typeWard: 'నిర్ధారించడానికి వార్డు నంబర్ టైప్ చేయండి', deleteWard: 'వార్డు డేటా తొలగించండి', deletingWard: 'వార్డు డేటా తొలగిస్తోంది…', deleteWardSuccess: 'వార్డు డేటా విజయవంతంగా తొలగించబడింది.', deleteWardError: 'వార్డు డేటా తొలగించలేకపోయాము.', cancel: 'రద్దు',
     any: 'అన్నీ',
     export: 'ఎగుమతులు', hideExport: 'ఎగుమతులు దాచండి', exportExcel: 'ఎక్సెల్', exportPdf: 'PDF', exportCsv: 'CSV', exporting: 'ఎగుమతి సిద్ధమవుతోంది…', preparingExport: 'ఎగుమతి సిద్ధమవుతోంది…', recordsProcessed: 'ప్రాసెస్ చేసిన రికార్డులు', downloadReady: 'డౌన్‌లోడ్ సిద్ధంగా ఉంది.', cancelExport: 'ఎగుమతి రద్దు', retryExport: 'ఎగుమతి మళ్లీ ప్రయత్నించండి', exportCancelled: 'ఎగుమతి రద్దు అయింది.', exportError: 'ఎగుమతిని పూర్తి చేయలేకపోయాము.', exportHint: 'ఎంచుకున్న ఫిల్టర్లకు సరిపోయే డేటాబేస్ రికార్డులన్నీ ఎగుమతి అవుతాయి.',
     noRecords: 'ఈ వెతుకులాటకు ఓటరు దొరకలేదు.', noData: 'ఇంకా ఓటర్ రికార్డులు దిగుమతి కాలేదు.',
@@ -98,7 +99,7 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
 
   const reload = useCallback(async (requestedFilters: VoterFilters, refreshOptions = false) => {
     const requestVersion = ++dataRequestVersion.current
-    const cacheKey = JSON.stringify(requestedFilters)
+    const cacheKey = JSON.stringify({ view, filters: requestedFilters })
     if (refreshOptions) firstPageCache.current = undefined
     const cachedEntry = !refreshOptions && firstPageCache.current?.key === cacheKey && Date.now() - firstPageCache.current.cachedAt < 60_000 ? firstPageCache.current : undefined
     if (!cachedEntry && firstPageCache.current?.key === cacheKey) firstPageCache.current = undefined
@@ -114,7 +115,11 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     setIsLoadingMore(false)
     setLoadMoreError(undefined)
     const countPromise = countVoters(requestedFilters, { force: refreshOptions })
-    const pagePromise = cachedPage ? Promise.resolve(cachedPage) : loadVoters(undefined, { filters: requestedFilters, force: refreshOptions })
+    const pagePromise = cachedPage
+      ? Promise.resolve(cachedPage)
+      : view === 'door' && Boolean(requestedFilters.houseMemberCount)
+        ? loadHouseGroups(undefined, { filters: requestedFilters, force: refreshOptions }, 'register').then(flattenHouseGroupPage)
+        : loadVoters(undefined, { filters: requestedFilters, force: refreshOptions })
     const optionsPromise = shouldLoadOptions ? loadVoterFilterOptions() : Promise.resolve<VoterFilterOptions | undefined>(undefined)
     try {
       const result = await pagePromise
@@ -149,7 +154,7 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
       }
     } finally {
     }
-  }, [])
+  }, [view])
 
   useEffect(() => {
     // Wait until typing has stopped before starting a callable request. The
@@ -165,7 +170,9 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     setIsLoadingMore(true)
     setLoadMoreError(undefined)
     try {
-      const result = await loadVoters(nextCursor, { filters })
+      const result = view === 'door' && Boolean(filters.houseMemberCount)
+        ? await loadHouseGroups(nextCursor, { filters }, 'register').then(flattenHouseGroupPage)
+        : await loadVoters(nextCursor, { filters })
       if (requestVersion !== dataRequestVersion.current) return
       setRecords((current) => [...(current ?? []), ...result.records])
       setNextCursor(result.nextCursor)
@@ -177,7 +184,7 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     } finally {
       if (requestVersion === dataRequestVersion.current) setIsLoadingMore(false)
     }
-  }, [filters, hasMore, isLoadingMore, nextCursor])
+  }, [filters, hasMore, isLoadingMore, nextCursor, view])
 
   useEffect(() => {
     const target = loadMoreSentinel.current
@@ -235,6 +242,7 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     next.delete('voter')
     if (nextView === 'individual') next.delete('door')
     setEditing(false)
+    if (nextView === 'individual' && filters.houseMemberCount) setFilters((current) => ({ ...current, houseMemberCount: '' }))
     setSearchParams(next)
   }
   const closeRecord = () => {
@@ -313,6 +321,7 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
         <NativeFilterSelect icon={<Building2 size={20} />} label={t.booth} value={filters.boothId} options={boothOptions} anyLabel={t.any} onChange={(value) => updateFilter('boothId', value)} />
         <NativeFilterSelect icon={<MapIcon size={20} />} label={t.area} value={filters.area} options={options.areas} anyLabel={t.any} onChange={(value) => updateFilter('area', value)} />
       </div>
+      {view === 'door' ? <div className="grid grid-cols-2 gap-2 border-t border-border pt-3 sm:grid-cols-4 sm:gap-3"><NativeFilterSelect label={t.houseMembers} value={filters.houseMemberCount ?? ''} options={houseMemberFilterOptions(t.members)} anyLabel={t.any} onChange={(value) => updateFilter('houseMemberCount', value)} /></div> : null}
       {showMoreFilters ? <div className="grid grid-cols-3 gap-2 border-t border-border pt-3 sm:gap-3"><NativeFilterSelect label={t.division} value={filters.division} options={options.divisions} anyLabel={t.any} onChange={(value) => updateFilter('division', value)} /><NativeFilterSelect label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} onChange={(value) => updateFilter('sourcePdf', value)} /><NativeFilterSelect label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} onChange={(value) => updateFilter('uploadedBy', value)} /></div> : null}
     </section> : null}
 
@@ -397,7 +406,7 @@ function DoorWiseRecords({ groups, selectedDoor, onDoorOpen, onDoorClose, onOpen
   </>
 }
 
-function VoterDialog({ canDelete, canEdit, language, onClose, onDelete, onSave, record, startEditing, t }: { canDelete: boolean; canEdit: boolean; language: AppLanguage; onClose: () => void; onDelete: (record: VoterRecord) => Promise<void>; onSave: (record: VoterRecord) => Promise<void>; record: VoterRecord; startEditing: boolean; t: ScreenText }) {
+export function VoterDialog({ canDelete, canEdit, language, onClose, onDelete, onSave, record, startEditing, t }: { canDelete: boolean; canEdit: boolean; language: AppLanguage; onClose: () => void; onDelete: (record: VoterRecord) => Promise<void>; onSave: (record: VoterRecord) => Promise<void>; record: VoterRecord; startEditing: boolean; t: ScreenText }) {
   const [editing, setEditing] = useState(startEditing)
   const [draft, setDraft] = useState(() => ({ ...record, doorNumber: displayDoorNumber(record.doorNumber) }))
   const [saving, setSaving] = useState(false)
@@ -484,8 +493,10 @@ function FilterInput({ hideLabel = false, label, type = 'search', placeholder, v
   return <label className={hideLabel ? 'relative block' : voterUi.field}><span className={hideLabel ? 'sr-only' : voterUi.label}>{label}</span><Search aria-hidden="true" className={hideLabel ? 'pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-muted' : 'hidden'} size={21} /><input className={joinClasses(uiClasses.input, hideLabel && 'h-12 rounded-xl border px-12 text-sm font-medium shadow-inner placeholder:text-muted sm:h-14 sm:text-base')} onFocus={(event) => { if (hideLabel) window.setTimeout(() => event.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' }), 180) }} placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} /></label>
 }
 
-function NativeFilterSelect({ icon, label, value, options, anyLabel, onChange }: { icon?: ReactNode; label: string; value: string; options: string[]; anyLabel: string; onChange: (value: string) => void }) {
-  return <label className={voterUi.field}><span className="truncate text-xs font-extrabold text-copy sm:text-sm">{label}</span><div className="relative min-w-0">{icon ? <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 text-muted">{icon}</span> : null}<select className={joinClasses(voterUi.select, icon ? undefined : 'px-2')} value={value} onChange={(event) => onChange(event.target.value)}><option value="">{anyLabel}</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted" size={14} /></div></label>
+type NativeFilterOption = string | { value: string; label: string }
+
+function NativeFilterSelect({ icon, label, value, options, anyLabel, onChange }: { icon?: ReactNode; label: string; value: string; options: NativeFilterOption[]; anyLabel: string; onChange: (value: string) => void }) {
+  return <label className={voterUi.field}><span className="truncate text-xs font-extrabold text-copy sm:text-sm">{label}</span><div className="relative min-w-0">{icon ? <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 text-muted">{icon}</span> : null}<select className={joinClasses(voterUi.select, icon ? undefined : 'px-2')} value={value} onChange={(event) => onChange(event.target.value)}><option value="">{anyLabel}</option>{options.map((option) => { const normalized = typeof option === 'string' ? { value: option, label: option } : option; return <option key={normalized.value} value={normalized.value}>{normalized.label}</option> })}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted" size={14} /></div></label>
 }
 
 function EditorField({ disabled, label, placeholder, value, onChange }: { disabled: boolean; label: string; placeholder?: string; value: string; onChange: (value: string) => void }) {
@@ -522,6 +533,18 @@ function naturalCompare(first: string, second: string) {
 
 function hasActiveVoterFilters(filters: VoterFilters) {
   return Object.values(filters).some(Boolean)
+}
+
+function flattenHouseGroupPage(page: HouseGroupPageResult): VoterPageResult {
+  return {
+    records: page.groups.flatMap((group) => group.records),
+    nextCursor: page.nextCursor,
+    hasMore: page.hasMore,
+  }
+}
+
+function houseMemberFilterOptions(memberLabel: string): NativeFilterOption[] {
+  return [...Array.from({ length: 9 }, (_, index) => index + 1), '10+'].map((value) => ({ value: String(value), label: `${value} ${memberLabel}` }))
 }
 
 function formatDate(value: string | undefined, language: AppLanguage) { return value ? new Intl.DateTimeFormat(language === 'te' ? 'te-IN' : 'en-IN', { dateStyle: 'medium' }).format(new Date(value)) : '—' }

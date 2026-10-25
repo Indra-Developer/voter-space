@@ -108,6 +108,67 @@
         { "fieldPath": "divisionId", "order": "ASCENDING" },
         { "fieldPath": "uploadedAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "voters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "boothId", "order": "ASCENDING" },
+        { "fieldPath": "houseMemberCount", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "voters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "houseMemberCount", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "voters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "boothId", "order": "ASCENDING" },
+        { "fieldPath": "houseMemberCount", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "voters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "houseMemberCount", "order": "ASCENDING" },
+        { "fieldPath": "houseKey", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "voters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "houseMemberCount", "order": "ASCENDING" },
+        { "fieldPath": "houseKey", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "voters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "boothId", "order": "ASCENDING" },
+        { "fieldPath": "houseMemberCount", "order": "ASCENDING" },
+        { "fieldPath": "houseKey", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "voters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "boothId", "order": "ASCENDING" },
+        { "fieldPath": "houseMemberCount", "order": "ASCENDING" },
+        { "fieldPath": "houseKey", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

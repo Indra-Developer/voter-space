@@ -13,6 +13,7 @@ const ProfilePage = lazy(() => import('./modules/auth/ProfilePage').then((module
 const UserManagementPage = lazy(() => import('./modules/user-management/UserManagementPage').then((module) => ({ default: module.UserManagementPage })))
 const UserDirectoryPage = lazy(() => import('./modules/user-directory/UserDirectoryPage').then((module) => ({ default: module.UserDirectoryPage })))
 const AuditLogPage = lazy(() => import('./modules/audit-logs/AuditLogPage').then((module) => ({ default: module.AuditLogPage })))
+const DailyReportsPage = lazy(() => import('./modules/daily-reports/ReferenceSurveyReportsPage').then((module) => ({ default: module.ReferenceSurveyReportsPage })))
 const DashboardPage = lazy(() => import('./modules/dashboard/DashboardPage').then((module) => ({ default: module.DashboardPage })))
 
 const VoterRegisterPage = lazy(() => import('./modules/voter-register/VoterRegisterPage').then((module) => ({ default: module.VoterRegisterPage })))
@@ -77,6 +78,7 @@ function App() {
   const isUserDirectory = activeNavigation === 'directory'
   const isProfile = activeNavigation === 'settings'
   const isAudit = activeNavigation === 'audit'
+  const isReports = activeNavigation === 'reports'
   const isVoterRegister = activeNavigation === 'register'
   const isPdfUpload = activeNavigation === 'upload'
   const navigateTo = (key: NavigationKey, search = '') => {
@@ -114,7 +116,7 @@ function App() {
       theme={theme}
       >
         <Suspense fallback={<AppBootstrapScreen title={t.nav[activeNavigation]} />}>
-          {isUserManagement ? <UserManagementPage language={language} session={session} /> : isUserDirectory ? <UserDirectoryPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isVoterRegister ? <VoterRegisterPage language={language} session={session} /> : isPdfUpload ? <PdfImportPage language={language} session={session} /> : isDashboard ? <DashboardPage language={language} onNavigate={navigateTo} session={session} /> : <>
+          {isUserManagement ? <UserManagementPage language={language} session={session} /> : isUserDirectory ? <UserDirectoryPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isReports ? <DailyReportsPage language={language} onNavigate={navigateTo} session={session} /> : isVoterRegister ? <VoterRegisterPage language={language} session={session} /> : isPdfUpload ? <PdfImportPage language={language} session={session} /> : isDashboard ? <DashboardPage language={language} onNavigate={navigateTo} session={session} /> : <>
             <section className="page-intro">
               <p>{t.page.section}</p>
               <h2>{isDashboard ? t.page.dashboardTitle : t.nav[activeNavigation]}</h2>
@@ -149,15 +151,16 @@ function AppBootstrapScreen({ title }: { title: string }) {
   </main>
 }
 
-function isRouteAllowed(key: NavigationKey, role: AppSessionRole, permissions: { upload: boolean; audit: boolean }) {
+function isRouteAllowed(key: NavigationKey, role: AppSessionRole, permissions: { upload: boolean; audit: boolean; reports: boolean }) {
   if (role === 'superAdmin') return true
   if (role === 'admin') {
     if (key === 'directory') return false
     if (key === 'audit') return permissions.audit
     if (key === 'upload') return permissions.upload
+    if (key === 'reports') return permissions.reports
     return true
   }
-  return ['dashboard', 'register', 'settings'].includes(key)
+  return ['dashboard', 'register', 'settings'].includes(key) || (key === 'reports' && permissions.reports)
 }
 
 type AppSessionRole = 'superAdmin' | 'admin' | 'subMember'

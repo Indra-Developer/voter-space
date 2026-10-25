@@ -271,7 +271,8 @@ function isNavigationAllowed(key: NavigationKey, role: ShellProfile['role'], per
     if (key === 'directory') return false
     if (key === 'audit') return permissions?.audit ?? false
     if (key === 'upload') return permissions?.upload ?? false
+    if (key === 'reports') return permissions?.reports ?? false
     return true
   }
-  return ['dashboard', 'register', 'settings'].includes(key)
+  return ['dashboard', 'register', 'settings'].includes(key) || (key === 'reports' && (permissions?.reports ?? false))
 }
