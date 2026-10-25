@@ -5,7 +5,7 @@ import { joinClasses, uiClasses } from '../app-shell/ui'
 import type { AppLanguage, NavigationKey } from '../app-shell/types'
 import { loadAuditLogs, type AuditEntry } from '../audit-logs/audit-log-service'
 import './dashboard.css'
-import { dashboardMetricNames, loadDashboardMetric, type DashboardMetric, type DashboardMetricResult, type DashboardRecentUpload } from './dashboard-service'
+import { dashboardMetricNames, loadDashboardSummary, type DashboardMetric, type DashboardRecentUpload } from './dashboard-service'
 
 type DashboardPageProps = {
   language: AppLanguage
@@ -71,15 +71,25 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
     setHasError(false)
     setMetricLoading(Object.fromEntries(dashboardMetricNames.map((metric) => [metric, true])) as Partial<Record<DashboardMetric, boolean>>)
     setActivityError(false)
-    const metricRequests = dashboardMetricNames.map(async (metric) => {
-      try {
-        const result = await loadDashboardMetric(metric, { force })
-        setMetrics((current) => applyMetricResult(current, result))
-      } catch {
-        setHasError(true)
-      } finally {
-        setMetricLoading((current) => ({ ...current, [metric]: false }))
-      }
+    const summaryRequest = loadDashboardSummary({ force }).then((summary) => {
+      const attentionCount = countStatuses(summary.sourceStatusCounts, ['review', 'awaitingApproval', 'completedWithReview', 'failed'])
+      setMetrics({
+        voterCount: summary.voterCount,
+        wardCount: summary.wardCount,
+        boothCount: summary.boothCount,
+        areaCount: summary.areaCount,
+        divisionCount: summary.divisionCount,
+        sourcePdfCount: summary.sourcePdfCount,
+        completedPdfCount: summary.completedPdfCount,
+        processingPdfCount: summary.processingPdfCount,
+        attentionCount,
+        sourceStatusCounts: summary.sourceStatusCounts,
+        recentUploads: summary.recentUploads,
+      })
+    }).catch(() => {
+      setHasError(true)
+    }).finally(() => {
+      setMetricLoading((current) => Object.fromEntries(Object.keys(current).map((metric) => [metric, false])) as Partial<Record<DashboardMetric, boolean>>)
     })
 
     const canReadActivity = session.profile.role === 'superAdmin' || permissions.audit
@@ -94,7 +104,7 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
       setActivityLoading(false)
     })
 
-    await Promise.all([...metricRequests, activityTask])
+    await Promise.all([summaryRequest, activityTask])
   }, [permissions.audit, session.profile.role])
 
   useEffect(() => {
@@ -179,22 +189,6 @@ export function DashboardPage({ language, session, onNavigate }: DashboardPagePr
 function StatusLine({ label, loading, value, total, tone }: { label: string; loading: boolean; value?: number; total?: number; tone: 'success' | 'primary' | 'warning' | 'danger' }) {
   const width = value !== undefined && total !== undefined && total > 0 ? `${Math.min(100, Math.round((value / total) * 100))}%` : '0%'
   return <div className="dashboard-status-line"><div><span>{label}</span><strong><MetricValue loading={loading} value={value} /></strong></div><div className="dashboard-progress-track"><span className={`dashboard-progress-fill dashboard-progress-${tone}`} style={{ width }} /></div></div>
-}
-
-function applyMetricResult(current: DashboardMetrics, result: DashboardMetricResult): DashboardMetrics {
-  switch (result.metric) {
-    case 'sourceStatusCounts': return { ...current, sourceStatusCounts: result.value as Record<string, number> }
-    case 'recentUploads': return { ...current, recentUploads: result.value as DashboardRecentUpload[] }
-    case 'voterCount': return { ...current, voterCount: result.value as number }
-    case 'wardCount': return { ...current, wardCount: result.value as number }
-    case 'boothCount': return { ...current, boothCount: result.value as number }
-    case 'areaCount': return { ...current, areaCount: result.value as number }
-    case 'divisionCount': return { ...current, divisionCount: result.value as number }
-    case 'sourcePdfCount': return { ...current, sourcePdfCount: result.value as number }
-    case 'completedPdfCount': return { ...current, completedPdfCount: result.value as number }
-    case 'processingPdfCount': return { ...current, processingPdfCount: result.value as number }
-    case 'attentionCount': return { ...current, attentionCount: result.value as number }
-  }
 }
 
 function MetricValue({ loading, value }: { loading: boolean; value?: number }) {

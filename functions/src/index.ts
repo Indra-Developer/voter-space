@@ -142,6 +142,7 @@ type DashboardRecentUpload = {
   updatedAt?: string
 }
 type DashboardStats = {
+  statsVersion: number
   voterCount: number
   wardCount: number
   boothCount: number
@@ -257,6 +258,7 @@ const slowOperationThresholdMs = 10 * 1000
 // Storage and the Cloud Functions project all enforce quotas.
 const pdfOcrMaxConcurrent = 6
 const pdfApplyMaxConcurrent = 4
+const dashboardStatsVersion = 2
 
 function startPerformanceTimer(functionName: string, context: Record<string, unknown> = {}) {
   const startedAt = Date.now()
@@ -1090,6 +1092,16 @@ function dashboardScopeCount(map: Record<string, DashboardScopeCount>, key: stri
   return map[key]
 }
 
+function dashboardBoothKey(wardId: string, boothId: string) {
+  return wardId && boothId ? `${wardId}::${boothId}` : ''
+}
+
+function isCountableDashboardSource(source: SourcePdfRecord) {
+  // A source document is created before the browser finishes writing the PDF.
+  // Do not count that placeholder, or a cancelled source, as an uploaded PDF.
+  return source.status !== 'cancelled' && (source.status !== 'readyForUpload' || Boolean(source.uploadedAt))
+}
+
 function addDashboardValue(values: string[], value: string) {
   if (value && !values.includes(value)) values.push(value)
 }
@@ -1103,7 +1115,7 @@ function dateValueForStats(value: unknown) {
 
 function addDashboardVoter(wardCounts: Record<string, DashboardScopeCount>, boothCounts: Record<string, DashboardScopeCount>, record: VoterRecord) {
   const ward = dashboardScopeCount(wardCounts, record.wardId)
-  const booth = dashboardScopeCount(boothCounts, record.boothId)
+  const booth = dashboardScopeCount(boothCounts, dashboardBoothKey(record.wardId, record.boothId))
   if (!ward || !booth) return
   ward.voterCount += 1
   booth.voterCount += 1
@@ -1121,7 +1133,7 @@ function addDashboardVoter(wardCounts: Record<string, DashboardScopeCount>, boot
 
 function addDashboardSource(wardCounts: Record<string, DashboardScopeCount>, boothCounts: Record<string, DashboardScopeCount>, source: SourcePdfRecord & { id: string }) {
   const ward = dashboardScopeCount(wardCounts, source.wardId)
-  const booth = dashboardScopeCount(boothCounts, source.boothId)
+  const booth = dashboardScopeCount(boothCounts, dashboardBoothKey(source.wardId, source.boothId))
   if (!ward || !booth) return
   addDashboardValue(ward.wardIds, source.wardId)
   addDashboardValue(ward.boothIds, source.boothId)
@@ -1152,7 +1164,9 @@ async function rebuildDashboardStats() {
     metadata.byWard[record.wardId] = ward
   })
 
-  const sources = sourceSnapshot.docs.map((item) => ({ id: item.id, ...(item.data() as SourcePdfRecord) }))
+  const sources = sourceSnapshot.docs
+    .map((item) => ({ id: item.id, ...(item.data() as SourcePdfRecord) }))
+    .filter((source) => isCountableDashboardSource(source))
   const sourceStatusCounts: Record<string, number> = {}
   const sourceStatusById: Record<string, string> = {}
   let latestUploadTime = 0
@@ -1189,6 +1203,7 @@ async function rebuildDashboardStats() {
   const completedPdfCount = countStatuses(sourceStatusCounts, ['completed', 'completedWithReview'])
   const processingPdfCount = countStatuses(sourceStatusCounts, ['readyForUpload', 'uploaded', 'queued', 'processing', 'approvalQueued', 'applying'])
   const summary: DashboardStats = {
+    statsVersion: dashboardStatsVersion,
     voterCount: voters.length,
     wardCount: Object.values(wardCounts).filter((item) => item.voterCount > 0).length,
     boothCount: Object.values(boothCounts).filter((item) => item.voterCount > 0).length,
@@ -1235,8 +1250,7 @@ function summaryForCaller(summary: DashboardStats, wardStats: DashboardStatsDocu
   }
   if (user.scope.boothIds.length) {
     user.scope.boothIds.forEach((boothId) => {
-      const entry = boothStats.counts[boothId]
-      if (entry?.wardIds.some((wardId) => user.scope.wardIds.includes(wardId))) addSelected(entry)
+      user.scope.wardIds.forEach((wardId) => addSelected(boothStats.counts[dashboardBoothKey(wardId, boothId)]))
     })
   } else {
     user.scope.wardIds.forEach((wardId) => addSelected(wardStats.counts[wardId]))
@@ -1291,7 +1305,7 @@ const dashboardMetricNames: DashboardMetricName[] = [
 
 async function readDashboardSummaryForCaller(user: UserRecord) {
   let summarySnapshot = await db.doc('stats/summary').get()
-  if (!summarySnapshot.exists || !summarySnapshot.data()?.sourceStatusById) {
+  if (!summarySnapshot.exists || summarySnapshot.data()?.statsVersion !== dashboardStatsVersion || !summarySnapshot.data()?.sourceStatusById) {
     await rebuildDashboardStats()
     summarySnapshot = await db.doc('stats/summary').get()
   }
