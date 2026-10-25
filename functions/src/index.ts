@@ -1616,8 +1616,8 @@ export const updateVoterSurveyStatus = onCall({ region }, async (request) => {
   const input = request.data && typeof request.data === 'object' ? request.data as { voterIds?: unknown; status?: unknown; reason?: unknown; surveyDate?: unknown; house?: unknown } : {}
   const voterIds = Array.isArray(input.voterIds) ? [...new Set(input.voterIds.filter((value): value is string => typeof value === 'string' && Boolean(value.trim())).map((value) => value.trim()))].slice(0, 200) : []
   if (!voterIds.length) throw new HttpsError('invalid-argument', 'Select at least one voter.')
-  const status = input.status === 'ok' || input.status === 'pending' || input.status === 'noNeed' ? input.status : undefined
-  if (!status) throw new HttpsError('invalid-argument', 'Choose OK, Pending, or No Need.')
+  const status = input.status === 'ok' || input.status === 'pending' || input.status === 'noNeed' || input.status === 'reset' ? input.status : undefined
+  if (!status) throw new HttpsError('invalid-argument', 'Choose OK, Pending, No Need, or Reset.')
   const surveyDate = plainString(input.surveyDate)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(surveyDate)) throw new HttpsError('invalid-argument', 'A valid survey date is required.')
   const reason = plainString(input.reason).slice(0, 400)
@@ -1643,7 +1643,14 @@ export const updateVoterSurveyStatus = onCall({ region }, async (request) => {
   if (!voters.length) throw new HttpsError('not-found', 'No voter records were found for this house.')
   if (voters.some((voter) => !canViewVoter(caller.record, voter))) throw new HttpsError('permission-denied', 'A selected voter is outside your allowed scope.')
   const batch = db.batch()
-  voters.forEach((voter) => batch.update(db.doc(`voters/${voter.id}`), cleanUndefined({
+  voters.forEach((voter) => batch.update(db.doc(`voters/${voter.id}`), status === 'reset' ? {
+    surveyStatus: FieldValue.delete(),
+    surveyReason: FieldValue.delete(),
+    surveyDate: FieldValue.delete(),
+    surveyUpdatedAt: FieldValue.delete(),
+    surveyUpdatedBy: FieldValue.delete(),
+    surveyUpdatedByName: FieldValue.delete(),
+  } : cleanUndefined({
     surveyStatus: status,
     surveyReason: reason || FieldValue.delete(),
     surveyDate,

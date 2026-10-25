@@ -99,7 +99,7 @@ export async function loadDailySurveySummary(filters: VoterFilters, surveyDate: 
   }, { ttlMs: 15_000, force: options.force })
 }
 
-export async function updateVoterSurveyStatus(payload: { voterIds: string[]; status: 'ok' | 'pending' | 'noNeed'; reason?: string; surveyDate: string; house?: { wardId: string; boothId: string; doorNumber: string } }) {
+export async function updateVoterSurveyStatus(payload: { voterIds: string[]; status: 'ok' | 'pending' | 'noNeed' | 'reset'; reason?: string; surveyDate: string; house?: { wardId: string; boothId: string; doorNumber: string } }) {
   const call = httpsCallable<typeof payload, { updatedCount: number }>(requireFunctions(), 'updateVoterSurveyStatus')
   const result = (await call(payload)).data
   invalidateVoterDataCache()

@@ -446,11 +446,12 @@
 .daily-survey-voter-status-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem; color: #64748b !important; }
 .daily-survey-voter-status-line b { color: #102a52; }
 .daily-survey-voter-status-line small { color: #9a6200; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.daily-survey-voter-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; margin-top: .2rem; }
+.daily-survey-voter-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; margin-top: .2rem; }
 .daily-survey-status-button { display: inline-flex; align-items: center; justify-content: center; gap: .22rem; min-height: 2rem; padding: .3rem .35rem; border: 0; border-radius: .58rem; cursor: pointer; font: inherit; font-size: .7rem; font-weight: 800; }
 .daily-survey-status-button.is-ok { background: #d9f7e7; color: #08784f; }
 .daily-survey-status-button.is-pending { background: #fff0c8; color: #9a6200; }
 .daily-survey-status-button.is-noNeed { background: #e8ebf1; color: #334155; }
+.daily-survey-status-button.is-reset { background: var(--surface-muted); color: var(--primary-strong); }
 .daily-survey-status-button.is-active { outline: 2px solid #2b5bd7; outline-offset: 1px; }
 .daily-survey-status-button:disabled { cursor: not-allowed; opacity: .55; }
 .daily-survey-card-saving { position: absolute; right: .65rem; bottom: .65rem; color: #2455d6; }
