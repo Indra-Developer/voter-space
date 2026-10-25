@@ -2169,11 +2169,38 @@ export const listAuditLogs = onCall({ region }, async (request) => {
   const canSeeOwn = caller.record.role === 'admin' && caller.record.permissions.audit
   if (!canSeeAll && !canSeeOwn) throw new HttpsError('permission-denied', 'You do not have permission to view audit activity.')
 
-  const snapshot = canSeeAll
-    ? await db.collection('auditLogs').orderBy('createdAt', 'desc').limit(200).get()
-    : await db.collection('auditLogs').where('actorUid', '==', caller.uid).orderBy('createdAt', 'desc').limit(200).get()
-  const entries = snapshot.docs.map((item) => ({ id: item.id, ...auditForClient(item.data()) }))
-  return { entries, ownActivityOnly: !canSeeAll }
+  const input = request.data as { cursor?: unknown; pageSize?: unknown; filter?: unknown }
+  const pageSize = Math.min(optionalInteger(input?.pageSize) ?? 25, 100)
+  const filter = readAuditLogFilter(input?.filter)
+  const cursorId = plainString(input?.cursor)
+  const cursor = cursorId ? await db.doc(`auditLogs/${cursorId}`).get() : undefined
+  const baseQuery = canSeeAll
+    ? db.collection('auditLogs').orderBy('createdAt', 'desc')
+    : db.collection('auditLogs').where('actorUid', '==', caller.uid).orderBy('createdAt', 'desc')
+  const scanSize = filter === 'all' ? pageSize : Math.min(Math.max(pageSize * 5, 50), 200)
+  const entries: Array<{ id: string } & ReturnType<typeof auditForClient>> = []
+  let scanCursor = cursor
+  let hasMore = true
+  let lastScannedId: string | undefined
+
+  while (entries.length < pageSize && hasMore) {
+    const snapshot = await (scanCursor?.exists ? baseQuery.startAfter(scanCursor).limit(scanSize) : baseQuery.limit(scanSize)).get()
+    if (!snapshot.docs.length) {
+      hasMore = false
+      break
+    }
+    hasMore = snapshot.size === scanSize
+    let consumedThroughId = snapshot.docs[snapshot.docs.length - 1]?.id
+    for (const item of snapshot.docs) {
+      consumedThroughId = item.id
+      if (auditLogCategory(item.data()) === filter || filter === 'all') entries.push({ id: item.id, ...auditForClient(item.data()) })
+      if (entries.length >= pageSize) break
+    }
+    lastScannedId = consumedThroughId
+    scanCursor = snapshot.docs.find((item) => item.id === consumedThroughId) ?? snapshot.docs[snapshot.docs.length - 1]
+  }
+
+  return { entries, nextCursor: hasMore ? lastScannedId : undefined, hasMore, ownActivityOnly: !canSeeAll }
 })
 
 export const listPdfImportRows = onCall({ region }, async (request) => {
@@ -2825,6 +2852,22 @@ function auditForClient(value: Record<string, unknown>) {
     details: value.details && typeof value.details === 'object' ? value.details : {},
     createdAt: dateAsIso(value.createdAt),
   }
+}
+
+type AuditLogFilter = 'all' | 'user' | 'pdf' | 'permission'
+
+function readAuditLogFilter(value: unknown): AuditLogFilter {
+  const filter = plainString(value)
+  return filter === 'user' || filter === 'pdf' || filter === 'permission' ? filter : 'all'
+}
+
+function auditLogCategory(value: Record<string, unknown>): Exclude<AuditLogFilter, 'all'> {
+  const action = plainString(value.action)
+  if (action.startsWith('pdf_')) return 'pdf'
+  const details = value.details && typeof value.details === 'object' && !Array.isArray(value.details) ? value.details as Record<string, unknown> : undefined
+  const changes = details?.changes && typeof details.changes === 'object' && !Array.isArray(details.changes) ? details.changes as Record<string, unknown> : undefined
+  if (action === 'account_updated' && changes?.permissions && typeof changes.permissions === 'object') return 'permission'
+  return 'user'
 }
 
 function readPdfImportRequest(value: unknown) {

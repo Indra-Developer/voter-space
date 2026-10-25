@@ -384,7 +384,7 @@
 .daily-survey-date-copy small { color: #64748b; font-size: .7rem; }
 .daily-survey-date-bar > input { min-height: 2.15rem; padding: .3rem .5rem; border: 1px solid #d8e1ef; border-radius: .6rem; background: #fff; color: #102a52; font: inherit; font-size: .75rem; }
 .daily-survey-date-actions { display: flex; gap: .3rem; }
-.daily-survey-date-actions button { min-height: 2.15rem; padding: .3rem .55rem; border: 1px solid #d8e1ef; border-radius: .6rem; background: #fff; color: #2455d6; cursor: pointer; font: inherit; font-size: .7rem; font-weight: 800; }
+.daily-survey-date-actions button { min-height: 2.15rem; min-width: 0; padding: .3rem .55rem; border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border)); border-radius: .6rem; background: var(--surface); color: var(--primary); cursor: pointer; font: inherit; font-size: .7rem; font-weight: 800; white-space: nowrap; }
 .daily-survey-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .45rem; }
 .daily-survey-kpi { display: flex; align-items: center; gap: .42rem; min-width: 0; padding: .55rem .6rem; border: 1px solid #e1e8f2; border-radius: .75rem; background: #fff; }
 .daily-survey-kpi > span { display: grid; flex: 0 0 1.75rem; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: .55rem; background: #eef3ff; color: #2455d6; }
@@ -447,7 +447,8 @@
 .daily-survey-voter-status-line b { color: #102a52; }
 .daily-survey-voter-status-line small { color: #9a6200; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .daily-survey-voter-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; margin-top: .2rem; }
-.daily-survey-status-button { display: inline-flex; align-items: center; justify-content: center; gap: .22rem; min-height: 2rem; padding: .3rem .35rem; border: 0; border-radius: .58rem; cursor: pointer; font: inherit; font-size: .7rem; font-weight: 800; }
+.daily-survey-status-button { display: inline-flex; min-width: 0; align-items: center; justify-content: center; gap: .22rem; min-height: 2rem; padding: .3rem .35rem; border: 0; border-radius: .58rem; cursor: pointer; font: inherit; font-size: .7rem; font-weight: 800; white-space: nowrap; }
+.daily-survey-status-button.is-noNeed { gap: .12rem; padding-inline: .18rem; font-size: .62rem; }
 .daily-survey-status-button.is-ok { background: #d9f7e7; color: #08784f; }
 .daily-survey-status-button.is-pending { background: #fff0c8; color: #9a6200; }
 .daily-survey-status-button.is-noNeed { background: #e8ebf1; color: #334155; }
@@ -536,7 +537,7 @@
 .daily-survey-filter-controls select, .daily-survey-filter-date input { min-height: 1.95rem; padding: .22rem .34rem; border-radius: .5rem; font-size: .66rem; }
 .daily-survey-filter-date input { width: 100%; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
 .daily-survey-date-actions { display: flex; align-items: end; gap: .25rem; min-width: 0; }
-.daily-survey-date-actions button { min-height: 1.95rem; min-width: 0; flex: 1; padding: .2rem .25rem; font-size: .6rem; }
+.daily-survey-date-actions button { min-height: 1.95rem; min-width: 0; flex: 1 1 auto; padding: .2rem .25rem; border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border)); white-space: nowrap; font-size: .6rem; }
 .daily-survey-export-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
 .daily-survey-export-trigger { display: inline-flex; align-items: center; gap: .3rem; min-height: 1.95rem; padding: .28rem .52rem; border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border)); border-radius: .55rem; background: var(--nav-active); color: var(--primary-strong); cursor: pointer; font: inherit; font-size: .66rem; font-weight: 800; }
 .daily-survey-export-trigger svg:last-child { transition: transform .18s ease; }
@@ -555,6 +556,7 @@
   .daily-survey-filter-controls { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .32rem; }
   .daily-survey-filter-controls label span { font-size: .55rem; }
   .daily-survey-filter-controls select, .daily-survey-filter-date input, .daily-survey-date-actions button, .daily-survey-clear { min-height: 1.8rem; font-size: .58rem; }
+  .daily-survey-status-button.is-noNeed { font-size: .56rem; }
   .daily-survey-date-actions { gap: .18rem; }
   .daily-survey-clear { width: 100%; padding: .2rem .28rem; }
 }

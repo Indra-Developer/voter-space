@@ -12,6 +12,11 @@
 .audit-row p, .audit-row time, .audit-row small { display: block; margin: .12rem 0 0; color: var(--muted); font-size: .68rem; }
 .audit-row small { color: var(--primary); }
 .audit-row time { grid-column: 2; }
+.audit-load-more { display: inline-flex; min-height: 2.15rem; align-items: center; justify-content: center; justify-self: center; gap: .4rem; padding: .35rem .75rem; border: 1px solid var(--border); border-radius: .6rem; background: var(--surface); color: var(--primary); cursor: pointer; font-size: .7rem; font-weight: 750; }
+.audit-load-more:disabled { cursor: wait; opacity: .65; }
+.audit-spinner { animation: audit-spin .9s linear infinite; }
+.audit-end { margin: 0; color: var(--muted); font-size: .68rem; text-align: center; }
+@keyframes audit-spin { to { transform: rotate(360deg); } }
 
 @media (min-width: 640px) {
   .audit-row { grid-template-columns: auto minmax(0, 1fr) auto; }

@@ -11,12 +11,16 @@ export type AuditEntry = {
   createdAt?: string
 }
 
-export async function loadAuditLogs(options: { force?: boolean } = {}) {
-  const key = `audit-logs:${auth?.currentUser?.uid ?? 'signed-out'}`
+export type AuditLogFilter = 'all' | 'user' | 'pdf' | 'permission'
+export type AuditLogPage = { entries: AuditEntry[]; nextCursor?: string; hasMore: boolean; ownActivityOnly: boolean }
+
+export async function loadAuditLogs(options: { cursor?: string; filter?: AuditLogFilter; force?: boolean } = {}) {
+  const filter = options.filter ?? 'all'
+  const key = `audit-logs:${auth?.currentUser?.uid ?? 'signed-out'}:${filter}:${options.cursor ?? 'first'}`
   return cachedRequest(key, async () => {
     if (!functions) throw new Error('Firebase is not configured.')
-    const call = httpsCallable<Record<string, never>, { entries: AuditEntry[]; ownActivityOnly: boolean }>(functions, 'listAuditLogs')
-    return (await call({})).data
+    const call = httpsCallable<{ cursor?: string; filter: AuditLogFilter; pageSize: number }, AuditLogPage>(functions, 'listAuditLogs')
+    return (await call({ filter, pageSize: 25, ...(options.cursor ? { cursor: options.cursor } : {}) })).data
   }, { ttlMs: 20_000, force: options.force })
 }
 
