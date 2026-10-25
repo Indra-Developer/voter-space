@@ -4,6 +4,20 @@ import { auth, functions, storage } from '../../lib/firebase'
 import { cachedRequest, invalidateRequestCache } from '../../lib/request-cache'
 import type { ImportRow, PdfImport, PdfImportDetails } from './types'
 
+export type PdfImportListFilters = {
+  search?: string
+  wardId?: string
+  boothId?: string
+  area?: string
+  status?: PdfImport['status'] | ''
+}
+
+export type PdfImportPage = {
+  imports: PdfImport[]
+  nextCursor?: string
+  hasMore: boolean
+}
+
 function requireFunctions() {
   if (!functions) throw new Error('Firebase is not configured.')
   return functions
@@ -63,8 +77,19 @@ export async function listPdfImports(options: { force?: boolean } = {}) {
   }, { ttlMs: 20_000, force: options.force })
 }
 
+/** Load one small, server-filtered page for the Upload screen. */
+export async function loadPdfImportPage(cursor?: string, options: { filters?: PdfImportListFilters; force?: boolean } = {}) {
+  const filters = options.filters ?? {}
+  const key = `pdf-import-page:${auth?.currentUser?.uid ?? 'signed-out'}:${cursor ?? 'first'}:${JSON.stringify(filters)}`
+  return cachedRequest(key, async () => {
+    const call = httpsCallable<PdfImportListFilters & { cursor?: string; pageSize: number }, PdfImportPage>(requireFunctions(), 'listPdfImports')
+    return (await call({ ...filters, ...(cursor ? { cursor } : {}), pageSize: 10 })).data
+  }, { ttlMs: 20_000, force: options.force })
+}
+
 export function invalidatePdfImportCache() {
   invalidateRequestCache('pdf-imports:')
+  invalidateRequestCache('pdf-import-page:')
 }
 
 function pdfImportTime(item: PdfImport) {

@@ -1767,17 +1767,41 @@ export const createPdfImport = onCall({ region }, async (request) => {
 
 export const listPdfImports = onCall({ region }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
-  const input = request.data as { cursor?: unknown; pageSize?: unknown }
+  const input = request.data as { cursor?: unknown; pageSize?: unknown; search?: unknown; wardId?: unknown; boothId?: unknown; area?: unknown; status?: unknown }
   const pageSize = Math.min(optionalInteger(input?.pageSize) ?? 200, 250)
   const cursorId = plainString(input?.cursor)
-  const cursor = cursorId ? await db.doc(`sourcePdfs/${cursorId}`).get() : undefined
   const sourceQuery = db.collection('sourcePdfs').orderBy(FieldPath.documentId())
-  const snapshot = await (cursor?.exists ? sourceQuery.startAfter(cursor).limit(pageSize) : sourceQuery.limit(pageSize)).get()
-  const imports = snapshot.docs
-    .map((item) => ({ id: item.id, ...(item.data() as SourcePdfRecord) }))
-    .filter((source) => canViewPdfImport(caller.record, source))
-    .map(sourceForClient)
-  return { imports, nextCursor: snapshot.size === pageSize ? snapshot.docs[snapshot.docs.length - 1]?.id : undefined, hasMore: snapshot.size === pageSize }
+  let scanCursor = cursorId ? await db.doc(`sourcePdfs/${cursorId}`).get() : undefined
+  let hasMore = true
+  let lastScannedId: string | undefined
+  const imports: ReturnType<typeof sourceForClient>[] = []
+  const filters = readPdfImportListFilters(input)
+  // A restricted user or a filtered request may need to scan past records that
+  // are outside the user's scope or do not match. The client still receives
+  // only one small page, never the full source-PDF collection.
+  const scanSize = filters.hasAny || caller.record.role !== 'superAdmin'
+    ? Math.min(Math.max(pageSize * 5, 50), 200)
+    : pageSize
+
+  while (imports.length < pageSize && hasMore) {
+    const snapshot = await (scanCursor?.exists ? sourceQuery.startAfter(scanCursor).limit(scanSize) : sourceQuery.limit(scanSize)).get()
+    if (!snapshot.docs.length) {
+      hasMore = false
+      break
+    }
+    hasMore = snapshot.size === scanSize
+    let consumedThroughId = snapshot.docs[snapshot.docs.length - 1]?.id
+    for (const item of snapshot.docs) {
+      const source = { id: item.id, ...(item.data() as SourcePdfRecord) }
+      consumedThroughId = item.id
+      if (canViewPdfImport(caller.record, source) && matchesPdfImportListFilters(source, filters)) imports.push(sourceForClient(source))
+      if (imports.length >= pageSize) break
+    }
+    lastScannedId = consumedThroughId
+    scanCursor = snapshot.docs.find((item) => item.id === consumedThroughId) ?? snapshot.docs[snapshot.docs.length - 1]
+  }
+
+  return { imports, nextCursor: hasMore ? lastScannedId : undefined, hasMore }
 })
 
 export const updatePdfImportMetadata = onCall({ region, timeoutSeconds: 120 }, async (request) => {
@@ -2841,6 +2865,38 @@ function assertCanManagePdfImport(user: UserRecord, source: SourcePdfRecord) {
 
 function canViewPdfImport(user: UserRecord, source: SourcePdfRecord) {
   return isInsideVoterScope(user, source.wardId, source.boothId)
+}
+
+type PdfImportListFilterValues = {
+  search: string
+  wardId: string
+  boothId: string
+  area: string
+  status: string
+  hasAny: boolean
+}
+
+function readPdfImportListFilters(input: { search?: unknown; wardId?: unknown; boothId?: unknown; area?: unknown; status?: unknown }): PdfImportListFilterValues {
+  const search = plainString(input.search).toLocaleLowerCase()
+  const wardId = plainString(input.wardId).toLocaleLowerCase()
+  const boothId = plainString(input.boothId).toLocaleLowerCase()
+  const area = plainString(input.area).toLocaleLowerCase()
+  const status = plainString(input.status).toLocaleLowerCase()
+  return { search, wardId, boothId, area, status, hasAny: Boolean(search || wardId || boothId || area || status) }
+}
+
+function matchesPdfImportListFilters(source: SourcePdfRecord, filters: PdfImportListFilterValues) {
+  if (filters.wardId && source.wardId.toLocaleLowerCase() !== filters.wardId) return false
+  if (filters.boothId && source.boothId.toLocaleLowerCase() !== filters.boothId) return false
+  if (filters.area && !source.area.toLocaleLowerCase().includes(filters.area)) return false
+  if (filters.status && source.status.toLocaleLowerCase() !== filters.status) return false
+  if (filters.search) {
+    const searchable = [source.originalFileName, source.wardId, source.boothId, source.area, source.division, source.uploadedByName, source.status]
+      .join(' ')
+      .toLocaleLowerCase()
+    if (!searchable.includes(filters.search)) return false
+  }
+  return true
 }
 
 function canDownloadSourcePdf(user: UserRecord) {
