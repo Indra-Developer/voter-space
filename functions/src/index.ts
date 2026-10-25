@@ -520,7 +520,7 @@ export const logPasswordResetRequest = onCall({ region }, async (request) => {
   return { userId }
 })
 
-export const listVoters = onCall({ region }, async (request) => {
+export const listVoters = onCall({ region, timeoutSeconds: 120, memory: '512MiB' }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
   const filters = readVoterFilters(request.data)
   await ensureHouseMemberIndexReady(filters)
@@ -586,34 +586,16 @@ export const listVoters = onCall({ region }, async (request) => {
 
   const directQuery = buildDirectVoterQuery(caller.record, filters)
   if (directQuery?.empty) return { records: [], hasMore: false }
-  if (directQuery?.query) return listVotersFromQuery(directQuery.query, cursorId, pageSize, caller, filters)
-
-  const query = db.collection('voters').orderBy(FieldPath.documentId())
-  let scanCursor = cursorId ? await db.doc(`voters/${cursorId}`).get() : undefined
-  let hasMore = true
-  let lastScannedId: string | undefined
-  const records: VoterRecord[] = []
-
-  // Apply authorization and all filters before deciding whether the page is
-  // complete. This prevents Ward 8 from being mixed with Ward 80 and keeps
-  // filtered pagination reliable even when matching records are sparse.
-  while (records.length < pageSize && hasMore) {
-    const snapshot = await (scanCursor?.exists ? query.startAfter(scanCursor).limit(pageSize) : query.limit(pageSize)).get()
-    if (!snapshot.size) {
-      hasMore = false
-      break
+  if (directQuery?.query) {
+    let emittedRecords = false
+    try {
+      return await listVotersFromQuery(directQuery.query, cursorId, pageSize, caller, filters, () => { emittedRecords = true })
+    } catch (error) {
+      if (emittedRecords || !isMissingFirestoreIndex(error)) throw error
+      logger.warn('Voter list is falling back to a complete scan because a Firestore index is unavailable.', { error })
     }
-    lastScannedId = snapshot.docs[snapshot.docs.length - 1]?.id
-    hasMore = snapshot.size === pageSize
-    records.push(...snapshot.docs
-      .map((item) => voterFromFirestore(item.id, item.data()))
-      .filter((record) => canViewVoter(caller.record, record))
-      .filter((record) => matchesFilters(record, filters)))
-    scanCursor = snapshot.docs[snapshot.docs.length - 1]
   }
-
-  records.sort((first, second) => first.doorNumber.localeCompare(second.doorNumber, 'en', { numeric: true }) || first.serialNumber.localeCompare(second.serialNumber, 'en', { numeric: true }))
-  return { records: records.slice(0, pageSize), nextCursor: hasMore ? lastScannedId : undefined, hasMore }
+  return listVotersFromQuery(db.collection('voters').orderBy(FieldPath.documentId()), cursorId, pageSize, caller, filters)
 })
 
 export const listHouseGroups = onCall({ region, timeoutSeconds: 120 }, async (request) => {
@@ -634,7 +616,13 @@ export const listHouseGroups = onCall({ region, timeoutSeconds: 120 }, async (re
   const pageSize = Math.min(optionalInteger(input?.pageSize) ?? 50, 100)
   const cursorId = plainString(input?.cursor)
   const groupedQuery = directQuery.query.orderBy('houseKey', 'asc')
-  return listHouseGroupsFromQuery(groupedQuery, cursorId, pageSize, caller, filters)
+  try {
+    return await listHouseGroupsFromQuery(groupedQuery, cursorId, pageSize, caller, filters)
+  } catch (error) {
+    if (!isMissingFirestoreIndex(error)) throw error
+    logger.warn('House groups are falling back to a complete house-key scan because a Firestore index is unavailable.', { error })
+    return listHouseGroupsFromQuery(db.collection('voters').orderBy('houseKey', 'asc'), cursorId, pageSize, caller, filters)
+  }
 })
 
 async function listHouseGroupsFromQuery(query: FirebaseFirestore.Query, cursorId: string, pageSize: number, caller: Awaited<ReturnType<typeof requireCaller>>, filters: VoterFilters) {
@@ -748,6 +736,8 @@ function buildDirectVoterQuery(user: UserRecord, filters: VoterFilters): DirectQ
   const requestedDivision = normalizeDivision(filters.division)
   const requestedSourcePdfId = plainString(filters.sourcePdfId)
   const requestedSourcePdf = plainString(filters.sourcePdf)
+  const requestedSurveyStatus = plainString(filters.surveyStatus)
+  const requestedSurveyDate = plainString(filters.surveyDate)
   const requestedHouseMemberCount = parseHouseMemberCount(filters.houseMemberCount)
   if (plainString(filters.houseMemberCount) && requestedHouseMemberCount === undefined) return { empty: true }
 
@@ -775,6 +765,16 @@ function buildDirectVoterQuery(user: UserRecord, filters: VoterFilters): DirectQ
   else if (user.role !== 'superAdmin' && user.scope.boothIds.length === 1) addWhere('boothId', '==', user.scope.boothIds[0])
   else if (user.role !== 'superAdmin' && user.scope.boothIds.length > 1 && user.scope.boothIds.length <= 30 && !hasScopeInFilter) {
     addWhere('boothId', 'in', user.scope.boothIds)
+  }
+
+  // OK and No Need are date-bound states. Querying both stored fields keeps
+  // the common status filters fast after navigating away and back, instead of
+  // scanning the whole voters collection and timing out on sparse results.
+  // Pending is intentionally left as a post-filter because it also includes
+  // voters whose saved survey date differs from the selected report date.
+  if (requestedSurveyStatus === 'ok' || requestedSurveyStatus === 'noNeed') {
+    addWhere('surveyStatus', '==', requestedSurveyStatus)
+    if (requestedSurveyDate) addWhere('surveyDate', '==', requestedSurveyDate)
   }
 
   // These filters are selected from database options, so equality is both
@@ -824,25 +824,35 @@ function canUseDirectVoterCount(filters: VoterFilters) {
   return true
 }
 
-async function listVotersFromQuery(query: FirebaseFirestore.Query, cursorId: string, pageSize: number, caller: Awaited<ReturnType<typeof requireCaller>>, filters: VoterFilters) {
+async function listVotersFromQuery(query: FirebaseFirestore.Query, cursorId: string, pageSize: number, caller: Awaited<ReturnType<typeof requireCaller>>, filters: VoterFilters, onRecord?: () => void) {
   let scanCursor = cursorId ? await db.doc(`voters/${cursorId}`).get() : undefined
   let hasMore = true
   let lastScannedId: string | undefined
   const records: VoterRecord[] = []
+  const scanSize = Math.max(pageSize, 500)
 
   while (records.length < pageSize && hasMore) {
-    const snapshot = await (scanCursor?.exists ? query.startAfter(scanCursor).limit(pageSize) : query.limit(pageSize)).get()
+    const snapshot = await (scanCursor?.exists ? query.startAfter(scanCursor).limit(scanSize) : query.limit(scanSize)).get()
     if (!snapshot.size) {
       hasMore = false
       break
     }
-    lastScannedId = snapshot.docs[snapshot.docs.length - 1]?.id
-    hasMore = snapshot.size === pageSize
-    records.push(...snapshot.docs
-      .map((item) => voterFromFirestore(item.id, item.data()))
-      .filter((record) => canViewVoter(caller.record, record))
-      .filter((record) => matchesFilters(record, filters)))
-    scanCursor = snapshot.docs[snapshot.docs.length - 1]
+    hasMore = snapshot.size === scanSize
+    for (let index = 0; index < snapshot.docs.length; index += 1) {
+      const item = snapshot.docs[index]
+      lastScannedId = item.id
+      const record = voterFromFirestore(item.id, item.data())
+      if (canViewVoter(caller.record, record) && matchesFilters(record, filters)) {
+        records.push(record)
+        onRecord?.()
+      }
+      if (records.length === pageSize) {
+        hasMore = snapshot.size === scanSize || index < snapshot.docs.length - 1
+        scanCursor = item
+        break
+      }
+    }
+    if (records.length < pageSize) scanCursor = snapshot.docs[snapshot.docs.length - 1]
   }
 
   records.sort((first, second) => first.doorNumber.localeCompare(second.doorNumber, 'en', { numeric: true }) || first.serialNumber.localeCompare(second.serialNumber, 'en', { numeric: true }))
