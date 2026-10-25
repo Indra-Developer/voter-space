@@ -3113,6 +3113,7 @@ async function countExportMatches(user: UserRecord, filters: VoterFilters) {
 
 async function collectExportMatches(user: UserRecord, filters: VoterFilters, onBatch?: (processedCount: number) => Promise<boolean>) {
   const records: ExportVoterRecord[] = []
+  const surveyDate = plainString(filters.surveyDate)
   await scanExportVoters(user, filters, async (batch) => {
     records.push(...batch.map((record) => ({
       fullName: record.fullName,
@@ -3121,10 +3122,17 @@ async function collectExportMatches(user: UserRecord, filters: VoterFilters, onB
       voterId: record.voterId,
       serialNumber: record.serialNumber,
       mobile: record.mobile,
+      surveyStatus: exportSurveyStatus(record, surveyDate),
+      surveyReason: surveyDate && record.surveyDate !== surveyDate ? '' : record.surveyReason || '',
     })))
     if (await onBatch?.(records.length)) throw new Error('EXPORT_CANCELLED')
   })
   return records
+}
+
+function exportSurveyStatus(record: VoterRecord, surveyDate: string) {
+  const status = effectiveSurveyStatus(record, surveyDate)
+  return status === 'ok' ? 'OK' : status === 'noNeed' ? 'No Need' : 'Pending'
 }
 
 async function scanExportVoters(user: UserRecord, filters: VoterFilters, onBatch: (records: VoterRecord[]) => Promise<void>) {

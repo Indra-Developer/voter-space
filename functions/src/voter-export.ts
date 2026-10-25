@@ -13,9 +13,11 @@ export type ExportVoterRecord = {
   voterId: string
   serialNumber: string
   mobile: string
+  surveyStatus: string
+  surveyReason: string
 }
 
-const columns = ['S.No', 'Door No & Number of Voters', 'Area', 'Name', 'Voter ID', 'Ward Serial', 'Mobile Number']
+const columns = ['S.No', 'Door No & Number of Voters', 'Area', 'Name', 'Voter ID', 'Ward Serial', 'Mobile Number', 'Survey Status', 'Survey Reason']
 
 export async function buildVoterExport(format: ExportFormat, records: ExportVoterRecord[], onProgress?: (progress: number) => Promise<void>) {
   const ordered = sortVoters(records)
@@ -37,13 +39,15 @@ function buildExcel(records: ExportVoterRecord[]) {
   const sheetRows = [columns, ...records.map((record, index) => exportRow(record, index, doorCounts))]
   const sheet = XLSX.utils.aoa_to_sheet(sheetRows)
   sheet['!cols'] = [
-    { wch: 8 },
-    { wch: 25 },
-    { wch: 28 },
-    { wch: 36 },
+    { wch: 7 },
+    { wch: 26 },
     { wch: 24 },
+    { wch: 34 },
+    { wch: 24 },
+    { wch: 14 },
     { wch: 16 },
-    { wch: 18 },
+    { wch: 16 },
+    { wch: 36 },
   ]
   sheet['!rows'] = [{ hpt: 26 }, ...records.map(() => ({ hpt: 22 }))]
   sheet['!autofilter'] = { ref: sheet['!ref'] ?? 'A1:G1' }
@@ -55,10 +59,10 @@ function buildExcel(records: ExportVoterRecord[]) {
 async function buildPdf(records: ExportVoterRecord[], onProgress?: (progress: number) => Promise<void>) {
   registerTeluguFont()
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4', compress: true })
-  const pages = chunk(records, 17)
+  const pages = chunk(records, 14)
   const doorCounts = createDoorCounts(records)
   for (const [pageIndex, pageRecords] of pages.entries()) {
-    const jpeg = renderPdfPage(pageRecords, pageIndex * 17, records.length, pageIndex + 1, pages.length, doorCounts)
+    const jpeg = renderPdfPage(pageRecords, pageIndex * 14, records.length, pageIndex + 1, pages.length, doorCounts)
     if (pageIndex > 0) pdf.addPage('a4', 'landscape')
     const width = pdf.internal.pageSize.getWidth()
     const height = pdf.internal.pageSize.getHeight()
@@ -84,15 +88,15 @@ function renderPdfPage(records: ExportVoterRecord[], startIndex: number, total: 
   drawScriptText(context, `${startIndex + 1}-${startIndex + records.length} / ${total} · Page ${pageNumber} / ${pageCount}`, width - 400, 28, 18, '400')
 
   const top = 62
-  const headerHeight = 42
-  const rowHeight = 50
-  const columnWidths = [84, 250, 265, 335, 195, 126, 145]
+  const headerHeight = 44
+  const rowHeight = 62
+  const columnWidths = [54, 190, 165, 260, 150, 95, 110, 115, 261]
   let x = 0
   columns.forEach((column, index) => {
     context.fillStyle = '#123f3b'
     context.fillRect(x, top, columnWidths[index], headerHeight)
     context.fillStyle = '#ffffff'
-    drawWrappedText(context, column, x + 8, top + headerHeight / 2, columnWidths[index] - 16, 17, 2, 18, '700')
+    drawWrappedText(context, column, x + 7, top + headerHeight / 2, columnWidths[index] - 14, 15, 2, 16, '700')
     x += columnWidths[index]
   })
 
@@ -100,13 +104,13 @@ function renderPdfPage(records: ExportVoterRecord[], startIndex: number, total: 
     const values = exportRow(record, startIndex + rowIndex, doorCounts)
     let cellX = 0
     values.forEach((value, cellIndex) => {
-      context.fillStyle = cellIndex === 4 ? '#fff5c9' : '#ffffff'
+      context.fillStyle = cellIndex === 4 ? '#fff5c9' : cellIndex === 7 ? '#e8f7ed' : '#ffffff'
       context.fillRect(cellX, top + headerHeight + rowIndex * rowHeight, columnWidths[cellIndex], rowHeight)
       context.strokeStyle = '#bfd0cd'
       context.lineWidth = 1
       context.strokeRect(cellX, top + headerHeight + rowIndex * rowHeight, columnWidths[cellIndex], rowHeight)
       context.fillStyle = '#173b3a'
-      drawWrappedText(context, value, cellX + 8, top + headerHeight + rowIndex * rowHeight + rowHeight / 2, columnWidths[cellIndex] - 16, 17, 2, 18, '400')
+      drawWrappedText(context, value, cellX + 7, top + headerHeight + rowIndex * rowHeight + rowHeight / 2, columnWidths[cellIndex] - 14, 18, 3, 15, '400')
       cellX += columnWidths[cellIndex]
     })
   })
@@ -181,7 +185,7 @@ function scriptRuns(value: string) {
 
 function exportRow(record: ExportVoterRecord, index: number, doorCounts: Map<string, number>) {
   const door = record.doorNumber || '—'
-  return [String(index + 1), `${door} (Voters: ${doorCounts.get(door) ?? 0})`, record.area || '—', record.fullName || '—', record.voterId || 'Missing / Verification required', record.serialNumber || '—', record.mobile || '—']
+  return [String(index + 1), `${door} (Voters: ${doorCounts.get(door) ?? 0})`, record.area || '—', record.fullName || '—', record.voterId || 'Missing / Verification required', record.serialNumber || '—', record.mobile || '—', record.surveyStatus || 'Pending', record.surveyReason || '—']
 }
 
 function createDoorCounts(records: ExportVoterRecord[]) {

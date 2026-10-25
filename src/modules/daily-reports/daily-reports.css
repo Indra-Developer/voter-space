@@ -406,6 +406,11 @@
 .daily-survey-filter-controls label span { color: #64748b; font-size: .62rem; font-weight: 800; }
 .daily-survey-filter-controls select { min-height: 2.1rem; min-width: 0; padding: .3rem .45rem; border: 1px solid #d8e1ef; border-radius: .55rem; background: #fff; color: #102a52; font: inherit; font-size: .72rem; }
 .daily-survey-clear { display: inline-flex; align-items: center; justify-content: center; gap: .25rem; min-height: 2.1rem; padding: .3rem .55rem; border: 1px solid #c7d6f5; border-radius: .55rem; background: #eef3ff; color: #2455d6; cursor: pointer; font: inherit; font-size: .7rem; font-weight: 800; white-space: nowrap; }
+.daily-survey-status-quick { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; }
+.daily-survey-status-quick > span { color: var(--muted); font-size: .64rem; font-weight: 800; }
+.daily-survey-status-quick > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; min-width: min(100%, 24rem); }
+.daily-survey-status-quick button { min-height: 1.9rem; padding: .2rem .45rem; border: 1px solid var(--border); border-radius: .5rem; background: var(--surface); color: var(--muted); cursor: pointer; font: inherit; font-size: .65rem; font-weight: 800; white-space: nowrap; }
+.daily-survey-status-quick button.is-active { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); background: var(--nav-active); color: var(--primary-strong); }
 .daily-survey-export-bar { display: flex; align-items: center; justify-content: space-between; gap: .7rem; padding: .6rem .72rem; border: 1px solid #e1e8f2; border-radius: .8rem; background: #fff; }
 .daily-survey-export-bar > div:first-child { display: grid; gap: .08rem; }
 .daily-survey-export-bar strong { color: #102a52; font-size: .78rem; }
@@ -557,6 +562,9 @@
   .daily-survey-filter-controls label span { font-size: .55rem; }
   .daily-survey-filter-controls select, .daily-survey-filter-date input, .daily-survey-date-actions button, .daily-survey-clear { min-height: 1.8rem; font-size: .58rem; }
   .daily-survey-status-button.is-noNeed { font-size: .56rem; }
+  .daily-survey-status-quick { align-items: flex-start; flex-direction: column; gap: .2rem; }
+  .daily-survey-status-quick > div { width: 100%; min-width: 0; }
+  .daily-survey-status-quick button { min-height: 1.8rem; padding-inline: .2rem; font-size: .58rem; }
   .daily-survey-date-actions { gap: .18rem; }
   .daily-survey-clear { width: 100%; padding: .2rem .28rem; }
 }
