@@ -219,6 +219,7 @@ type VoterFilterBucket = {
 }
 type VoterFilterMetadata = {
   byWard: Record<string, Record<string, VoterFilterBucket>>
+  version?: number
   needsRebuild?: boolean
   updatedAt?: unknown
 }
@@ -1092,19 +1093,20 @@ export const cleanupVoterExports = onSchedule({ region, memory: '256MiB', timeou
   }
 })
 
-export const getVoterFilterOptions = onCall({ region }, async (request) => {
+export const getVoterFilterOptions = onCall({ region, timeoutSeconds: 120, memory: '512MiB' }, async (request) => {
   const caller = await requireCaller(request.auth?.uid)
   const metadataRef = db.doc(voterFilterMetadataPath)
   const snapshot = await metadataRef.get()
   let metadata = readVoterFilterMetadata(snapshot.data())
   const storedData = snapshot.data()
-  if (!snapshot.exists || metadata.needsRebuild || !storedData || typeof storedData.byWard !== 'object') {
+  if (!snapshot.exists || metadata.version !== voterFilterMetadataVersion || metadata.needsRebuild || !storedData || typeof storedData.byWard !== 'object') {
     metadata = await rebuildVoterFilterMetadata(metadataRef)
   }
   return filterOptionsForCaller(metadata, caller.record)
 })
 
 const voterFilterMetadataPath = 'metadata/voterFilterOptions'
+const voterFilterMetadataVersion = 2
 const unknownFilterScope = '__unknown__'
 
 function emptyVoterFilterBucket(): VoterFilterBucket {
@@ -1124,7 +1126,7 @@ function readVoterFilterBucket(value: unknown): VoterFilterBucket {
 }
 
 function readVoterFilterMetadata(value: unknown): VoterFilterMetadata {
-  const metadata: VoterFilterMetadata = { byWard: {}, needsRebuild: false }
+  const metadata: VoterFilterMetadata = { byWard: {}, version: 0, needsRebuild: false }
   if (!value || typeof value !== 'object') return metadata
   const input = value as Record<string, unknown>
   const rawByWard = input.byWard
@@ -1138,6 +1140,7 @@ function readVoterFilterMetadata(value: unknown): VoterFilterMetadata {
       metadata.byWard[wardId] = booths
     })
   }
+  metadata.version = typeof input.version === 'number' ? input.version : 0
   metadata.needsRebuild = input.needsRebuild === true
   metadata.updatedAt = input.updatedAt
   return metadata
@@ -1182,6 +1185,7 @@ async function mergeVoterFilterMetadata(wardId: string, boothId: string, additio
     metadata.byWard[wardId] = ward
     transaction.set(metadataRef, {
       byWard: metadata.byWard,
+      version: voterFilterMetadataVersion,
       // A delete or manual scope edit may have marked the document dirty.
       // Keep that flag so the next read performs a complete rebuild instead
       // of accidentally returning stale values.
@@ -1204,7 +1208,7 @@ async function rebuildVoterFilterMetadata(metadataRef: FirebaseFirestore.Documen
     db.collection('voters').select('wardId', 'boothId', 'area', 'division', 'sourcePdfName', 'sourcePdfId', 'uploadedByName', 'uploadedBy').get(),
     db.collection('sourcePdfs').select('wardId', 'boothId', 'area', 'areas', 'division', 'divisions', 'originalFileName', 'uploadedByName').get(),
   ])
-  const metadata: VoterFilterMetadata = { byWard: {}, needsRebuild: false }
+  const metadata: VoterFilterMetadata = { byWard: {}, version: voterFilterMetadataVersion, needsRebuild: false }
   voterSnapshot.docs.forEach((item) => {
     const record = voterFromFirestore(item.id, item.data())
     if (!record.wardId || !record.boothId) return
@@ -1219,7 +1223,7 @@ async function rebuildVoterFilterMetadata(metadataRef: FirebaseFirestore.Documen
     ward[source.boothId] = mergeVoterFilterBucket(ward[source.boothId] ?? emptyVoterFilterBucket(), filterBucketFromSource(source))
     metadata.byWard[source.wardId] = ward
   })
-  await metadataRef.set({ byWard: metadata.byWard, needsRebuild: false, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+  await metadataRef.set({ byWard: metadata.byWard, version: voterFilterMetadataVersion, needsRebuild: false, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
   return metadata
 }
 
@@ -1337,7 +1341,7 @@ async function rebuildDashboardStats() {
   ])
   const wardCounts: Record<string, DashboardScopeCount> = {}
   const boothCounts: Record<string, DashboardScopeCount> = {}
-  const metadata: VoterFilterMetadata = { byWard: {}, needsRebuild: false }
+  const metadata: VoterFilterMetadata = { byWard: {}, version: voterFilterMetadataVersion, needsRebuild: false }
   const voterEntries = voterSnapshot.docs.map((item) => ({ ref: item.ref, raw: item.data(), record: voterFromFirestore(item.id, item.data()) }))
   const voters = voterEntries.map((entry) => entry.record)
   const houseCounts = new Map<string, number>()
@@ -1421,7 +1425,7 @@ async function rebuildDashboardStats() {
     db.doc('stats/summary').set({ ...summary, houseIndexDirty: false, updatedAt: FieldValue.serverTimestamp() }),
     db.doc('stats/wardCounts').set({ counts: wardCounts, updatedAt: FieldValue.serverTimestamp() }),
     db.doc('stats/boothCounts').set({ counts: boothCounts, updatedAt: FieldValue.serverTimestamp() }),
-    db.doc(voterFilterMetadataPath).set({ byWard: metadata.byWard, needsRebuild: false, updatedAt: FieldValue.serverTimestamp() }),
+    db.doc(voterFilterMetadataPath).set({ byWard: metadata.byWard, version: voterFilterMetadataVersion, needsRebuild: false, updatedAt: FieldValue.serverTimestamp() }),
   ])
   return summary
 }
