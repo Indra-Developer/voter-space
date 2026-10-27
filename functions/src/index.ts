@@ -11,7 +11,7 @@ import { onObjectFinalized } from 'firebase-functions/v2/storage'
 import { onTaskDispatched } from 'firebase-functions/v2/tasks'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import * as logger from 'firebase-functions/logger'
-import { extractVoterCardsFromPdf, type CoverAreaRow, type ExtractedVoterCard } from './pdf-card-importer.js'
+import { extractTextFromImageBuffer, extractTextFromPdf, extractVoterCardsFromPdf, type CoverAreaRow, type ExtractedVoterCard } from './pdf-card-importer.js'
 import { buildVoterExport, type ExportFormat, type ExportVoterRecord } from './voter-export.js'
 
 if (!getApps().length) initializeApp()
@@ -92,6 +92,7 @@ type VoterRecord = {
 }
 type VoterFilters = {
   search?: unknown
+  targetedJobId?: unknown
   sourcePdfId?: unknown
   name?: unknown
   doorNumber?: unknown
@@ -132,6 +133,30 @@ type ExportJobRecord = {
   createdAt?: unknown
   updatedAt?: unknown
   expiresAt?: unknown
+  completedAt?: unknown
+}
+type TargetedImportStatus = 'queued' | 'processing' | 'review' | 'ready' | 'merging' | 'merged' | 'failed'
+type TargetedSourceFile = { name: string; storagePath: string }
+type TargetedImportJob = {
+  ownerUid: string
+  wantedFileName: string
+  wantedStoragePath: string
+  sourceFiles: TargetedSourceFile[]
+  doorNumbers: string[]
+  status: TargetedImportStatus
+  stage: string
+  progress: number
+  matchedCount: number
+  extractedCount: number
+  pageCount: number
+  mergedCount?: number
+  wardId?: string
+  boothId?: string
+  area?: string
+  division?: string
+  errorMessage?: string
+  createdAt?: unknown
+  updatedAt?: unknown
   completedAt?: unknown
 }
 type DashboardScopeCount = {
@@ -250,6 +275,7 @@ type ImportRowRecord = {
   voterCardImagePath?: string
   pageNumber?: number
   cardPosition?: number
+  sourceFileName?: string
   updatedAt?: unknown
   updatedByName?: string
 }
@@ -727,6 +753,7 @@ export const getDailySurveySummary = onCall({ region, timeoutSeconds: 120, memor
 type DirectQueryPlan = { query?: FirebaseFirestore.Query; empty?: boolean }
 
 function buildDirectVoterQuery(user: UserRecord, filters: VoterFilters): DirectQueryPlan | undefined {
+  if (plainString(filters.targetedJobId)) return undefined
   let query: FirebaseFirestore.Query = db.collection('voters')
   let hasDirectFilter = false
   let hasScopeInFilter = false
@@ -1777,6 +1804,258 @@ export const createPdfImport = onCall({ region }, async (request) => {
   await writeAudit(caller, 'pdf_import_created', sourceRef.id, originalFileName, { wardId: input.wardId, boothId: input.boothId })
   await scheduleDashboardStatsRefresh('pdf-created')
   return { id: sourceRef.id, storagePath, duplicate: false, status: source.status }
+})
+
+// Targeted extraction is deliberately separate from the production PDF import
+// flow. It scans only the selected door numbers and does not write unmatched
+// cards into the live voter register until the user explicitly merges them.
+export const createTargetedImportJob = onCall({ region }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  assertCanUseTargetedImport(caller.record)
+  const input = request.data && typeof request.data === 'object' ? request.data as { wantedFileName?: unknown; sourceFileNames?: unknown } : {}
+  const wantedFileName = safeTargetFileName(input.wantedFileName, true)
+  const sourceFileNames = Array.isArray(input.sourceFileNames) ? input.sourceFileNames.map((value) => safeTargetFileName(value, false)).filter(Boolean).slice(0, 50) : []
+  if (!sourceFileNames.length) throw new HttpsError('invalid-argument', 'Choose at least one source voter PDF.')
+  const jobRef = db.collection('targetedImports').doc()
+  const wantedStoragePath = `targeted-imports/${caller.uid}/${jobRef.id}/wanted/${wantedFileName}`
+  const sourceFiles = sourceFileNames.map((name, index) => ({ name, storagePath: `targeted-imports/${caller.uid}/${jobRef.id}/sources/${String(index + 1).padStart(3, '0')}-${name}` }))
+  const job: TargetedImportJob = {
+    ownerUid: caller.uid,
+    wantedFileName,
+    wantedStoragePath,
+    sourceFiles,
+    doorNumbers: [],
+    status: 'queued',
+    stage: 'Ready to read requested door numbers',
+    progress: 0,
+    matchedCount: 0,
+    extractedCount: 0,
+    pageCount: 0,
+  }
+  await jobRef.set({ ...cleanUndefined(job), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+  await writeAudit(caller, 'targeted_import_created', jobRef.id, wantedFileName, { sourceFileCount: sourceFiles.length })
+  return targetedJobForClient(jobRef.id, job)
+})
+
+export const prepareTargetedImportJob = onCall({ region }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  assertCanUseTargetedImport(caller.record)
+  const jobId = requiredString((request.data as { jobId?: unknown })?.jobId, 'Targeted import id')
+  const jobRef = db.doc(`targetedImports/${jobId}`)
+  const snapshot = await jobRef.get()
+  if (!snapshot.exists) throw new HttpsError('not-found', 'Targeted import was not found.')
+  const job = snapshot.data() as TargetedImportJob
+  assertTargetedJobOwner(job, caller.uid)
+  if (!['queued', 'failed'].includes(job.status)) return targetedJobForClient(jobId, job)
+  await ensureTargetedFilesExist(job)
+  await jobRef.update({ status: 'queued', stage: 'Reading the requested door-number list', progress: 4, errorMessage: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() })
+  await enqueueTargetedTask('prepareTargetedImportJobTask', { jobId })
+  return targetedJobForClient(jobId, { ...job, status: 'queued', stage: 'Reading the requested door-number list', progress: 4 })
+})
+
+export const startTargetedImportJob = onCall({ region }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  assertCanUseTargetedImport(caller.record)
+  const input = request.data && typeof request.data === 'object' ? request.data as { jobId?: unknown; doorNumbers?: unknown } : {}
+  const jobId = requiredString(input.jobId, 'Targeted import id')
+  const jobRef = db.doc(`targetedImports/${jobId}`)
+  const snapshot = await jobRef.get()
+  if (!snapshot.exists) throw new HttpsError('not-found', 'Targeted import was not found.')
+  const job = snapshot.data() as TargetedImportJob
+  assertTargetedJobOwner(job, caller.uid)
+  const doorNumbers = normalizeTargetDoorList(input.doorNumbers)
+  if (!doorNumbers.length) throw new HttpsError('invalid-argument', 'Add at least one door number before extraction.')
+  if (!['review', 'failed', 'ready'].includes(job.status)) return targetedJobForClient(jobId, job)
+  await ensureTargetedFilesExist(job)
+  await jobRef.update({ status: 'queued', stage: 'Finding matching voters in the source PDFs', progress: 2, doorNumbers, errorMessage: FieldValue.delete(), matchedCount: 0, extractedCount: 0, pageCount: 0, updatedAt: FieldValue.serverTimestamp() })
+  await enqueueTargetedTask('processTargetedImportJobTask', { jobId })
+  return targetedJobForClient(jobId, { ...job, status: 'queued', stage: 'Finding matching voters in the source PDFs', progress: 2, doorNumbers })
+})
+
+export const getTargetedImportJob = onCall({ region }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  assertCanUseTargetedImport(caller.record)
+  const jobId = requiredString((request.data as { jobId?: unknown })?.jobId, 'Targeted import id')
+  const snapshot = await db.doc(`targetedImports/${jobId}`).get()
+  if (!snapshot.exists) throw new HttpsError('not-found', 'Targeted import was not found.')
+  const job = snapshot.data() as TargetedImportJob
+  assertTargetedJobOwner(job, caller.uid)
+  return targetedJobForClient(jobId, job)
+})
+
+export const listTargetedImportRecords = onCall({ region, timeoutSeconds: 120 }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  assertCanUseTargetedImport(caller.record)
+  const input = request.data && typeof request.data === 'object' ? request.data as { jobId?: unknown; cursor?: unknown; pageSize?: unknown } : {}
+  const jobId = requiredString(input.jobId, 'Targeted import id')
+  const jobSnapshot = await db.doc(`targetedImports/${jobId}`).get()
+  if (!jobSnapshot.exists) throw new HttpsError('not-found', 'Targeted import was not found.')
+  assertTargetedJobOwner(jobSnapshot.data() as TargetedImportJob, caller.uid)
+  const pageSize = Math.min(Math.max(optionalInteger(input.pageSize) ?? 50, 1), 100)
+  const cursorId = plainString(input.cursor)
+  const collection = db.collection(`targetedImports/${jobId}/records`).orderBy(FieldPath.documentId())
+  const cursor = cursorId ? await db.doc(`targetedImports/${jobId}/records/${cursorId}`).get() : undefined
+  const snapshot = await (cursor?.exists ? collection.startAfter(cursor).limit(pageSize + 1) : collection.limit(pageSize + 1)).get()
+  const hasMore = snapshot.size > pageSize
+  const docs = snapshot.docs.slice(0, pageSize)
+  return { records: docs.map((item) => targetedRecordForClient(item.id, item.data() as ImportRowRecord)), nextCursor: hasMore ? docs.at(-1)?.id : undefined, hasMore }
+})
+
+export const mergeTargetedImportJob = onCall({ region, timeoutSeconds: 300 }, async (request) => {
+  const caller = await requireCaller(request.auth?.uid)
+  assertCanUseTargetedImport(caller.record)
+  const input = request.data && typeof request.data === 'object' ? request.data as { jobId?: unknown; wardId?: unknown; boothId?: unknown; area?: unknown; division?: unknown } : {}
+  const jobId = requiredString(input.jobId, 'Targeted import id')
+  const wardId = requiredString(input.wardId, 'Ward')
+  const boothId = requiredString(input.boothId, 'Booth')
+  const area = plainString(input.area)
+  const division = normalizeDivision(input.division)
+  const jobRef = db.doc(`targetedImports/${jobId}`)
+  const snapshot = await jobRef.get()
+  if (!snapshot.exists) throw new HttpsError('not-found', 'Targeted import was not found.')
+  const job = snapshot.data() as TargetedImportJob
+  assertTargetedJobOwner(job, caller.uid)
+  if (!['ready', 'merged'].includes(job.status)) throw new HttpsError('failed-precondition', 'Wait until matching voters are ready to merge.')
+  const rows = (await jobRef.collection('records').orderBy('createdAt', 'asc').get()).docs.map((item) => ({ id: item.id, row: item.data() as ImportRowRecord }))
+  if (!rows.length) throw new HttpsError('failed-precondition', 'No matching voters were found.')
+  await jobRef.update({ status: 'merging', stage: 'Adding matching voters to the register', progress: 5, wardId, boothId, area, division, updatedAt: FieldValue.serverTimestamp() })
+  let mergedCount = 0
+  for (const group of splitInto(rows, 250)) {
+    const batch = db.batch()
+    group.forEach(({ row }) => {
+      const identity = voterIdentity(row) || `targeted:${jobId}:${row.pageNumber}:${row.cardPosition}`
+      const voterRef = db.doc(`voters/v_${stableHash(identity)}`)
+      const fullName = safeImportedName(row.fullName) || 'Voter name needs review'
+      batch.set(voterRef, cleanUndefined({
+        identityKey: identity,
+        fullName,
+        relativeName: row.relativeName,
+        relationshipType: row.relationshipType,
+        age: row.age,
+        gender: row.gender,
+        doorNumber: normalizeDoorNumber(row.doorNumber),
+        doorNumberStatus: readDoorNumberStatus(undefined, normalizeDoorNumber(row.doorNumber)),
+        voterId: normalizeOfficialVoterId(row.voterId),
+        alternateIdentifier: normalizeAlternateIdentifier(row.alternateIdentifier),
+        mobile: normalizeMobile(row.mobile),
+        serialNumber: row.serialNumber,
+        assemblySerial: row.assemblySerial,
+        wardId,
+        boothId,
+        area,
+        division,
+        ...voterNormalizedFields({ doorNumber: normalizeDoorNumber(row.doorNumber), voterId: normalizeOfficialVoterId(row.voterId), area, division }),
+        sourcePdfId: `targeted-${jobId}`,
+        sourcePdfName: row.sourceFileName || job.sourceFiles.map((file) => file.name).join(', '),
+        voterCardImagePath: '',
+        pageNumber: row.pageNumber,
+        cardPosition: row.cardPosition,
+        rawText: row.rawText,
+        reviewStatus: 'reviewed',
+        needsReview: false,
+        uploadedBy: caller.uid,
+        uploadedByName: caller.record.fullName,
+        uploadedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }), { merge: true })
+    })
+    await batch.commit()
+    mergedCount += group.length
+    await jobRef.update({ progress: Math.min(96, 5 + Math.round((mergedCount / rows.length) * 90)), mergedCount, updatedAt: FieldValue.serverTimestamp() })
+  }
+  await jobRef.update({ status: 'merged', stage: 'Matching voters added to the register', progress: 100, mergedCount, completedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+  await markVoterFilterMetadataDirty()
+  await scheduleDashboardStatsRefresh('targeted-import-merged')
+  await writeAudit(caller, 'targeted_import_merged', jobId, `${mergedCount} matching voters`, { wardId, boothId, area, mergedCount })
+  return targetedJobForClient(jobId, { ...job, status: 'merged', stage: 'Matching voters added to the register', progress: 100, mergedCount, wardId, boothId, area, division })
+})
+
+export const prepareTargetedImportJobTask = onTaskDispatched<{ jobId: string }>({
+  region,
+  memory: '1GiB',
+  concurrency: 1,
+  maxInstances: 4,
+  timeoutSeconds: 1800,
+  retryConfig: { maxAttempts: 3, minBackoffSeconds: 30 },
+  rateLimits: { maxConcurrentDispatches: 4 },
+}, async (request) => {
+  const jobId = requiredString(request.data?.jobId, 'Targeted import id')
+  const jobRef = db.doc(`targetedImports/${jobId}`)
+  const claim = await claimTargetedJob(jobRef)
+  if (!claim) return
+  try {
+    const file = getStorage().bucket().file(claim.wantedStoragePath)
+    const [exists] = await file.exists()
+    if (!exists) throw new Error('The requested door-number file was not uploaded.')
+    const [bytes] = await file.download()
+    const text = claim.wantedFileName.toLocaleLowerCase().endsWith('.pdf')
+      ? await extractTextFromPdf(bytes, async (page, pages) => { await jobRef.update({ stage: `Reading door list page ${page} of ${pages}`, progress: Math.min(92, 10 + Math.round((page / pages) * 80)), updatedAt: FieldValue.serverTimestamp() }) })
+      : await extractTextFromImageBuffer(bytes)
+    const doorNumbers = parseTargetDoorNumbers(text)
+    if (!doorNumbers.length) throw new Error('No door numbers were detected. Add the door numbers manually and try again.')
+    await jobRef.update({ status: 'review', stage: 'Review the detected door numbers before extraction', progress: 100, doorNumbers, updatedAt: FieldValue.serverTimestamp() })
+  } catch (error) {
+    logger.error('Targeted door-number OCR failed', { jobId, error })
+    await jobRef.update({ status: 'failed', stage: 'Could not read the door-number list', progress: 0, errorMessage: userSafeError(error), updatedAt: FieldValue.serverTimestamp() })
+    throw error
+  }
+})
+
+export const processTargetedImportJobTask = onTaskDispatched<{ jobId: string }>({
+  region,
+  memory: '2GiB',
+  concurrency: 1,
+  maxInstances: 6,
+  timeoutSeconds: 1800,
+  retryConfig: { maxAttempts: 3, minBackoffSeconds: 60 },
+  rateLimits: { maxConcurrentDispatches: 6 },
+}, async (request) => {
+  const jobId = requiredString(request.data?.jobId, 'Targeted import id')
+  const jobRef = db.doc(`targetedImports/${jobId}`)
+  const claim = await claimTargetedJob(jobRef)
+  if (!claim) return
+  try {
+    const wanted = new Set(claim.doorNumbers.map(normalizeDoorNumber).filter(Boolean))
+    let extractedCount = 0
+    let matchedCount = 0
+    let pageCount = 0
+    for (const [sourceIndex, sourceFile] of claim.sourceFiles.entries()) {
+      let currentSourcePageCount = 1
+      const file = getStorage().bucket().file(sourceFile.storagePath)
+      const [exists] = await file.exists()
+      if (!exists) throw new Error(`Source PDF is missing from storage: ${sourceFile.name}`)
+      const [bytes] = await file.download()
+      const extraction = await extractVoterCardsFromPdf({
+        pdfBytes: bytes,
+        sourcePdfId: `targeted-${jobId}`,
+        scope: { wardId: '', boothId: '', area: '', division: '' },
+        allowEmpty: true,
+        persistCardImages: false,
+        onPageComplete: async (pageNumber, rows) => {
+          extractedCount += rows.length
+          const matching = rows.filter((row) => wanted.has(normalizeDoorNumber(row.doorNumber)))
+          matchedCount += matching.length
+          if (matching.length) await storeTargetedRows(jobRef, matching, sourceFile.name, sourceIndex)
+          const sourceProgress = (sourceIndex + pageNumber / currentSourcePageCount) / claim.sourceFiles.length
+          await jobRef.update({ stage: `Scanning ${sourceFile.name} · page ${pageNumber} of ${currentSourcePageCount}`, progress: Math.min(96, Math.max(4, Math.round(4 + sourceProgress * 92))), extractedCount, matchedCount, updatedAt: FieldValue.serverTimestamp() })
+        },
+        onProgress: async (pageNumber, pageTotal) => {
+          currentSourcePageCount = pageTotal
+          const sourceProgress = (sourceIndex + pageNumber / Math.max(1, pageTotal)) / claim.sourceFiles.length
+          await jobRef.update({ stage: `Scanning ${sourceFile.name} · page ${pageNumber} of ${pageTotal}`, progress: Math.min(96, Math.max(4, Math.round(4 + sourceProgress * 92))), pageCount: pageCount + pageTotal, updatedAt: FieldValue.serverTimestamp() })
+        },
+      })
+      pageCount += extraction.pageCount
+      await jobRef.update({ pageCount, extractedCount, matchedCount, updatedAt: FieldValue.serverTimestamp() })
+    }
+    const recordCount = (await jobRef.collection('records').count().get()).data().count
+    if (!recordCount) throw new Error('No voters matched the selected door numbers.')
+    await jobRef.update({ status: 'ready', stage: 'Matching voters are ready to review and merge', progress: 100, matchedCount: recordCount, extractedCount, pageCount, updatedAt: FieldValue.serverTimestamp(), completedAt: FieldValue.serverTimestamp() })
+  } catch (error) {
+    logger.error('Targeted voter extraction failed', { jobId, error })
+    await jobRef.update({ status: 'failed', stage: 'Targeted extraction failed', progress: 0, errorMessage: userSafeError(error), updatedAt: FieldValue.serverTimestamp() })
+    throw error
+  }
 })
 
 export const listPdfImports = onCall({ region }, async (request) => {
@@ -2996,6 +3275,100 @@ async function resetMissingSourcePdf(sourcePdfId: string) {
   })
 }
 
+function assertCanUseTargetedImport(user: UserRecord) {
+  if (user.role !== 'superAdmin') throw new HttpsError('permission-denied', 'Only the Super Admin can use targeted voter extraction.')
+}
+
+function assertTargetedJobOwner(job: TargetedImportJob, uid: string) {
+  if (job.ownerUid !== uid) throw new HttpsError('permission-denied', 'This targeted import does not belong to your account.')
+}
+
+function safeTargetFileName(value: unknown, allowImage: boolean) {
+  const name = plainString(value)
+  const lower = name.toLocaleLowerCase()
+  const allowed = lower.endsWith('.pdf') || (allowImage && /\.(?:jpe?g|png|webp|tiff?|gif|bmp)$/i.test(lower))
+  if (!allowed) throw new HttpsError('invalid-argument', allowImage ? 'Use a PDF or image for the wanted door-number list.' : 'Source files must be PDFs.')
+  const extension = lower.slice(lower.lastIndexOf('.'))
+  const stem = name.slice(0, name.length - extension.length).replace(/[^a-zA-Z0-9._()-]+/g, '_').slice(0, 120) || 'targeted-file'
+  return `${stem}${extension}`
+}
+
+function normalizeTargetDoorList(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return uniqueSorted(value.flatMap((item) => plainString(item).split(/[\n,;|]+/)).map(normalizeDoorNumber).filter((item) => item && isValidDoorNumber(item)).slice(0, 5000))
+}
+
+function parseTargetDoorNumbers(text: string) {
+  const candidates = text.match(/(?:[A-Za-z]{1,5}\s*[-/]\s*)?\d+[A-Za-z]?(?:\s*[-/]\s*[A-Za-z0-9]+)*/g) ?? []
+  return uniqueSorted(candidates.map(normalizeDoorNumber).filter((item) => item && isValidDoorNumber(item)).slice(0, 5000))
+}
+
+async function ensureTargetedFilesExist(job: TargetedImportJob) {
+  const bucket = getStorage().bucket()
+  const [wantedExists] = await bucket.file(job.wantedStoragePath).exists()
+  if (!wantedExists) throw new HttpsError('failed-precondition', 'Upload the wanted door-number file first.')
+  const sourceExists = await Promise.all(job.sourceFiles.map(async (source) => (await bucket.file(source.storagePath).exists())[0]))
+  if (sourceExists.some((exists) => !exists)) throw new HttpsError('failed-precondition', 'Upload all source voter PDFs before starting extraction.')
+}
+
+async function claimTargetedJob(jobRef: FirebaseFirestore.DocumentReference) {
+  let claimed: TargetedImportJob | undefined
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(jobRef)
+    if (!snapshot.exists) return
+    const job = snapshot.data() as TargetedImportJob
+    if (job.status !== 'queued') return
+    claimed = job
+    transaction.update(jobRef, { status: 'processing', stage: 'Processing targeted voter extraction', progress: Math.max(2, job.progress || 0), errorMessage: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() })
+  })
+  return claimed
+}
+
+async function storeTargetedRows(jobRef: FirebaseFirestore.DocumentReference, rows: ExtractedVoterCard[], sourceFileName: string, sourceIndex: number) {
+  const values = rows.map((card) => ({ ...makeCardImportRow(card), sourceFileName }))
+  for (const group of splitInto(values, 250)) {
+    const batch = db.batch()
+    group.forEach((row) => {
+      const identity = voterIdentity(row) || `targeted:${sourceIndex}:${row.pageNumber}:${row.cardPosition}`
+      const recordId = `record-${stableHash(identity).slice(0, 40)}`
+      batch.set(jobRef.collection('records').doc(recordId), cleanUndefined({ ...row, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }), { merge: true })
+    })
+    await batch.commit()
+  }
+}
+
+function targetedJobForClient(id: string, job: TargetedImportJob) {
+  return {
+    id,
+    wantedFileName: job.wantedFileName,
+    sourceFiles: job.sourceFiles.map((file) => file.name),
+    wantedStoragePath: job.wantedStoragePath,
+    sourceStoragePaths: job.sourceFiles.map((file) => file.storagePath),
+    doorNumbers: job.doorNumbers,
+    status: job.status,
+    stage: job.stage,
+    progress: job.progress,
+    matchedCount: job.matchedCount,
+    extractedCount: job.extractedCount,
+    pageCount: job.pageCount,
+    mergedCount: job.mergedCount ?? 0,
+    wardId: job.wardId ?? '',
+    boothId: job.boothId ?? '',
+    area: job.area ?? '',
+    division: job.division ?? '',
+    errorMessage: job.errorMessage ?? '',
+  }
+}
+
+function targetedRecordForClient(id: string, row: ImportRowRecord) {
+  return { ...voterFromFirestore(id, row as unknown as Record<string, unknown>), sourceFileName: row.sourceFileName ?? '' }
+}
+
+async function enqueueTargetedTask(functionName: 'prepareTargetedImportJobTask' | 'processTargetedImportJobTask', data: { jobId: string }) {
+  const queue = getFunctions().taskQueue<{ jobId: string }>(`locations/${region}/functions/${functionName}`)
+  await queue.enqueue(data)
+}
+
 async function enqueueImportTask(functionName: 'processPdfImport' | 'applyPdfImport', data: { sourcePdfId: string }) {
   const queue = getFunctions().taskQueue<{ sourcePdfId: string }>(`locations/${region}/functions/${functionName}`)
   await queue.enqueue(data)
@@ -3150,6 +3523,20 @@ function exportSurveyStatus(record: VoterRecord, surveyDate: string) {
 }
 
 async function scanExportVoters(user: UserRecord, filters: VoterFilters, onBatch: (records: VoterRecord[]) => Promise<void>) {
+  const targetedJobId = plainString(filters.targetedJobId)
+  if (targetedJobId) {
+    assertCanUseTargetedImport(user)
+    const snapshot = await db.doc(`targetedImports/${targetedJobId}`).get()
+    if (!snapshot.exists) throw new HttpsError('not-found', 'The targeted import was not found.')
+    const job = snapshot.data() as TargetedImportJob
+    if (!['ready', 'merged'].includes(job.status)) throw new HttpsError('failed-precondition', 'The targeted voters are not ready for export.')
+    const records = await snapshot.ref.collection('records').orderBy('createdAt', 'asc').get()
+    const voters = records.docs
+      .map((item) => voterFromFirestore(item.id, item.data()))
+      .filter((record) => matchesFilters(record, { ...filters, targetedJobId: undefined }))
+    for (const group of splitInto(voters, 500)) await onBatch(group)
+    return
+  }
   const directQuery = buildDirectVoterQuery(user, filters)
   if (directQuery?.empty) return
   if (directQuery?.query) {

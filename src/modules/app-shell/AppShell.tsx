@@ -268,6 +268,7 @@ function ProfileCard({ language, onSignOut, profile }: { language: AppLanguage; 
 function isNavigationAllowed(key: NavigationKey, role: ShellProfile['role'], permissions?: UserPermissions) {
   if (!role || role === 'superAdmin') return true
   if (role === 'admin') {
+    if (key === 'targeted') return false
     if (key === 'directory') return false
     if (key === 'audit') return permissions?.audit ?? false
     if (key === 'upload') return permissions?.upload ?? false

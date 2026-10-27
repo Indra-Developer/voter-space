@@ -36,6 +36,7 @@ export type VoterRecord = {
 
 export type VoterFilters = {
   search: string
+  targetedJobId?: string
   sourcePdfId?: string
   name: string
   doorNumber: string

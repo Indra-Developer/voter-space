@@ -60,6 +60,7 @@ export async function extractVoterCardsFromPdf({
   scope,
   startPage = 1,
   allowEmpty = false,
+  persistCardImages = true,
   onPageComplete,
   onProgress,
 }: {
@@ -68,6 +69,7 @@ export async function extractVoterCardsFromPdf({
   scope: ScopeDefaults
   startPage?: number
   allowEmpty?: boolean
+  persistCardImages?: boolean
   onPageComplete?: (pageNumber: number, rows: ExtractedVoterCard[]) => Promise<void>
   onProgress?: (pageNumber: number, pageCount: number, cardCount: number) => Promise<void>
 }): Promise<PdfCardExtractionResult> {
@@ -153,27 +155,29 @@ export async function extractVoterCardsFromPdf({
       const pageRows = await Promise.all(cards.map(async (card, index) => {
         const imagePath = `voter-cards/${sourcePdfId}/p${String(pageNumber).padStart(4, '0')}-c${String(card.cardPosition).padStart(3, '0')}.png`
         const thumbnailPath = `voter-card-thumbnails/${sourcePdfId}/p${String(pageNumber).padStart(4, '0')}-c${String(card.cardPosition).padStart(3, '0')}.jpg`
-        await Promise.all([
-          bucket.file(imagePath).save(card.buffer, {
-            resumable: false,
-            contentType: 'image/png',
-            metadata: {
-              cacheControl: 'private, max-age=3600',
-              metadata: { sourcePdfId, pageNumber: String(pageNumber), cardPosition: String(card.cardPosition) },
-            },
-          }),
-          bucket.file(thumbnailPath).save(card.thumbnailBuffer, {
-            resumable: false,
-            contentType: 'image/jpeg',
-            metadata: {
-              cacheControl: 'private, max-age=86400',
-              metadata: { sourcePdfId, pageNumber: String(pageNumber), cardPosition: String(card.cardPosition) },
-            },
-          }),
-        ])
+        if (persistCardImages) {
+          await Promise.all([
+            bucket.file(imagePath).save(card.buffer, {
+              resumable: false,
+              contentType: 'image/png',
+              metadata: {
+                cacheControl: 'private, max-age=3600',
+                metadata: { sourcePdfId, pageNumber: String(pageNumber), cardPosition: String(card.cardPosition) },
+              },
+            }),
+            bucket.file(thumbnailPath).save(card.thumbnailBuffer, {
+              resumable: false,
+              contentType: 'image/jpeg',
+              metadata: {
+                cacheControl: 'private, max-age=86400',
+                metadata: { sourcePdfId, pageNumber: String(pageNumber), cardPosition: String(card.cardPosition) },
+              },
+            }),
+          ])
+        }
         const parsed = parsedRows[index]
         const retry = retryValues.get(index)
-        return { ...parsed, fullName: retry?.fullName || parsed.fullName, doorNumber: retry?.doorNumber || parsed.doorNumber, voterCardImagePath: imagePath }
+        return { ...parsed, fullName: retry?.fullName || parsed.fullName, doorNumber: retry?.doorNumber || parsed.doorNumber, voterCardImagePath: persistCardImages ? imagePath : '' }
       }))
       rows.push(...pageRows)
       await onPageComplete?.(pageNumber, pageRows)
@@ -188,6 +192,52 @@ export async function extractVoterCardsFromPdf({
     throw new Error('No voter cards were detected. Use a voter-list PDF with clear black card borders like the original Ward Desk PDF.')
   }
   return { rows, pageCount: pdf.numPages, coverRows }
+}
+
+/**
+ * OCR a user-supplied image or a rendered PDF page without creating voter
+ * records. Targeted extraction uses this for the requested door-number list.
+ */
+export async function extractTextFromImageBuffer(buffer: Buffer) {
+  const vision = new ImageAnnotatorClient()
+  try {
+    const result = await recognizeImages([buffer], vision, ['te', 'en'])
+    return result[0]?.text ?? ''
+  } finally {
+    await vision.close().catch(() => undefined)
+  }
+}
+
+export async function extractTextFromPdf(pdfBytes: Buffer, onProgress?: (pageNumber: number, pageCount: number) => Promise<void>) {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const loadingTask = pdfjs.getDocument({
+    data: new Uint8Array(pdfBytes),
+    disableFontFace: true,
+    useSystemFonts: true,
+  })
+  const pdf = await loadingTask.promise
+  const vision = new ImageAnnotatorClient()
+  const texts: string[] = []
+  try {
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber)
+      const viewport = page.getViewport({ scale: 2.5 })
+      const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height))
+      const context = canvas.getContext('2d')
+      await page.render({ canvas: canvas as never, canvasContext: context as never, viewport }).promise
+      const buffer = canvas.toBuffer('image/png')
+      canvas.width = 1
+      canvas.height = 1
+      page.cleanup()
+      const result = await recognizeImages([buffer], vision, ['te', 'en'])
+      if (result[0]?.text) texts.push(result[0].text)
+      await onProgress?.(pageNumber, pdf.numPages)
+    }
+  } finally {
+    await loadingTask.destroy()
+    await vision.close().catch(() => undefined)
+  }
+  return texts.join('\n')
 }
 
 export function detectCardRects(imageData: { data: Uint8ClampedArray }, width: number, height: number): CardRect[] {

@@ -18,6 +18,7 @@ const DashboardPage = lazy(() => import('./modules/dashboard/DashboardPage').the
 
 const VoterRegisterPage = lazy(() => import('./modules/voter-register/VoterRegisterPage').then((module) => ({ default: module.VoterRegisterPage })))
 const PdfImportPage = lazy(() => import('./modules/pdf-import/PdfImportPage').then((module) => ({ default: module.PdfImportPage })))
+const TargetedImportPage = lazy(() => import('./modules/targeted-import/TargetedImportPage').then((module) => ({ default: module.TargetedImportPage })))
 
 const languageStorageKey = 'voter-space-language'
 const themeStorageKey = 'voter-space-theme'
@@ -81,6 +82,7 @@ function App() {
   const isReports = activeNavigation === 'reports'
   const isVoterRegister = activeNavigation === 'register'
   const isPdfUpload = activeNavigation === 'upload'
+  const isTargeted = activeNavigation === 'targeted'
   const navigateTo = (key: NavigationKey, search = '') => {
     const path = pathForNavigation(key)
     const normalizedSearch = search && !search.startsWith('?') ? `?${search}` : search
@@ -116,7 +118,7 @@ function App() {
       theme={theme}
       >
         <Suspense fallback={<AppBootstrapScreen title={t.nav[activeNavigation]} />}>
-          {isUserManagement ? <UserManagementPage language={language} session={session} /> : isUserDirectory ? <UserDirectoryPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isReports ? <DailyReportsPage language={language} onNavigate={navigateTo} session={session} /> : isVoterRegister ? <VoterRegisterPage language={language} session={session} /> : isPdfUpload ? <PdfImportPage language={language} session={session} /> : isDashboard ? <DashboardPage language={language} onNavigate={navigateTo} session={session} /> : <>
+          {isUserManagement ? <UserManagementPage language={language} session={session} /> : isUserDirectory ? <UserDirectoryPage language={language} session={session} /> : isProfile ? <ProfilePage language={language} session={session} /> : isAudit ? <AuditLogPage language={language} session={session} /> : isReports ? <DailyReportsPage language={language} onNavigate={navigateTo} session={session} /> : isVoterRegister ? <VoterRegisterPage language={language} session={session} /> : isPdfUpload ? <PdfImportPage language={language} session={session} /> : isTargeted ? <TargetedImportPage language={language} session={session} /> : isDashboard ? <DashboardPage language={language} onNavigate={navigateTo} session={session} /> : <>
             <section className="page-intro">
               <p>{t.page.section}</p>
               <h2>{isDashboard ? t.page.dashboardTitle : t.nav[activeNavigation]}</h2>
@@ -154,6 +156,7 @@ function AppBootstrapScreen({ title }: { title: string }) {
 function isRouteAllowed(key: NavigationKey, role: AppSessionRole, permissions: { upload: boolean; audit: boolean; reports: boolean }) {
   if (role === 'superAdmin') return true
   if (role === 'admin') {
+    if (key === 'targeted') return false
     if (key === 'directory') return false
     if (key === 'audit') return permissions.audit
     if (key === 'upload') return permissions.upload

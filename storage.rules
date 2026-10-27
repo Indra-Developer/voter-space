@@ -49,6 +49,16 @@ service firebase.storage {
       allow read, delete: if false;
     }
 
+    // Targeted extraction is a Super Admin-only staging area. Files are read
+    // by the trusted OCR task and are never exposed directly to the browser.
+    match /targeted-imports/{ownerUid}/{jobId}/{allPaths=**} {
+      allow create, update: if signedIn() && currentUser().status == 'active' &&
+        currentUser().role == 'superAdmin' && ownerUid == request.auth.uid &&
+        request.resource.size < 250 * 1024 * 1024 &&
+        request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp|tiff|gif|bmp)');
+      allow read, delete: if false;
+    }
+
     // OCR files and voter-card crops are created only by the trusted server.
     match /ocr-output/{allPaths=**} { allow read, write: if false; }
     match /voter-cards/{allPaths=**} { allow read, write: if false; }

@@ -8,6 +8,7 @@ export type NavigationKey =
   | 'dashboard'
   | 'register'
   | 'upload'
+  | 'targeted'
   | 'users'
   | 'directory'
   | 'audit'
