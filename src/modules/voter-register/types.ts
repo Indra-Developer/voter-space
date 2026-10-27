@@ -67,6 +67,7 @@ export type VoterFilterOptions = {
   wards: string[]
   booths: string[]
   boothsByWard?: Record<string, string[]>
+  divisionsByWard?: Record<string, string[]>
   areas: string[]
   divisions: string[]
   sourcePdfs: string[]

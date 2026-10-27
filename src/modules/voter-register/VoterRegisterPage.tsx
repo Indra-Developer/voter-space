@@ -55,7 +55,7 @@ const voterUi = {
 export function VoterRegisterPage({ language, session }: { language: AppLanguage; session: AppSession }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [records, setRecords] = useState<VoterRecord[]>()
-  const [options, setOptions] = useState<VoterFilterOptions>({ wards: [], booths: [], boothsByWard: {}, areas: [], divisions: [], sourcePdfs: [], uploaders: [] })
+  const [options, setOptions] = useState<VoterFilterOptions>({ wards: [], booths: [], boothsByWard: {}, divisionsByWard: {}, areas: [], divisions: [], sourcePdfs: [], uploaders: [] })
   const [filters, setFilters] = useState<VoterFilters>(emptyVoterFilters)
   const [showFilters, setShowFilters] = useState(false)
   const [showMoreFilters, setShowMoreFilters] = useState(false)
@@ -209,6 +209,7 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
   const filteredRecords = useMemo(() => records ?? [], [records])
   const doorGroups = useMemo(() => groupByDoor(filteredRecords), [filteredRecords])
   const boothOptions = useMemo(() => filters.wardId ? (options.boothsByWard?.[filters.wardId] ?? []) : options.booths, [filters.wardId, options.booths, options.boothsByWard])
+  const divisionOptions = useMemo(() => filters.wardId ? (options.divisionsByWard?.[filters.wardId] ?? []) : options.divisions, [filters.wardId, options.divisions, options.divisionsByWard])
 
   const updateFilter = <Key extends keyof VoterFilters>(key: Key, value: VoterFilters[Key]) => {
     dataRequestVersion.current += 1
@@ -216,7 +217,9 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
     setNextCursor(undefined)
     setHasMore(false)
     setLoadMoreError(undefined)
-    setFilters((current) => ({ ...current, [key]: value }))
+    setFilters((current) => key === 'wardId'
+      ? { ...current, wardId: value as string, boothId: '', division: '' }
+      : { ...current, [key]: value })
   }
   const clearFilters = () => {
     dataRequestVersion.current += 1
@@ -322,7 +325,7 @@ export function VoterRegisterPage({ language, session }: { language: AppLanguage
         <NativeFilterSelect icon={<MapIcon size={20} />} label={t.area} value={filters.area} options={options.areas} anyLabel={t.any} onChange={(value) => updateFilter('area', value)} />
       </div>
       {view === 'door' ? <div className="grid grid-cols-2 gap-2 border-t border-border pt-3 sm:grid-cols-4 sm:gap-3"><NativeFilterSelect label={t.houseMembers} value={filters.houseMemberCount ?? ''} options={houseMemberFilterOptions(t.members)} anyLabel={t.any} onChange={(value) => updateFilter('houseMemberCount', value)} /></div> : null}
-      {showMoreFilters ? <div className="grid grid-cols-3 gap-2 border-t border-border pt-3 sm:gap-3"><NativeFilterSelect label={t.division} value={filters.division} options={options.divisions} anyLabel={t.any} onChange={(value) => updateFilter('division', value)} /><NativeFilterSelect label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} onChange={(value) => updateFilter('sourcePdf', value)} /><NativeFilterSelect label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} onChange={(value) => updateFilter('uploadedBy', value)} /></div> : null}
+      {showMoreFilters ? <div className="grid grid-cols-3 gap-2 border-t border-border pt-3 sm:gap-3"><NativeFilterSelect label={t.division} value={filters.division} options={divisionOptions} anyLabel={t.any} onChange={(value) => updateFilter('division', value)} /><NativeFilterSelect label={t.source} value={filters.sourcePdf} options={options.sourcePdfs} anyLabel={t.any} onChange={(value) => updateFilter('sourcePdf', value)} /><NativeFilterSelect label={t.uploadedBy} value={filters.uploadedBy} options={options.uploaders} anyLabel={t.any} onChange={(value) => updateFilter('uploadedBy', value)} /></div> : null}
     </section> : null}
 
     {records === undefined && !loadError ? <VoterRegisterSkeleton /> : null}

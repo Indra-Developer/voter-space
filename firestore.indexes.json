@@ -64,6 +64,23 @@
       "collectionGroup": "voters",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "division", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "voters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "boothId", "order": "ASCENDING" },
+        { "fieldPath": "division", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "voters",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "boothId", "order": "ASCENDING" },
         { "fieldPath": "area", "order": "ASCENDING" },
         { "fieldPath": "uploadedAt", "order": "ASCENDING" }

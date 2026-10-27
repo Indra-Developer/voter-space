@@ -9,6 +9,9 @@ export type ExportFormat = 'excel' | 'pdf' | 'csv'
 export type ExportVoterRecord = {
   fullName: string
   doorNumber: string
+  wardId: string
+  boothId: string
+  division: string
   area: string
   voterId: string
   serialNumber: string
@@ -17,7 +20,7 @@ export type ExportVoterRecord = {
   surveyReason: string
 }
 
-const columns = ['S.No', 'Door No & Number of Voters', 'Area', 'Name', 'Voter ID', 'Ward Serial', 'Mobile Number', 'Survey Status', 'Survey Reason']
+const columns = ['S.No', 'Door No & Number of Voters', 'Ward', 'Polling Booth', 'Division', 'Area', 'Name', 'Voter ID', 'Ward Serial', 'Mobile Number', 'Survey Status', 'Survey Reason']
 
 export async function buildVoterExport(format: ExportFormat, records: ExportVoterRecord[], onProgress?: (progress: number) => Promise<void>) {
   const ordered = sortVoters(records)
@@ -41,6 +44,9 @@ function buildExcel(records: ExportVoterRecord[]) {
   sheet['!cols'] = [
     { wch: 7 },
     { wch: 26 },
+    { wch: 10 },
+    { wch: 16 },
+    { wch: 14 },
     { wch: 24 },
     { wch: 34 },
     { wch: 24 },
@@ -50,7 +56,7 @@ function buildExcel(records: ExportVoterRecord[]) {
     { wch: 36 },
   ]
   sheet['!rows'] = [{ hpt: 26 }, ...records.map(() => ({ hpt: 22 }))]
-  sheet['!autofilter'] = { ref: sheet['!ref'] ?? 'A1:G1' }
+  sheet['!autofilter'] = { ref: sheet['!ref'] ?? 'A1:L1' }
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, sheet, 'Voters')
   return Buffer.from(XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer', compression: true }))
@@ -90,7 +96,7 @@ function renderPdfPage(records: ExportVoterRecord[], startIndex: number, total: 
   const top = 62
   const headerHeight = 44
   const rowHeight = 62
-  const columnWidths = [54, 190, 165, 260, 150, 95, 110, 115, 261]
+  const columnWidths = [48, 150, 75, 100, 85, 155, 220, 140, 90, 100, 100, 137]
   let x = 0
   columns.forEach((column, index) => {
     context.fillStyle = '#123f3b'
@@ -104,7 +110,7 @@ function renderPdfPage(records: ExportVoterRecord[], startIndex: number, total: 
     const values = exportRow(record, startIndex + rowIndex, doorCounts)
     let cellX = 0
     values.forEach((value, cellIndex) => {
-      context.fillStyle = cellIndex === 4 ? '#fff5c9' : cellIndex === 7 ? '#e8f7ed' : '#ffffff'
+      context.fillStyle = cellIndex === 7 ? '#fff5c9' : cellIndex === 10 ? '#e8f7ed' : '#ffffff'
       context.fillRect(cellX, top + headerHeight + rowIndex * rowHeight, columnWidths[cellIndex], rowHeight)
       context.strokeStyle = '#bfd0cd'
       context.lineWidth = 1
@@ -185,7 +191,7 @@ function scriptRuns(value: string) {
 
 function exportRow(record: ExportVoterRecord, index: number, doorCounts: Map<string, number>) {
   const door = record.doorNumber || '—'
-  return [String(index + 1), `${door} (Voters: ${doorCounts.get(door) ?? 0})`, record.area || '—', record.fullName || '—', record.voterId || 'Missing / Verification required', record.serialNumber || '—', record.mobile || '—', record.surveyStatus || 'Pending', record.surveyReason || '—']
+  return [String(index + 1), `${door} (Voters: ${doorCounts.get(door) ?? 0})`, record.wardId || '—', record.boothId || '—', record.division || '—', record.area || '—', record.fullName || '—', record.voterId || 'Missing / Verification required', record.serialNumber || '—', record.mobile || '—', record.surveyStatus || 'Pending', record.surveyReason || '—']
 }
 
 function createDoorCounts(records: ExportVoterRecord[]) {

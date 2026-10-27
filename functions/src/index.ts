@@ -810,6 +810,10 @@ function buildDirectVoterQuery(user: UserRecord, filters: VoterFilters): DirectQ
   // Ward/Booth/Source-PDF scope is already selected, keep that as the primary
   // query and apply the remaining filters in the same server request. This
   // keeps the number of required composite indexes small and predictable.
+  // A selected division is an exact database value. Keep it in the server
+  // query even when a Ward/Booth scope is already present so filtered lists,
+  // counts, and exports all operate on only that division.
+  if (requestedDivision) addWhere('division', '==', requestedDivision)
   const hasPrimaryScope = hasDirectFilter
   if (!hasPrimaryScope) {
     if (requestedArea) addWhere('area', '==', requestedArea)
@@ -842,7 +846,7 @@ function canUseDirectVoterCount(filters: VoterFilters) {
   // These fields can be applied after a Ward/Booth/Source-PDF query. Do not
   // use a partial Firestore count in that case, because it would count the
   // broader query and ignore the remaining filter.
-  const postFilterFields = ['area', 'division', 'sourcePdf', 'uploadedBy'] as const
+  const postFilterFields = ['area', 'sourcePdf', 'uploadedBy'] as const
   if (postFilterFields.some((field) => plainString(filters[field]))) return false
   if (plainString(filters.sourcePdf) && !plainString(filters.sourcePdf).toLocaleLowerCase().endsWith('.pdf')) return false
   if (plainString(filters.reviewStatus) || plainString(filters.needsReview)) return false
@@ -1258,6 +1262,7 @@ function filterOptionsForCaller(metadata: VoterFilterMetadata, user: UserRecord)
   const wards: string[] = []
   const booths: string[] = []
   const boothsByWard: Record<string, string[]> = {}
+  const divisionsByWard: Record<string, string[]> = {}
   const areas: string[] = []
   const divisions: string[] = []
   const sourcePdfs: string[] = []
@@ -1267,6 +1272,7 @@ function filterOptionsForCaller(metadata: VoterFilterMetadata, user: UserRecord)
     if (!wardId || wardId === unknownFilterScope) return
     if (user.role !== 'superAdmin' && !user.scope.wardIds.includes(wardId)) return
     const visibleBooths: string[] = []
+    const visibleDivisions: string[] = []
     Object.entries(rawBooths).forEach(([boothId, bucket]) => {
       if (!boothId || boothId === unknownFilterScope) return
       if (user.role !== 'superAdmin' && user.scope.boothIds.length > 0 && !user.scope.boothIds.includes(boothId)) return
@@ -1275,16 +1281,19 @@ function filterOptionsForCaller(metadata: VoterFilterMetadata, user: UserRecord)
       visibleBooths.push(boothId)
       areas.push(...bucket.areas)
       divisions.push(...bucket.divisions)
+      visibleDivisions.push(...bucket.divisions)
       sourcePdfs.push(...bucket.sourcePdfs)
       uploaders.push(...bucket.uploaders)
     })
     boothsByWard[wardId] = uniqueSorted(visibleBooths)
+    divisionsByWard[wardId] = uniqueSorted(visibleDivisions)
   })
 
   return {
     wards: uniqueSorted(wards),
     booths: uniqueSorted(booths),
     boothsByWard,
+    divisionsByWard,
     areas: uniqueSorted(areas),
     divisions: uniqueSorted(divisions),
     sourcePdfs: uniqueSorted(sourcePdfs),
@@ -3505,6 +3514,9 @@ async function collectExportMatches(user: UserRecord, filters: VoterFilters, onB
     records.push(...batch.map((record) => ({
       fullName: record.fullName,
       doorNumber: record.doorNumber,
+      wardId: record.wardId,
+      boothId: record.boothId,
+      division: record.division,
       area: record.area || record.division,
       voterId: record.voterId,
       serialNumber: record.serialNumber,
@@ -4232,8 +4244,8 @@ function matchesFilters(record: VoterRecord, filters: VoterFilters) {
     matches(record.serialNumber, filters.serialNumber) &&
     exact(record.wardId, filters.wardId) &&
     exact(record.boothId, filters.boothId) &&
-    matches(record.area, filters.area) &&
-    matches(record.division, filters.division) &&
+    exact(record.area, filters.area) &&
+    exact(record.division, filters.division) &&
     matches(`${record.sourcePdfName} ${record.sourcePdfId}`, filters.sourcePdf) &&
     (plainString(filters.reviewStatus) === '' || record.reviewStatus === filters.reviewStatus) &&
     (needsReview === undefined || record.needsReview === needsReview) &&
